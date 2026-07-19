@@ -4,10 +4,13 @@ import { useMemo, useState, useTransition } from "react";
 import {
   Armchair,
   Bike,
+  Check,
+  ChefHat,
   ConciergeBell,
   Loader2,
   Minus,
   Plus,
+  Search,
   ShoppingBag,
   Trash2,
   UtensilsCrossed,
@@ -23,9 +26,11 @@ import type {
   TableStatus,
 } from "@/lib/types";
 import { cn, formatLKR } from "@/lib/utils";
+import { useThermalPrint } from "@/hooks/useThermalPrint";
 import {
   addOrderItem,
   cancelOrder,
+  markKotPrinted,
   openOrder,
   removeOrderItem,
   setDeliveryStatus,
@@ -62,8 +67,10 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
   const [category, setCategory] = useState<MenuCategory>("mains");
+  const [menuQuery, setMenuQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const { printKot, printing, error: printError } = useThermalPrint();
 
   const selectedOrder = useMemo(
     () => orders.find((o) => o.id === selectedOrderId) ?? null,
@@ -282,7 +289,14 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
                     (selectedOrder.order_items ?? []).map((item) => (
                       <div key={item.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
                         <div className="min-w-0">
-                          <p className="truncate font-medium">{item.menu_items?.name}</p>
+                          <p className="flex items-center gap-1.5 truncate font-medium">
+                            {item.menu_items?.name}
+                            {item.kot_printed_at ? (
+                              <span title="Sent to kitchen">
+                                <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
+                              </span>
+                            ) : null}
+                          </p>
                           <p className="text-xs text-muted-foreground">
                             {item.quantity} × {formatLKR(Number(item.unit_price))}
                           </p>
@@ -310,6 +324,39 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
                     {formatLKR(Number(selectedOrder.total_amount))}
                   </span>
                 </div>
+
+                {/* KOT — send new items to the kitchen */}
+                {(() => {
+                  const pendingKot = (selectedOrder.order_items ?? []).filter(
+                    (i) => !i.kot_printed_at
+                  );
+                  return (
+                    <div className="space-y-1.5">
+                      <Button
+                        variant="secondary"
+                        className="w-full"
+                        disabled={pending || printing || pendingKot.length === 0}
+                        onClick={async () => {
+                          const sent = await printKot({
+                            order: selectedOrder,
+                            items: pendingKot,
+                          });
+                          if (sent) run(() => markKotPrinted(selectedOrder.id));
+                        }}
+                      >
+                        <ChefHat className="mr-2 h-4 w-4" />
+                        {printing
+                          ? "Printing KOT…"
+                          : pendingKot.length > 0
+                          ? `Send KOT — ${pendingKot.length} new item${pendingKot.length > 1 ? "s" : ""}`
+                          : "All items sent to kitchen"}
+                      </Button>
+                      {printError ? (
+                        <p className="text-xs text-destructive">{printError}</p>
+                      ) : null}
+                    </div>
+                  );
+                })()}
 
                 {/* Delivery pipeline */}
                 {selectedOrder.channel_type === "delivery" ? (
@@ -347,35 +394,52 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
 
                 {/* Menu grid */}
                 <div className="space-y-2 border-t pt-3">
-                  <div className="flex flex-wrap gap-1.5">
-                    {CATEGORIES.map((c) => (
-                      <Button
-                        key={c}
-                        size="sm"
-                        variant={category === c ? "default" : "outline"}
-                        onClick={() => setCategory(c)}
-                        className="capitalize"
-                      >
-                        {c}
-                      </Button>
-                    ))}
+                  <div className="relative">
+                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                    <Input
+                      value={menuQuery}
+                      onChange={(e) => setMenuQuery(e.target.value)}
+                      placeholder="Search the whole menu…"
+                      className="pl-8"
+                    />
                   </div>
-                  <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto">
-                    {menu
-                      .filter((m) => m.category === category)
-                      .map((m) => (
-                        <button
-                          key={m.id}
-                          disabled={pending}
-                          onClick={() => run(() => addOrderItem(selectedOrder.id, m.id, 1))}
-                          className="rounded-lg border p-2.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                  {menuQuery.trim() === "" ? (
+                    <div className="flex flex-wrap gap-1.5">
+                      {CATEGORIES.map((c) => (
+                        <Button
+                          key={c}
+                          size="sm"
+                          variant={category === c ? "default" : "outline"}
+                          onClick={() => setCategory(c)}
+                          className="capitalize"
                         >
-                          <p className="font-medium leading-snug">{m.name}</p>
-                          <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                            {formatLKR(Number(m.selling_price))}
-                          </p>
-                        </button>
+                          {c}
+                        </Button>
                       ))}
+                    </div>
+                  ) : null}
+                  <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto">
+                    {(menuQuery.trim() !== ""
+                      ? menu.filter((m) =>
+                          m.name.toLowerCase().includes(menuQuery.trim().toLowerCase())
+                        )
+                      : menu.filter((m) => m.category === category)
+                    ).map((m) => (
+                      <button
+                        key={m.id}
+                        disabled={pending}
+                        onClick={() => run(() => addOrderItem(selectedOrder.id, m.id, 1))}
+                        className="rounded-lg border p-2.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                      >
+                        <p className="font-medium leading-snug">{m.name}</p>
+                        <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+                          {formatLKR(Number(m.selling_price))}
+                          {menuQuery.trim() !== "" ? (
+                            <span className="ml-1.5 capitalize">· {m.category}</span>
+                          ) : null}
+                        </p>
+                      </button>
+                    ))}
                   </div>
                   <p className="text-xs text-muted-foreground">
                     Settle and print from the Billing screen — stock deducts automatically on settle.

@@ -104,6 +104,7 @@ export interface OrderItem {
   quantity: number;
   unit_price: number;
   line_total: number;
+  kot_printed_at: string | null;
   created_at: string;
   menu_items?: MenuItem; // joined
 }
@@ -167,6 +168,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/pms/reserve": ["admin", "manager", "receptionist"],
   "/pos/active": ["admin", "manager", "cashier", "kitchen_staff"],
   "/pos/billing": ["admin", "manager", "cashier"],
+  "/pos/menu": ["admin", "manager"],
   "/inventory": ["admin", "manager", "kitchen_staff"],
   "/inventory/recipes": ["admin", "manager"],
   "/finance/expenses": ["admin", "manager"],

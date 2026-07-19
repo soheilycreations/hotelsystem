@@ -37,6 +37,7 @@ const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }
 export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const { print, printing, error: printError } = useThermalPrint();
 
@@ -51,6 +52,16 @@ export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
   );
 
   function handleSettle(order: RestaurantOrder) {
+    const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at);
+    if (kotPending && confirmSettleId !== order.id) {
+      // First click with unsent items — warn, but allow settling on the next click.
+      setConfirmSettleId(order.id);
+      setFeedback(
+        "Some items on this bill were never sent to the kitchen (no KOT). Press settle again to proceed anyway."
+      );
+      return;
+    }
+    setConfirmSettleId(null);
     startTransition(async () => {
       const res = await settleOrder(order.id);
       setFeedback(
@@ -83,8 +94,8 @@ export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
   }
 
   async function handlePrint(order: RestaurantOrder) {
-    await print({ order, items: order.order_items ?? [] });
-    setFeedback(`Receipt for bill #${order.order_number} sent to printer.`);
+    const sent = await print({ order, items: order.order_items ?? [] });
+    if (sent) setFeedback(`Receipt for bill #${order.order_number} sent to printer.`);
   }
 
   if (orders.length === 0) {
@@ -134,7 +145,10 @@ export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
                 return (
                   <TableRow
                     key={order.id}
-                    onClick={() => setSelectedId(order.id)}
+                    onClick={() => {
+                      setSelectedId(order.id);
+                      setConfirmSettleId(null);
+                    }}
                     className={
                       "cursor-pointer " + (selected?.id === order.id ? "bg-muted/60" : "")
                     }
@@ -164,7 +178,14 @@ export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
           <CardHeader className="space-y-1">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Bill #{selected.order_number}</CardTitle>
-              <Badge variant="info">{CHANNEL_META[selected.channel_type].label}</Badge>
+              <div className="flex items-center gap-1.5">
+                {(selected.order_items ?? []).some((i) => !i.kot_printed_at) ? (
+                  <Badge variant="warning">KOT pending</Badge>
+                ) : (selected.order_items ?? []).length > 0 ? (
+                  <Badge variant="success">KOT sent</Badge>
+                ) : null}
+                <Badge variant="info">{CHANNEL_META[selected.channel_type].label}</Badge>
+              </div>
             </div>
             <p className="text-xs text-muted-foreground">
               Opened {formatDateTime(selected.created_at)}
@@ -200,9 +221,10 @@ export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
               <Button
                 onClick={() => handleSettle(selected)}
                 disabled={pending || Number(selected.total_amount) <= 0}
+                variant={confirmSettleId === selected.id ? "destructive" : "default"}
               >
                 <Wallet className="mr-2 h-4 w-4" />
-                Settle & complete
+                {confirmSettleId === selected.id ? "Settle anyway (KOT pending)" : "Settle & complete"}
               </Button>
               <Button
                 variant="outline"

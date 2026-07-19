@@ -95,13 +95,16 @@ export async function addOrderItem(
     if (!menuItem) return { ok: false, error: "Menu item not found." };
     if (!menuItem.is_available) return { ok: false, error: "That item is marked unavailable." };
 
-    // Merge with an existing line for the same item, if present
-    const { data: existing } = await supabase
+    // Merge only with a line that hasn't gone to the kitchen yet — once a line
+    // is on a KOT, further additions create a NEW line so the next KOT prints them.
+    const { data: existingLines } = await supabase
       .from("order_items")
       .select("id, quantity")
       .eq("order_id", orderId)
       .eq("menu_item_id", menuItemId)
-      .maybeSingle();
+      .is("kot_printed_at", null)
+      .limit(1);
+    const existing = existingLines?.[0];
 
     const { error } = existing
       ? await supabase
@@ -128,6 +131,24 @@ export async function removeOrderItem(orderItemId: string): Promise<ActionResult
     await assertRole(POS_ROLES);
     const supabase = await createClient();
     const { error } = await supabase.from("order_items").delete().eq("id", orderItemId);
+    if (error) return { ok: false, error: error.message };
+    revalidatePos();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** Stamp every pending line of an order as sent to the kitchen (call AFTER the KOT prints). */
+export async function markKotPrinted(orderId: string): Promise<ActionResult> {
+  try {
+    await assertRole(KITCHEN_ROLES);
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("order_items")
+      .update({ kot_printed_at: new Date().toISOString() })
+      .eq("order_id", orderId)
+      .is("kot_printed_at", null);
     if (error) return { ok: false, error: error.message };
     revalidatePos();
     return { ok: true };

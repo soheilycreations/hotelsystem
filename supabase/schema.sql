@@ -131,13 +131,14 @@ create table public.restaurant_orders (
 
 -- 3.8 Order line items
 create table public.order_items (
-  id           uuid primary key default gen_random_uuid(),
-  order_id     uuid not null references public.restaurant_orders (id) on delete cascade,
-  menu_item_id uuid not null references public.menu_items (id) on delete restrict,
-  quantity     int not null check (quantity > 0),
-  unit_price   numeric(12,2) not null check (unit_price >= 0),
-  line_total   numeric(14,2) generated always as (quantity * unit_price) stored,
-  created_at   timestamptz not null default now()
+  id             uuid primary key default gen_random_uuid(),
+  order_id       uuid not null references public.restaurant_orders (id) on delete cascade,
+  menu_item_id   uuid not null references public.menu_items (id) on delete restrict,
+  quantity       int not null check (quantity > 0),
+  unit_price     numeric(12,2) not null check (unit_price >= 0),
+  line_total     numeric(14,2) generated always as (quantity * unit_price) stored,
+  kot_printed_at timestamptz, -- null = not yet on a KOT; set when the kitchen ticket prints
+  created_at     timestamptz not null default now()
 );
 
 -- 3.9 Inventory items
@@ -200,6 +201,7 @@ create index idx_orders_booking            on public.restaurant_orders (booking_
 create index idx_orders_created_at         on public.restaurant_orders (created_at desc);
 create index idx_order_items_order         on public.order_items (order_id);
 create index idx_order_items_menu          on public.order_items (menu_item_id);
+create index idx_order_items_kot_pending   on public.order_items (order_id) where kot_printed_at is null;
 create index idx_recipe_menu               on public.menu_recipe_ingredients (menu_item_id);
 create index idx_recipe_inventory          on public.menu_recipe_ingredients (inventory_item_id);
 create index idx_inventory_low_stock       on public.inventory_items (quantity_in_stock, reorder_level);

@@ -9,8 +9,9 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Overview | `/` | Occupancy %, 14-day revenue vs expenses, live activity feed, channel mix |
 | Room Grid | `/pms/rooms` | Zone-grouped, color-coded room status board (vacant / occupied / dirty / maintenance) |
 | Reservations | `/pms/reserve` | Create bookings, check-in / check-out / cancel — folio auto-calculated |
-| POS Terminal | `/pos/active` | 4 channels: dine-in (table matrix), room service (charge to folio), takeaway, delivery (status pipeline) |
-| Billing | `/pos/billing` | Settle bills, void, mark table billed, **ESC/POS thermal receipt printing (WebUSB)** |
+| POS Terminal | `/pos/active` | 4 channels: dine-in (table matrix), room service (charge to folio), takeaway, delivery (status pipeline). Full-menu search + **Send KOT** (kitchen ticket for new items) |
+| Billing | `/pos/billing` | Settle bills, void, mark table billed, KOT-sent indicator (warns before settling un-KOT'd bills), **ESC/POS thermal receipt printing (WebUSB)** |
+| Menu Items | `/pos/menu` | Add/edit dishes, change prices, availability toggle (hides from POS instantly) |
 | Inventory | `/inventory` | Live stock table, low-stock highlighting, stock in/out adjustments with audit log |
 | Recipes & Costing | `/inventory/recipes` | Per-dish recipe editor — food cost, margin %, profit per plate |
 | Expenses | `/finance/expenses` | Expense logger (utilities / purchasing / salary / maintenance / marketing) |
@@ -61,6 +62,15 @@ Deploy to Vercel: push to GitHub → import → add the two env vars.
 
 Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epson TM-T series and compatible clones. On the first print, the browser asks you to pick the USB printer. Browsers without WebUSB fall back to `window.print()`.
 
+## KOT (Kitchen Order Ticket) workflow
+
+- Adding items to an order leaves them **KOT-pending** (no ✓ mark).
+- **Send KOT** on the order pad prints a price-free kitchen ticket with only the *new* items, then stamps them as sent (`order_items.kot_printed_at`).
+- Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
+- Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
+
+> **Upgrading an existing database?** Run `supabase/migration-001-kot.sql` in the SQL Editor — do **not** re-run the full `schema.sql`. Fresh installs get everything from `schema.sql` alone.
+
 ## RBAC matrix
 
 Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in the app.
@@ -71,6 +81,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 | `/pms/rooms`, `/pms/reserve` | ✅ | ✅ | ✅ | — | — |
 | `/pos/active` | ✅ | ✅ | — | ✅ | ✅ (delivery status only) |
 | `/pos/billing` | ✅ | ✅ | — | ✅ | — |
+| `/pos/menu` | ✅ | ✅ | — | — | — |
 | `/inventory` | ✅ | ✅ | — | — | ✅ |
 | `/inventory/recipes` | ✅ | ✅ | — | — | — |
 | `/finance/*` | ✅ | ✅ | — | — | — |

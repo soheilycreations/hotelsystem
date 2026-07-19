@@ -32,6 +32,51 @@ export interface ReceiptPayload {
   footerNote?: string;
 }
 
+/** Kitchen Order Ticket — only the pending items, no prices. */
+export interface KotPayload {
+  order: RestaurantOrder;
+  items: OrderItem[]; // pass ONLY the lines not yet sent to the kitchen
+  kotNumber?: number;
+}
+
+export function buildKotTicket({ order, items, kotNumber }: KotPayload): Uint8Array {
+  const bytes: number[] = [];
+
+  bytes.push(ESC, 0x40); // initialize
+  bytes.push(ESC, 0x61, 0x01); // center
+  bytes.push(ESC, 0x21, 0x30); // double height + width
+  bytes.push(...encode("*** KOT ***\n"));
+  bytes.push(ESC, 0x21, 0x00);
+  bytes.push(...line("="));
+
+  bytes.push(ESC, 0x61, 0x00); // left
+  bytes.push(
+    ...row(
+      `Order #${order.order_number}${kotNumber ? ` / KOT ${kotNumber}` : ""}`,
+      order.channel_type.replace("_", " ").toUpperCase()
+    )
+  );
+  if (order.restaurant_tables) bytes.push(...row("Table", order.restaurant_tables.table_number));
+  if (order.bookings) bytes.push(...row("Guest", order.bookings.guest_name));
+  bytes.push(...row("Time", new Date().toLocaleTimeString("en-GB")));
+  bytes.push(...line());
+
+  // Big, price-free lines the kitchen can read from a distance
+  bytes.push(ESC, 0x21, 0x10); // emphasized
+  for (const item of items) {
+    const name = item.menu_items?.name ?? "Item";
+    bytes.push(...encode(`${item.quantity} x ${name}\n`));
+  }
+  bytes.push(ESC, 0x21, 0x00);
+
+  bytes.push(...line("="));
+  bytes.push(ESC, 0x61, 0x01);
+  bytes.push(...encode(`${items.length} item(s) — fire now\n\n`));
+  bytes.push(GS, 0x56, 0x42, 0x10); // partial cut with feed
+
+  return new Uint8Array(bytes);
+}
+
 export function buildEscPosReceipt({
   order,
   items,
@@ -78,7 +123,8 @@ export function buildEscPosReceipt({
 }
 
 interface UseThermalPrintResult {
-  print: (payload: ReceiptPayload) => Promise<void>;
+  print: (payload: ReceiptPayload) => Promise<boolean>;
+  printKot: (payload: KotPayload) => Promise<boolean>;
   printing: boolean;
   error: string | null;
 }
@@ -87,12 +133,11 @@ export function useThermalPrint(): UseThermalPrintResult {
   const [printing, setPrinting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
-  const print = useCallback(async (payload: ReceiptPayload) => {
+  /** Returns true when the bytes were handed to a device (or fallback ran). */
+  const spool = useCallback(async (data: Uint8Array): Promise<boolean> => {
     setPrinting(true);
     setError(null);
     try {
-      const data = buildEscPosReceipt(payload);
-
       const nav = navigator as Navigator & {
         usb?: {
           requestDevice: (opts: { filters: { classCode: number }[] }) => Promise<USBLikeDevice>;
@@ -101,7 +146,7 @@ export function useThermalPrint(): UseThermalPrintResult {
 
       if (!nav.usb) {
         window.print(); // graceful fallback for browsers without WebUSB
-        return;
+        return true;
       }
 
       const device = await nav.usb.requestDevice({ filters: [{ classCode: 7 }] });
@@ -115,14 +160,26 @@ export function useThermalPrint(): UseThermalPrintResult {
 
       await device.transferOut(endpoint, data);
       await device.close();
+      return true;
     } catch (e) {
       setError(e instanceof Error ? e.message : "Printer connection failed");
+      return false;
     } finally {
       setPrinting(false);
     }
   }, []);
 
-  return { print, printing, error };
+  const print = useCallback(
+    (payload: ReceiptPayload) => spool(buildEscPosReceipt(payload)),
+    [spool]
+  );
+
+  const printKot = useCallback(
+    (payload: KotPayload) => spool(buildKotTicket(payload)),
+    [spool]
+  );
+
+  return { print, printKot, printing, error };
 }
 
 // Minimal WebUSB typing (kept local to avoid a global lib dependency)

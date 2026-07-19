@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import {
   BedDouble,
+  BookOpen,
   CalendarCheck,
   ChefHat,
   Hotel,
@@ -39,6 +40,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/pms/reserve", label: "Bookings", icon: CalendarCheck, group: "Property" },
   { href: "/pos/active", label: "POS Terminal", icon: UtensilsCrossed, group: "Restaurant" },
   { href: "/pos/billing", label: "Billing", icon: Receipt, group: "Restaurant" },
+  { href: "/pos/menu", label: "Menu Items", icon: BookOpen, group: "Restaurant" },
   { href: "/inventory", label: "Inventory", icon: Package, group: "Kitchen" },
   { href: "/inventory/recipes", label: "Recipe Costing", icon: ChefHat, group: "Kitchen" },
   { href: "/finance/expenses", label: "Expenses", icon: Wallet, group: "Finance" },
