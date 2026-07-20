@@ -20,6 +20,10 @@ function line(char = "-", width = 42): number[] {
   return encode(char.repeat(width) + "\n");
 }
 
+function money(value: number): string {
+  return value.toFixed(2);
+}
+
 function row(left: string, right: string, width = 42): number[] {
   const space = Math.max(1, width - left.length - right.length);
   return encode(left + " ".repeat(space) + right + "\n");
@@ -30,6 +34,75 @@ export interface ReceiptPayload {
   items: OrderItem[];
   hotelName?: string;
   footerNote?: string;
+}
+
+/** Guest folio bill — room charge + room-service orders, printed at checkout. */
+export interface FolioPayload {
+  guestName: string;
+  roomNumber: string;
+  roomTypeName?: string;
+  checkInDate: string;
+  checkOutDate: string;
+  nights: number;
+  roomCharge: number;
+  serviceOrders: { orderNumber: number; amount: number }[];
+  total: number;
+  hotelName?: string;
+}
+
+export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
+  const {
+    guestName,
+    roomNumber,
+    roomTypeName,
+    checkInDate,
+    checkOutDate,
+    nights,
+    roomCharge,
+    serviceOrders,
+    total,
+    hotelName = "SOHEILY PMS",
+  } = payload;
+  const bytes: number[] = [];
+
+  bytes.push(ESC, 0x40);
+  bytes.push(ESC, 0x61, 0x01); // center
+  bytes.push(ESC, 0x21, 0x30);
+  bytes.push(...encode(`${hotelName}\n`));
+  bytes.push(ESC, 0x21, 0x00);
+  bytes.push(...encode("GUEST FOLIO / ROOM BILL\n"));
+  bytes.push(...line("="));
+
+  bytes.push(ESC, 0x61, 0x00); // left
+  bytes.push(...row("Guest", guestName));
+  bytes.push(...row("Room", `${roomNumber}${roomTypeName ? ` (${roomTypeName})` : ""}`));
+  bytes.push(...row("Check-in", new Date(checkInDate).toLocaleDateString("en-GB")));
+  bytes.push(...row("Check-out", new Date(checkOutDate).toLocaleDateString("en-GB")));
+  bytes.push(...row("Printed", new Date().toLocaleString("en-GB")));
+  bytes.push(...line());
+
+  const nightly = nights > 0 ? roomCharge / nights : roomCharge;
+  bytes.push(
+    ...row(
+      `Room ${nights} night(s) x ${money(nightly)}`,
+      money(roomCharge)
+    )
+  );
+  for (const so of serviceOrders) {
+    bytes.push(...row(`Room service #${so.orderNumber}`, money(so.amount)));
+  }
+  bytes.push(...line());
+
+  bytes.push(ESC, 0x21, 0x10);
+  bytes.push(...row("TOTAL", money(total)));
+  bytes.push(ESC, 0x21, 0x00);
+  bytes.push(...line("="));
+
+  bytes.push(ESC, 0x61, 0x01);
+  bytes.push(...encode("Thank you for staying with us!\n\n"));
+  bytes.push(GS, 0x56, 0x42, 0x10);
+
+  return new Uint8Array(bytes);
 }
 
 /** Kitchen Order Ticket — only the pending items, no prices. */
@@ -125,6 +198,7 @@ export function buildEscPosReceipt({
 interface UseThermalPrintResult {
   print: (payload: ReceiptPayload) => Promise<boolean>;
   printKot: (payload: KotPayload) => Promise<boolean>;
+  printFolio: (payload: FolioPayload) => Promise<boolean>;
   printing: boolean;
   error: string | null;
 }
@@ -179,7 +253,12 @@ export function useThermalPrint(): UseThermalPrintResult {
     [spool]
   );
 
-  return { print, printKot, printing, error };
+  const printFolio = useCallback(
+    (payload: FolioPayload) => spool(buildFolioReceipt(payload)),
+    [spool]
+  );
+
+  return { print, printKot, printFolio, printing, error };
 }
 
 // Minimal WebUSB typing (kept local to avoid a global lib dependency)

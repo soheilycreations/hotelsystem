@@ -14,13 +14,33 @@ export default async function ReservePage() {
     supabase.from("rooms").select("*, room_types(*)").order("room_number"),
     supabase
       .from("bookings")
-      .select("*, rooms(room_number)")
+      .select("*, rooms(room_number, room_types(name, base_price))")
       .in("status", ["pending", "checked_in"])
       .order("check_in_date"),
   ]);
 
   const rooms = (roomsRes.data ?? []) as Room[];
   const bookings = (bookingsRes.data ?? []) as Booking[];
+
+  // Completed room-service orders per in-house booking — needed to break the
+  // folio down on the printed room bill.
+  const bookingIds = bookings.map((b) => b.id);
+  const serviceOrdersByBooking: Record<string, { orderNumber: number; amount: number }[]> = {};
+  if (bookingIds.length > 0) {
+    const { data: rsOrders } = await supabase
+      .from("restaurant_orders")
+      .select("booking_id, order_number, total_amount")
+      .eq("order_status", "completed")
+      .eq("channel_type", "room_service")
+      .in("booking_id", bookingIds);
+    for (const o of rsOrders ?? []) {
+      if (!o.booking_id) continue;
+      (serviceOrdersByBooking[o.booking_id] ??= []).push({
+        orderNumber: o.order_number,
+        amount: Number(o.total_amount),
+      });
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -36,7 +56,7 @@ export default async function ReservePage() {
           <BookingForm rooms={rooms} />
         </div>
         <div className="lg:col-span-3">
-          <BookingList bookings={bookings} />
+          <BookingList bookings={bookings} serviceOrdersByBooking={serviceOrdersByBooking} />
         </div>
       </div>
     </div>

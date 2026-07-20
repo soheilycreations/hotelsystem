@@ -7,8 +7,9 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Module | Route | What it does |
 |---|---|---|
 | Overview | `/` | Occupancy %, 14-day revenue vs expenses, live activity feed, channel mix |
-| Room Grid | `/pms/rooms` | Zone-grouped, color-coded room status board (vacant / occupied / dirty / maintenance) |
-| Reservations | `/pms/reserve` | Create bookings, check-in / check-out / cancel — folio auto-calculated |
+| Room Grid | `/pms/rooms` | Zone-grouped, color-coded room status board (vacant / occupied / dirty / maintenance). Gear icon → Room Setup |
+| Room Setup | `/pms/settings` | Add/edit/remove rooms, manage categories & nightly rates (admin/manager; occupied rooms and in-use categories can't be deleted) |
+| Reservations | `/pms/reserve` | Create bookings, check-in / check-out / cancel — folio auto-calculated. **Print bill** prints the guest folio (room charge + room-service breakdown) on the thermal printer |
 | POS Terminal | `/pos/active` | 4 channels: dine-in (table matrix), room service (charge to folio), takeaway, delivery (status pipeline). Full-menu search + **Send KOT** (kitchen ticket for new items) |
 | Billing | `/pos/billing` | Settle bills, void, mark table billed, KOT-sent indicator (warns before settling un-KOT'd bills), **ESC/POS thermal receipt printing (WebUSB)** |
 | Menu Items | `/pos/menu` | Add/edit dishes, change prices, availability toggle (hides from POS instantly) |
@@ -79,6 +80,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 |---|---|---|---|---|---|
 | `/` (overview) | ✅ | ✅ | — | — | — |
 | `/pms/rooms`, `/pms/reserve` | ✅ | ✅ | ✅ | — | — |
+| `/pms/settings` | ✅ | ✅ | — | — | — |
 | `/pos/active` | ✅ | ✅ | — | ✅ | ✅ (delivery status only) |
 | `/pos/billing` | ✅ | ✅ | — | ✅ | — |
 | `/pos/menu` | ✅ | ✅ | — | — | — |
