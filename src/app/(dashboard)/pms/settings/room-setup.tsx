@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { BedDouble, Pencil, Plus, Tags, Trash2 } from "lucide-react";
+import { BedDouble, Clock, Moon, Pencil, Plus, Tags, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -26,12 +26,16 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatLKR } from "@/lib/utils";
-import type { Room, RoomStatus, RoomType } from "@/lib/types";
+import type { RatePlanKind, Room, RoomRatePlan, RoomStatus, RoomType } from "@/lib/types";
 import {
+  createRatePlan,
   createRoom,
   createRoomType,
+  deleteRatePlan,
   deleteRoom,
   deleteRoomType,
+  toggleRatePlan,
+  updateRatePlan,
   updateRoom,
   updateRoomType,
 } from "./actions";
@@ -43,12 +47,21 @@ const STATUS_BADGE: Record<RoomStatus, "success" | "info" | "warning" | "danger"
   maintenance: "danger",
 };
 
-export function RoomSetup({ roomTypes, rooms }: { roomTypes: RoomType[]; rooms: Room[] }) {
+export function RoomSetup({
+  roomTypes,
+  rooms,
+  ratePlans,
+}: {
+  roomTypes: RoomType[];
+  rooms: Room[];
+  ratePlans: RoomRatePlan[];
+}) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   const [typeDialog, setTypeDialog] = useState<{ mode: "create" } | { mode: "edit"; item: RoomType } | null>(null);
   const [roomDialog, setRoomDialog] = useState<{ mode: "create" } | { mode: "edit"; item: Room } | null>(null);
+  const [planDialog, setPlanDialog] = useState<{ mode: "create" } | { mode: "edit"; item: RoomRatePlan } | null>(null);
 
   const roomCountByType = useMemo(() => {
     const map = new Map<string, number>();
@@ -67,6 +80,28 @@ export function RoomSetup({ roomTypes, rooms }: { roomTypes: RoomType[]; rooms: 
     startTransition(async () => {
       const res = await deleteRoom(r.id);
       setFeedback(res.ok ? `Room ${r.room_number} removed.` : res.error ?? "Could not delete.");
+    });
+  }
+
+  function handleTogglePlan(p: RoomRatePlan) {
+    startTransition(async () => {
+      const res = await toggleRatePlan(p.id, !p.is_active);
+      setFeedback(
+        res.ok
+          ? `“${p.name}” is now ${p.is_active ? "hidden from" : "available on"} the booking form.`
+          : res.error ?? "Could not update the plan."
+      );
+    });
+  }
+
+  function handleDeletePlan(p: RoomRatePlan) {
+    startTransition(async () => {
+      const res = await deleteRatePlan(p.id);
+      setFeedback(
+        res.ok
+          ? `Plan “${p.name}” deleted — past bookings keep their snapshot.`
+          : res.error ?? "Could not delete."
+      );
     });
   }
 
@@ -222,6 +257,108 @@ export function RoomSetup({ roomTypes, rooms }: { roomTypes: RoomType[]; rooms: 
         </Card>
       </div>
 
+      {/* Rate plans */}
+      <Card>
+        <CardHeader className="flex-row items-center justify-between space-y-0">
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Clock className="h-4 w-4" />
+            Rate plans — AC / Non-AC / hourly blocks
+          </CardTitle>
+          <Button
+            size="sm"
+            onClick={() => setPlanDialog({ mode: "create" })}
+            disabled={roomTypes.length === 0}
+          >
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            New plan
+          </Button>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          {roomTypes.map((t) => {
+            const plans = ratePlans.filter((p) => p.room_type_id === t.id);
+            if (plans.length === 0) return null;
+            return (
+              <div key={t.id}>
+                <p className="pb-1.5 text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  {t.name}
+                </p>
+                <div className="grid gap-2 sm:grid-cols-2 xl:grid-cols-3">
+                  {plans.map((p) => (
+                    <div
+                      key={p.id}
+                      className={
+                        "flex items-center justify-between rounded-md border px-3 py-2.5 " +
+                        (p.is_active ? "" : "opacity-60")
+                      }
+                    >
+                      <div className="min-w-0">
+                        <p className="flex items-center gap-1.5 truncate text-sm font-medium">
+                          {p.kind === "block" ? (
+                            <Clock className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          ) : (
+                            <Moon className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+                          )}
+                          {p.name}
+                        </p>
+                        <p className="text-xs text-muted-foreground">
+                          {formatLKR(Number(p.price))}
+                          {p.kind === "per_night" ? " / night" : ` flat · ${p.duration_hours}h`}
+                        </p>
+                      </div>
+                      <div className="flex shrink-0 items-center gap-1">
+                        <button
+                          onClick={() => handleTogglePlan(p)}
+                          disabled={pending}
+                          className={
+                            "relative inline-flex h-5 w-9 items-center rounded-full transition-colors " +
+                            (p.is_active ? "bg-emerald-500" : "bg-muted-foreground/30")
+                          }
+                          aria-label={`Toggle ${p.name}`}
+                        >
+                          <span
+                            className={
+                              "inline-block h-4 w-4 transform rounded-full bg-white transition-transform " +
+                              (p.is_active ? "translate-x-[18px]" : "translate-x-0.5")
+                            }
+                          />
+                        </button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          onClick={() => setPlanDialog({ mode: "edit", item: p })}
+                        >
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8 text-destructive hover:text-destructive"
+                          disabled={pending}
+                          onClick={() => handleDeletePlan(p)}
+                        >
+                          <Trash2 className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            );
+          })}
+          {ratePlans.length === 0 && (
+            <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+              No rate plans yet — add plans like “AC — Full Night”, “Non-AC — Full Night” or
+              “Short Stay — 3h” so they appear on the booking form.
+            </p>
+          )}
+          <p className="text-xs text-muted-foreground">
+            Per-night plans multiply by the number of nights. Time-block plans are a flat price
+            with a countdown that starts at check-in.
+          </p>
+        </CardContent>
+      </Card>
+
       {/* Category dialog */}
       <Dialog open={typeDialog !== null} onOpenChange={(open) => !open && setTypeDialog(null)}>
         {typeDialog && (
@@ -245,6 +382,21 @@ export function RoomSetup({ roomTypes, rooms }: { roomTypes: RoomType[]; rooms: 
             roomTypes={roomTypes}
             onDone={(msg) => {
               setRoomDialog(null);
+              setFeedback(msg);
+            }}
+          />
+        )}
+      </Dialog>
+
+      {/* Rate plan dialog */}
+      <Dialog open={planDialog !== null} onOpenChange={(open) => !open && setPlanDialog(null)}>
+        {planDialog && (
+          <RatePlanDialog
+            key={planDialog.mode === "edit" ? planDialog.item.id : "create"}
+            item={planDialog.mode === "edit" ? planDialog.item : undefined}
+            roomTypes={roomTypes}
+            onDone={(msg) => {
+              setPlanDialog(null);
               setFeedback(msg);
             }}
           />
@@ -382,6 +534,121 @@ function RoomDialog({
         <DialogFooter>
           <Button type="submit" disabled={pending}>
             {pending ? "Saving…" : editing ? "Save changes" : "Add room"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
+function RatePlanDialog({
+  item,
+  roomTypes,
+  onDone,
+}: {
+  item?: RoomRatePlan;
+  roomTypes: RoomType[];
+  onDone: (msg: string) => void;
+}) {
+  const [kind, setKind] = useState<RatePlanKind>(item?.kind ?? "per_night");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const editing = Boolean(item);
+
+  function submit(formData: FormData) {
+    startTransition(async () => {
+      const res = editing
+        ? await updateRatePlan(item?.id ?? "", formData)
+        : await createRatePlan(formData);
+      if (res.ok) onDone(editing ? "Rate plan updated." : "Rate plan added.");
+      else setError(res.error ?? "Could not save.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>{editing ? `Edit — ${item?.name}` : "New rate plan"}</DialogTitle>
+        <DialogDescription>
+          {editing
+            ? "Changes only apply to bookings made from now on — existing bookings keep their price."
+            : "e.g. AC — Full Night (per night), Day Use — 12h or Short Stay — 3h (time blocks)."}
+        </DialogDescription>
+      </DialogHeader>
+      <form action={submit} className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="rp-type">Room category</Label>
+          <Select
+            id="rp-type"
+            name="room_type_id"
+            defaultValue={item?.room_type_id ?? roomTypes[0]?.id}
+          >
+            {roomTypes.map((t) => (
+              <option key={t.id} value={t.id}>
+                {t.name}
+              </option>
+            ))}
+          </Select>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="rp-name">Plan name</Label>
+          <Input
+            id="rp-name"
+            name="name"
+            defaultValue={item?.name}
+            placeholder="e.g. AC — Full Night"
+            required
+          />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="rp-kind">Plan type</Label>
+            <Select
+              id="rp-kind"
+              name="kind"
+              value={kind}
+              onChange={(e) => setKind(e.target.value as RatePlanKind)}
+            >
+              <option value="per_night">Per night</option>
+              <option value="block">Time block (hours)</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="rp-price">
+              Price (LKR{kind === "per_night" ? " / night" : " flat"})
+            </Label>
+            <Input
+              id="rp-price"
+              name="price"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={item ? Number(item.price) : undefined}
+              required
+            />
+          </div>
+        </div>
+        {kind === "block" && (
+          <div className="space-y-1.5">
+            <Label htmlFor="rp-hours">Duration (hours)</Label>
+            <Input
+              id="rp-hours"
+              name="duration_hours"
+              type="number"
+              min="1"
+              step="1"
+              defaultValue={item?.duration_hours ?? 3}
+              required
+            />
+            <p className="text-xs text-muted-foreground">
+              The countdown starts when the guest checks in.
+            </p>
+          </div>
+        )}
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : editing ? "Save changes" : "Add plan"}
           </Button>
         </DialogFooter>
       </form>

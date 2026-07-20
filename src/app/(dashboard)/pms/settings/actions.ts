@@ -127,6 +127,140 @@ export async function deleteRoomType(roomTypeId: string): Promise<ActionResult> 
 }
 
 // ---------------------------------------------------------------------------
+// Rate plans
+// ---------------------------------------------------------------------------
+
+function parsePlanForm(formData: FormData):
+  | {
+      ok: true;
+      roomTypeId: string;
+      name: string;
+      kind: "per_night" | "block";
+      price: number;
+      durationHours: number | null;
+    }
+  | { ok: false; error: string } {
+  const roomTypeId = String(formData.get("room_type_id") ?? "");
+  const name = String(formData.get("name") ?? "").trim();
+  const kind = String(formData.get("kind") ?? "") as "per_night" | "block";
+  const price = Number(formData.get("price") ?? 0);
+  const durationHours = Number(formData.get("duration_hours") ?? 0);
+
+  if (!roomTypeId) return { ok: false, error: "Pick a room category." };
+  if (!name) return { ok: false, error: "Plan name is required (e.g. AC — Full Night)." };
+  if (kind !== "per_night" && kind !== "block")
+    return { ok: false, error: "Pick a plan type." };
+  if (!Number.isFinite(price) || price <= 0)
+    return { ok: false, error: "Price must be greater than zero." };
+  if (kind === "block" && (!Number.isInteger(durationHours) || durationHours < 1))
+    return { ok: false, error: "Time-block plans need a duration in hours." };
+
+  return {
+    ok: true,
+    roomTypeId,
+    name,
+    kind,
+    price,
+    durationHours: kind === "block" ? durationHours : null,
+  };
+}
+
+export async function createRatePlan(formData: FormData): Promise<ActionResult> {
+  try {
+    await assertSetupRole();
+    const parsed = parsePlanForm(formData);
+    if (!parsed.ok) return parsed;
+
+    const supabase = await createClient();
+    const { error } = await supabase.from("room_rate_plans").insert({
+      room_type_id: parsed.roomTypeId,
+      name: parsed.name,
+      kind: parsed.kind,
+      price: parsed.price,
+      duration_hours: parsed.durationHours,
+      is_active: true,
+    });
+    if (error)
+      return {
+        ok: false,
+        error:
+          error.code === "23505"
+            ? "That category already has a plan with this name."
+            : error.message,
+      };
+
+    revalidateRooms();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function updateRatePlan(planId: string, formData: FormData): Promise<ActionResult> {
+  try {
+    await assertSetupRole();
+    const parsed = parsePlanForm(formData);
+    if (!parsed.ok) return parsed;
+
+    const supabase = await createClient();
+    // Price/name edits only affect NEW bookings — existing bookings carry a snapshot.
+    const { error } = await supabase
+      .from("room_rate_plans")
+      .update({
+        room_type_id: parsed.roomTypeId,
+        name: parsed.name,
+        kind: parsed.kind,
+        price: parsed.price,
+        duration_hours: parsed.durationHours,
+      })
+      .eq("id", planId);
+    if (error)
+      return {
+        ok: false,
+        error:
+          error.code === "23505"
+            ? "That category already has a plan with this name."
+            : error.message,
+      };
+
+    revalidateRooms();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function toggleRatePlan(planId: string, isActive: boolean): Promise<ActionResult> {
+  try {
+    await assertSetupRole();
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("room_rate_plans")
+      .update({ is_active: isActive })
+      .eq("id", planId);
+    if (error) return { ok: false, error: error.message };
+    revalidateRooms();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function deleteRatePlan(planId: string): Promise<ActionResult> {
+  try {
+    await assertSetupRole();
+    const supabase = await createClient();
+    // Past bookings keep their snapshot (rate_plan_id becomes null on delete).
+    const { error } = await supabase.from("room_rate_plans").delete().eq("id", planId);
+    if (error) return { ok: false, error: error.message };
+    revalidateRooms();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Rooms
 // ---------------------------------------------------------------------------
 

@@ -2,9 +2,10 @@
 
 import { useState, useTransition } from "react";
 import { BedDouble, Brush, Loader2, Wrench } from "lucide-react";
-import type { Room, RoomStatus } from "@/lib/types";
+import type { Booking, Room, RoomStatus } from "@/lib/types";
 import { cn, formatLKR } from "@/lib/utils";
 import { setRoomStatus } from "../actions";
+import { StayCountdown } from "../reserve/booking-list";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import {
@@ -29,7 +30,15 @@ const STATUS_BADGE: Record<RoomStatus, "success" | "info" | "warning" | "danger"
   maintenance: "danger",
 };
 
-export function RoomGrid({ rooms, zones }: { rooms: Room[]; zones: string[] }) {
+export function RoomGrid({
+  rooms,
+  zones,
+  bookingByRoom = {},
+}: {
+  rooms: Room[];
+  zones: string[];
+  bookingByRoom?: Record<string, Booking>;
+}) {
   const [selected, setSelected] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -77,11 +86,18 @@ export function RoomGrid({ rooms, zones }: { rooms: Room[]; zones: string[] }) {
                     <BedDouble className="h-4 w-4 opacity-70" />
                   </div>
                   <p className="mt-1 truncate text-xs text-muted-foreground">
-                    {room.room_types?.name ?? "—"}
+                    {bookingByRoom[room.id]
+                      ? bookingByRoom[room.id]?.guest_name
+                      : room.room_types?.name ?? "—"}
                   </p>
-                  <Badge variant={STATUS_BADGE[room.status]} className="mt-2 capitalize">
-                    {room.status}
-                  </Badge>
+                  <div className="mt-2 flex flex-wrap items-center gap-1.5">
+                    <Badge variant={STATUS_BADGE[room.status]} className="capitalize">
+                      {room.status}
+                    </Badge>
+                    {bookingByRoom[room.id] ? (
+                      <StayCountdown booking={bookingByRoom[room.id] as Booking} />
+                    ) : null}
+                  </div>
                 </button>
               ))}
           </div>
@@ -97,6 +113,21 @@ export function RoomGrid({ rooms, zones }: { rooms: Room[]; zones: string[] }) {
               /night · sleeps {selected?.room_types?.max_occupancy}
             </DialogDescription>
           </DialogHeader>
+
+          {selected && bookingByRoom[selected.id] ? (
+            <div className="flex flex-wrap items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+              <div>
+                <p className="font-medium">{bookingByRoom[selected.id]?.guest_name}</p>
+                <p className="text-xs text-muted-foreground">
+                  {bookingByRoom[selected.id]?.rate_plan_name ?? "In house"}
+                  {bookingByRoom[selected.id]?.stay_type === "short_stay"
+                    ? ` · ${bookingByRoom[selected.id]?.duration_hours}h block`
+                    : ""}
+                </p>
+              </div>
+              <StayCountdown booking={bookingByRoom[selected.id] as Booking} />
+            </div>
+          ) : null}
 
           <div className="grid grid-cols-2 gap-2">
             <Button

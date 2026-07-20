@@ -16,6 +16,8 @@ create extension if not exists "pgcrypto";
 create type staff_role        as enum ('admin', 'manager', 'receptionist', 'cashier', 'kitchen_staff');
 create type room_status       as enum ('vacant', 'occupied', 'dirty', 'maintenance');
 create type booking_status    as enum ('pending', 'checked_in', 'checked_out', 'cancelled');
+create type stay_type       as enum ('overnight', 'short_stay');
+create type rate_plan_kind  as enum ('per_night', 'block');
 create type table_status      as enum ('vacant', 'occupied', 'reserved', 'billed');
 create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'delivery');
 create type order_status      as enum ('active', 'completed', 'cancelled');
@@ -60,6 +62,23 @@ create table public.room_types (
 );
 
 -- 3.3 Rooms
+create table public.room_rate_plans (
+  id             uuid primary key default gen_random_uuid(),
+  room_type_id   uuid not null references public.room_types (id) on delete cascade,
+  name           varchar(80) not null,
+  kind           rate_plan_kind not null,
+  price          numeric(12,2) not null check (price >= 0),
+  duration_hours int,
+  is_active      boolean not null default true,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now(),
+  unique (room_type_id, name),
+  constraint chk_plan_duration check (
+    (kind = 'per_night' and duration_hours is null)
+    or (kind = 'block' and duration_hours is not null and duration_hours > 0)
+  )
+);
+
 create table public.rooms (
   id          uuid primary key default gen_random_uuid(),
   room_number varchar(20) not null unique,
@@ -79,6 +98,11 @@ create table public.bookings (
   check_in_date      timestamptz not null,
   check_out_date     timestamptz not null,
   total_folio_amount numeric(14,2) not null default 0 check (total_folio_amount >= 0),
+  stay_type          stay_type not null default 'overnight',
+  duration_hours     int check (duration_hours is null or duration_hours > 0),
+  rate_plan_id       uuid references public.room_rate_plans (id) on delete set null,
+  rate_plan_name     varchar(120),
+  rate_plan_price    numeric(12,2),
   status             booking_status not null default 'pending',
   created_by         uuid references public.staff_profiles (id),
   created_at         timestamptz not null default now(),
@@ -163,6 +187,54 @@ create table public.menu_recipe_ingredients (
   unique (menu_item_id, inventory_item_id)
 );
 
+-- 3.10a Extra folio charges (overtime, minibar, laundry...)
+create table public.booking_charges (
+  id          uuid primary key default gen_random_uuid(),
+  booking_id  uuid not null references public.bookings (id) on delete cascade,
+  description varchar(160) not null,
+  amount      numeric(12,2) not null check (amount > 0),
+  created_by  uuid references public.staff_profiles (id),
+  created_at  timestamptz not null default now()
+);
+create index idx_booking_charges_booking on public.booking_charges (booking_id);
+
+create or replace function public.tg_apply_booking_charge()
+returns trigger
+language plpgsql
+security definer
+as $$
+begin
+  if tg_op = 'INSERT' then
+    update public.bookings
+      set total_folio_amount = total_folio_amount + new.amount
+      where id = new.booking_id;
+    return new;
+  elsif tg_op = 'DELETE' then
+    update public.bookings
+      set total_folio_amount = greatest(0, total_folio_amount - old.amount)
+      where id = old.booking_id;
+    return old;
+  end if;
+  return null;
+end;
+$$;
+
+create trigger trg_booking_charge_folio
+  after insert or delete on public.booking_charges
+  for each row execute function public.tg_apply_booking_charge();
+
+-- 3.10b Hotel profile (single-row settings)
+create table public.hotel_settings (
+  id              int primary key default 1 check (id = 1),
+  hotel_name      varchar(120) not null default 'Soheily PMS',
+  address         text,
+  phone_primary   varchar(40),
+  phone_secondary varchar(40),
+  logo_url        text,
+  created_at      timestamptz not null default now(),
+  updated_at      timestamptz not null default now()
+);
+
 -- 3.11 Expenses ledger
 create table public.expenses (
   id          uuid primary key default gen_random_uuid(),
@@ -201,6 +273,7 @@ create index idx_orders_booking            on public.restaurant_orders (booking_
 create index idx_orders_created_at         on public.restaurant_orders (created_at desc);
 create index idx_order_items_order         on public.order_items (order_id);
 create index idx_order_items_menu          on public.order_items (menu_item_id);
+create index idx_rate_plans_type            on public.room_rate_plans (room_type_id);
 create index idx_order_items_kot_pending   on public.order_items (order_id) where kot_printed_at is null;
 create index idx_recipe_menu               on public.menu_recipe_ingredients (menu_item_id);
 create index idx_recipe_inventory          on public.menu_recipe_ingredients (inventory_item_id);
@@ -214,6 +287,8 @@ create trigger trg_touch_staff      before update on public.staff_profiles      
 create trigger trg_touch_room_types before update on public.room_types          for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_rooms      before update on public.rooms               for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_bookings   before update on public.bookings            for each row execute function public.tg_set_updated_at();
+create trigger trg_touch_hotel      before update on public.hotel_settings      for each row execute function public.tg_set_updated_at();
+create trigger trg_touch_rate_plans before update on public.room_rate_plans     for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_tables     before update on public.restaurant_tables   for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_menu       before update on public.menu_items          for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_orders     before update on public.restaurant_orders   for each row execute function public.tg_set_updated_at();
@@ -366,6 +441,9 @@ alter table public.restaurant_orders      enable row level security;
 alter table public.order_items            enable row level security;
 alter table public.inventory_items        enable row level security;
 alter table public.menu_recipe_ingredients enable row level security;
+alter table public.hotel_settings         enable row level security;
+alter table public.room_rate_plans        enable row level security;
+alter table public.booking_charges        enable row level security;
 alter table public.expenses               enable row level security;
 alter table public.system_logs            enable row level security;
 
@@ -405,6 +483,12 @@ create policy "staff read inventory"  on public.inventory_items        for selec
 create policy "kitchen write inv"     on public.inventory_items        for all    using (public.get_my_role() in ('admin','manager','kitchen_staff')) with check (public.get_my_role() in ('admin','manager','kitchen_staff'));
 create policy "staff read recipes"    on public.menu_recipe_ingredients for select using (public.get_my_role() is not null);
 create policy "mgmt write recipes"    on public.menu_recipe_ingredients for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
+create policy "staff read hotel"      on public.hotel_settings    for select using (public.get_my_role() is not null);
+create policy "mgmt write hotel"      on public.hotel_settings    for update using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
+create policy "staff read rate plans" on public.room_rate_plans   for select using (public.get_my_role() is not null);
+create policy "mgmt write rate plans" on public.room_rate_plans   for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
+create policy "staff read charges"    on public.booking_charges   for select using (public.get_my_role() is not null);
+create policy "pms write charges"     on public.booking_charges   for all    using (public.get_my_role() in ('admin','manager','receptionist')) with check (public.get_my_role() in ('admin','manager','receptionist'));
 
 -- 9.5 Finance: admin/manager only
 create policy "finance read expenses" on public.expenses for select using (public.get_my_role() in ('admin','manager'));
@@ -419,6 +503,9 @@ create policy "mgmt read logs"        on public.system_logs for select using (pu
 -- ---------------------------------------------------------------------------
 alter publication supabase_realtime add table public.rooms;
 alter publication supabase_realtime add table public.bookings;
+alter publication supabase_realtime add table public.booking_charges;
+alter publication supabase_realtime add table public.room_rate_plans;
+alter publication supabase_realtime add table public.hotel_settings;
 alter publication supabase_realtime add table public.restaurant_tables;
 alter publication supabase_realtime add table public.restaurant_orders;
 alter publication supabase_realtime add table public.order_items;
@@ -436,6 +523,21 @@ insert into public.room_types (name, base_price, max_occupancy) values
   ('Standard Double', 12500.00, 2),
   ('Deluxe Sea View', 18500.00, 3),
   ('Family Suite',    27500.00, 5);
+
+insert into public.room_rate_plans (room_type_id, name, kind, price, duration_hours)
+select rt.id,
+       p.name,
+       p.kind::rate_plan_kind,
+       round(rt.base_price * p.factor, 2),
+       p.duration_hours
+from public.room_types rt
+cross join (values
+  ('AC — Full Night',     'per_night', 1.00::numeric, null::int),
+  ('Non-AC — Full Night', 'per_night', 0.80::numeric, null::int),
+  ('Day Use — 12h',       'block',     0.60::numeric, 12),
+  ('Short Stay — 3h',     'block',     0.30::numeric, 3)
+) as p(name, kind, factor, duration_hours)
+on conflict do nothing;
 
 insert into public.rooms (room_number, type_id, status, floor_zone)
 select r.room_number, rt.id, 'vacant', r.floor_zone
@@ -468,6 +570,8 @@ insert into public.menu_items (name, category, selling_price) values
   ('Egg Hoppers (3pc)',      'appetizers',  650.00),
   ('Fresh Lime Juice',       'drinks',      450.00),
   ('Watalappan',             'desserts',    550.00);
+
+insert into public.hotel_settings (id) values (1) on conflict (id) do nothing;
 
 insert into public.menu_recipe_ingredients (menu_item_id, inventory_item_id, quantity_needed)
 select m.id, i.id, r.qty

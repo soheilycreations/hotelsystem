@@ -24,7 +24,7 @@ import {
 } from "@/components/ui/table";
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { formatDateTime, formatLKR } from "@/lib/utils";
-import type { ChannelType, RestaurantOrder } from "@/lib/types";
+import type { ChannelType, HotelSettings, RestaurantOrder } from "@/lib/types";
 import { cancelOrder, markTableBilled, settleOrder } from "../actions";
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }> = {
@@ -34,7 +34,13 @@ const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }
   delivery: { label: "Delivery", icon: Bike },
 };
 
-export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
+export function BillingDesk({
+  orders,
+  hotel = null,
+}: {
+  orders: RestaurantOrder[];
+  hotel?: HotelSettings | null;
+}) {
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
@@ -94,7 +100,18 @@ export function BillingDesk({ orders }: { orders: RestaurantOrder[] }) {
   }
 
   async function handlePrint(order: RestaurantOrder) {
-    const sent = await print({ order, items: order.order_items ?? [] });
+    const sent = await print({
+      order,
+      items: order.order_items ?? [],
+      hotel: hotel
+        ? {
+            name: hotel.hotel_name,
+            address: hotel.address,
+            phonePrimary: hotel.phone_primary,
+            phoneSecondary: hotel.phone_secondary,
+          }
+        : undefined,
+    });
     if (sent) setFeedback(`Receipt for bill #${order.order_number} sent to printer.`);
   }
 

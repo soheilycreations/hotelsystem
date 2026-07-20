@@ -5,6 +5,8 @@
 export type StaffRole = "admin" | "manager" | "receptionist" | "cashier" | "kitchen_staff";
 export type RoomStatus = "vacant" | "occupied" | "dirty" | "maintenance";
 export type BookingStatus = "pending" | "checked_in" | "checked_out" | "cancelled";
+export type StayType = "overnight" | "short_stay";
+export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery";
 export type OrderStatus = "active" | "completed" | "cancelled";
@@ -51,11 +53,39 @@ export interface Booking {
   check_in_date: string;
   check_out_date: string;
   total_folio_amount: number;
+  stay_type: StayType;
+  duration_hours: number | null;
+  rate_plan_id: string | null;
+  rate_plan_name: string | null;
+  rate_plan_price: number | null;
   status: BookingStatus;
   created_by: string | null;
   created_at: string;
   updated_at: string;
   rooms?: Room; // joined
+  booking_charges?: BookingCharge[]; // joined
+}
+
+export interface RoomRatePlan {
+  id: string;
+  room_type_id: string;
+  name: string;
+  kind: RatePlanKind;
+  price: number;
+  duration_hours: number | null;
+  is_active: boolean;
+  created_at: string;
+  updated_at: string;
+  room_types?: RoomType; // joined
+}
+
+export interface BookingCharge {
+  id: string;
+  booking_id: string;
+  description: string;
+  amount: number;
+  created_by: string | null;
+  created_at: string;
 }
 
 export interface RestaurantTable {
@@ -162,11 +192,23 @@ export interface NavSection {
 
 export const ALL_ROLES: StaffRole[] = ["admin", "manager", "receptionist", "cashier", "kitchen_staff"];
 
+export interface HotelSettings {
+  id: number;
+  hotel_name: string;
+  address: string | null;
+  phone_primary: string | null;
+  phone_secondary: string | null;
+  logo_url: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/": ["admin", "manager"],
   "/pms/rooms": ["admin", "manager", "receptionist"],
   "/pms/reserve": ["admin", "manager", "receptionist"],
   "/pms/settings": ["admin", "manager"],
+  "/settings": ["admin", "manager"],
   "/pos/active": ["admin", "manager", "cashier", "kitchen_staff"],
   "/pos/billing": ["admin", "manager", "cashier"],
   "/pos/menu": ["admin", "manager"],

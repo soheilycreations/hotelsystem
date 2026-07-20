@@ -1,7 +1,7 @@
 import Link from "next/link";
 import { Settings } from "lucide-react";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import { canAccess, type Room } from "@/lib/types";
+import { canAccess, type Booking, type Room } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { LiveRefresher } from "../../live-refresher";
 import { RoomGrid } from "./room-grid";
@@ -12,12 +12,19 @@ export const metadata = { title: "Room Grid" };
 export default async function RoomsPage() {
   const supabase = await createClient();
   const profile = await getSessionProfile();
-  const { data } = await supabase
-    .from("rooms")
-    .select("*, room_types(*)")
-    .order("room_number");
+  const [{ data }, { data: inHouse }] = await Promise.all([
+    supabase.from("rooms").select("*, room_types(*)").order("room_number"),
+    supabase
+      .from("bookings")
+      .select("*")
+      .eq("status", "checked_in"),
+  ]);
 
   const rooms = (data ?? []) as Room[];
+  const bookingByRoom: Record<string, Booking> = {};
+  for (const b of (inHouse ?? []) as Booking[]) {
+    if (b.room_id) bookingByRoom[b.room_id] = b;
+  }
   const zones = Array.from(new Set(rooms.map((r) => r.floor_zone ?? "Unzoned")));
   const canSetup = profile ? canAccess(profile.role, "/pms/settings") : false;
 
@@ -39,7 +46,7 @@ export default async function RoomsPage() {
           </Button>
         ) : null}
       </div>
-      <RoomGrid rooms={rooms} zones={zones} />
+      <RoomGrid rooms={rooms} zones={zones} bookingByRoom={bookingByRoom} />
     </div>
   );
 }

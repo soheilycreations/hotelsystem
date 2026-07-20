@@ -34,20 +34,42 @@ export interface ReceiptPayload {
   items: OrderItem[];
   hotelName?: string;
   footerNote?: string;
+  hotel?: HotelHeader;
 }
 
-/** Guest folio bill — room charge + room-service orders, printed at checkout. */
+/** Guest folio bill — room charge + extras + room-service orders, printed at checkout. */
+export interface HotelHeader {
+  name: string;
+  address?: string | null;
+  phonePrimary?: string | null;
+  phoneSecondary?: string | null;
+}
+
 export interface FolioPayload {
   guestName: string;
   roomNumber: string;
   roomTypeName?: string;
   checkInDate: string;
   checkOutDate: string;
+  stayType?: "overnight" | "short_stay";
+  durationHours?: number | null;
+  planName?: string | null;
   nights: number;
   roomCharge: number;
+  charges?: { description: string; amount: number }[];
   serviceOrders: { orderNumber: number; amount: number }[];
   total: number;
-  hotelName?: string;
+  hotel?: HotelHeader;
+}
+
+function pushHotelHeader(bytes: number[], hotel: HotelHeader | undefined, fallback: string): void {
+  bytes.push(ESC, 0x61, 0x01); // center
+  bytes.push(ESC, 0x21, 0x30); // double size
+  bytes.push(...encode(`${hotel?.name ?? fallback}\n`));
+  bytes.push(ESC, 0x21, 0x00);
+  if (hotel?.address) bytes.push(...encode(`${hotel.address}\n`));
+  const phones = [hotel?.phonePrimary, hotel?.phoneSecondary].filter(Boolean).join(" / ");
+  if (phones) bytes.push(...encode(`Tel: ${phones}\n`));
 }
 
 export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
@@ -57,37 +79,51 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
     roomTypeName,
     checkInDate,
     checkOutDate,
+    stayType,
+    durationHours,
+    planName,
     nights,
     roomCharge,
+    charges = [],
     serviceOrders,
     total,
-    hotelName = "SOHEILY PMS",
+    hotel,
   } = payload;
   const bytes: number[] = [];
 
   bytes.push(ESC, 0x40);
-  bytes.push(ESC, 0x61, 0x01); // center
-  bytes.push(ESC, 0x21, 0x30);
-  bytes.push(...encode(`${hotelName}\n`));
-  bytes.push(ESC, 0x21, 0x00);
+  pushHotelHeader(bytes, hotel, "SOHEILY PMS");
   bytes.push(...encode("GUEST FOLIO / ROOM BILL\n"));
   bytes.push(...line("="));
 
   bytes.push(ESC, 0x61, 0x00); // left
   bytes.push(...row("Guest", guestName));
   bytes.push(...row("Room", `${roomNumber}${roomTypeName ? ` (${roomTypeName})` : ""}`));
-  bytes.push(...row("Check-in", new Date(checkInDate).toLocaleDateString("en-GB")));
-  bytes.push(...row("Check-out", new Date(checkOutDate).toLocaleDateString("en-GB")));
+  if (stayType === "short_stay") {
+    bytes.push(...row("Stay", `${durationHours ?? "?"}h block`));
+    bytes.push(...row("From", new Date(checkInDate).toLocaleString("en-GB")));
+    bytes.push(...row("Until", new Date(checkOutDate).toLocaleString("en-GB")));
+  } else {
+    bytes.push(...row("Check-in", new Date(checkInDate).toLocaleDateString("en-GB")));
+    bytes.push(...row("Check-out", new Date(checkOutDate).toLocaleDateString("en-GB")));
+  }
   bytes.push(...row("Printed", new Date().toLocaleString("en-GB")));
   bytes.push(...line());
 
-  const nightly = nights > 0 ? roomCharge / nights : roomCharge;
-  bytes.push(
-    ...row(
-      `Room ${nights} night(s) x ${money(nightly)}`,
-      money(roomCharge)
-    )
-  );
+  if (stayType === "short_stay") {
+    bytes.push(...row(planName ?? `Short stay ${durationHours ?? "?"}h`, money(roomCharge)));
+  } else {
+    const nightly = nights > 0 ? roomCharge / nights : roomCharge;
+    bytes.push(
+      ...row(
+        `${planName ?? "Room"} ${nights} night(s) x ${money(nightly)}`,
+        money(roomCharge)
+      )
+    );
+  }
+  for (const c of charges) {
+    bytes.push(...row(c.description, money(c.amount)));
+  }
   for (const so of serviceOrders) {
     bytes.push(...row(`Room service #${so.orderNumber}`, money(so.amount)));
   }
@@ -155,14 +191,12 @@ export function buildEscPosReceipt({
   items,
   hotelName = "SOHEILY GRAND HOTEL",
   footerNote = "Thank you — come again!",
+  hotel,
 }: ReceiptPayload): Uint8Array {
   const bytes: number[] = [];
 
   bytes.push(ESC, 0x40); // initialize
-  bytes.push(ESC, 0x61, 0x01); // center
-  bytes.push(ESC, 0x21, 0x30); // double height + width
-  bytes.push(...encode(hotelName + "\n"));
-  bytes.push(ESC, 0x21, 0x00); // normal
+  pushHotelHeader(bytes, hotel, hotelName);
   bytes.push(...encode("Restaurant & Room Service\n"));
   bytes.push(...line("="));
 

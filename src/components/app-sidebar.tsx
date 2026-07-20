@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import {
   BedDouble,
   BookOpen,
+  Building2,
   CalendarCheck,
   ChefHat,
   Hotel,
@@ -41,6 +42,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/pos/active", label: "POS Terminal", icon: UtensilsCrossed, group: "Restaurant" },
   { href: "/pos/billing", label: "Billing", icon: Receipt, group: "Restaurant" },
   { href: "/pos/menu", label: "Menu Items", icon: BookOpen, group: "Restaurant" },
+  { href: "/settings", label: "Hotel Profile", icon: Building2, group: "Settings" },
   { href: "/inventory", label: "Inventory", icon: Package, group: "Kitchen" },
   { href: "/inventory/recipes", label: "Recipe Costing", icon: ChefHat, group: "Kitchen" },
   { href: "/finance/expenses", label: "Expenses", icon: Wallet, group: "Finance" },
@@ -55,7 +57,15 @@ const ROLE_LABELS: Record<string, string> = {
   kitchen_staff: "Kitchen",
 };
 
-export function AppSidebar({ profile }: { profile: StaffProfile }) {
+export function AppSidebar({
+  profile,
+  hotelName = "Soheily PMS",
+  logoUrl = null,
+}: {
+  profile: StaffProfile;
+  hotelName?: string;
+  logoUrl?: string | null;
+}) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
 
@@ -124,8 +134,7 @@ export function AppSidebar({ profile }: { profile: StaffProfile }) {
         <Button variant="ghost" size="icon" aria-label="Open menu" onClick={() => setOpen(true)}>
           <Menu className="h-5 w-5" />
         </Button>
-        <Hotel className="h-5 w-5 text-primary" />
-        <span className="font-semibold">Soheily PMS</span>
+        <Brand hotelName={hotelName} logoUrl={logoUrl} />
       </header>
 
       {/* Mobile drawer */}
@@ -135,7 +144,7 @@ export function AppSidebar({ profile }: { profile: StaffProfile }) {
           <aside className="absolute inset-y-0 left-0 flex w-72 flex-col border-r bg-background">
             <div className="flex h-14 items-center justify-between border-b px-4">
               <div className="flex items-center gap-2 font-semibold">
-                <Hotel className="h-5 w-5 text-primary" /> Soheily PMS
+                <Brand hotelName={hotelName} logoUrl={logoUrl} />
               </div>
               <Button variant="ghost" size="icon" aria-label="Close menu" onClick={() => setOpen(false)}>
                 <X className="h-5 w-5" />
@@ -150,11 +159,29 @@ export function AppSidebar({ profile }: { profile: StaffProfile }) {
       {/* Desktop rail */}
       <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-background md:flex">
         <div className="flex h-14 items-center gap-2 border-b px-4 font-semibold">
-          <Hotel className="h-5 w-5 text-primary" /> Soheily PMS
+          <Brand hotelName={hotelName} logoUrl={logoUrl} />
         </div>
         {nav}
         {footer}
       </aside>
     </>
+  );
+}
+
+function Brand({ hotelName, logoUrl }: { hotelName: string; logoUrl: string | null }) {
+  return (
+    <span className="flex min-w-0 items-center gap-2">
+      {logoUrl ? (
+        // eslint-disable-next-line @next/next/no-img-element
+        <img
+          src={logoUrl}
+          alt=""
+          className="h-6 w-6 shrink-0 rounded object-contain"
+        />
+      ) : (
+        <Hotel className="h-5 w-5 shrink-0 text-primary" />
+      )}
+      <span className="truncate font-semibold">{hotelName}</span>
+    </span>
   );
 }
