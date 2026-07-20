@@ -5,15 +5,18 @@ import {
   BadgePlus,
   Clock,
   DoorOpen,
+  FileText,
   LogIn,
   Loader2,
+  MessageCircle,
   Printer,
   Timer,
   XCircle,
 } from "lucide-react";
 import type { Booking, HotelSettings } from "@/lib/types";
 import { formatDate, formatLKR } from "@/lib/utils";
-import { useThermalPrint } from "@/hooks/useThermalPrint";
+import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
+import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { addBookingCharge, extendShortStay, setBookingStatus } from "../actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,10 +79,12 @@ export function StayCountdown({ booking }: { booking: Booking }) {
 export function BookingList({
   bookings,
   serviceOrdersByBooking = {},
+  pendingServiceByBooking = {},
   hotel = null,
 }: {
   bookings: Booking[];
   serviceOrdersByBooking?: Record<string, ServiceOrder[]>;
+  pendingServiceByBooking?: Record<string, ServiceOrder[]>;
   hotel?: HotelSettings | null;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -88,6 +93,7 @@ export function BookingList({
   const [extending, setExtending] = useState<Booking | null>(null);
   const [charging, setCharging] = useState<Booking | null>(null);
   const [, startTransition] = useTransition();
+  const [busyId, setBusyId] = useState<string | null>(null);
   const { printFolio, printing, error: printError } = useThermalPrint();
 
   const update = (id: string, status: "checked_in" | "checked_out" | "cancelled") => {
@@ -100,29 +106,35 @@ export function BookingList({
     });
   };
 
-  const printBill = async (b: Booking) => {
-    setNotice(null);
-    const serviceOrders = serviceOrdersByBooking[b.id] ?? [];
-    const serviceTotal = serviceOrders.reduce((sum, o) => sum + o.amount, 0);
+  /** Full bill payload — settled folio + still-unsettled room-service orders. */
+  const buildPayload = (b: Booking): FolioPayload => {
+    const settled = serviceOrdersByBooking[b.id] ?? [];
+    const pending = pendingServiceByBooking[b.id] ?? [];
+    const serviceOrders = [...settled, ...pending];
+    const settledTotal = settled.reduce((sum, o) => sum + o.amount, 0);
+    const pendingTotal = pending.reduce((sum, o) => sum + o.amount, 0);
     const charges = (b.booking_charges ?? []).map((c) => ({
       description: c.description,
       amount: Number(c.amount),
     }));
     const chargesTotal = charges.reduce((sum, c) => sum + c.amount, 0);
-    const total = Number(b.total_folio_amount);
-    const roomCharge = Math.max(0, total - serviceTotal - chargesTotal);
+    const folio = Number(b.total_folio_amount);
+    const roomCharge = Math.max(0, folio - settledTotal - chargesTotal);
+    const total = folio + pendingTotal; // pending RS lands on the folio at settle time
     const nights = Math.max(
       1,
       Math.round(
         (new Date(b.check_out_date).getTime() - new Date(b.check_in_date).getTime()) / 86_400_000
       )
     );
-    const sent = await printFolio({
+    return {
       guestName: b.guest_name,
       roomNumber: b.rooms?.room_number ?? "—",
       roomTypeName: b.rooms?.room_types?.name,
       checkInDate: b.check_in_date,
       checkOutDate: b.check_out_date,
+      actualCheckIn: b.actual_check_in,
+      actualCheckOut: b.actual_check_out,
       stayType: b.stay_type,
       durationHours: b.duration_hours,
       planName: b.rate_plan_name,
@@ -139,8 +151,51 @@ export function BookingList({
             phoneSecondary: hotel.phone_secondary,
           }
         : undefined,
-    });
+    };
+  };
+
+  const printBill = async (b: Booking) => {
+    setNotice(null);
+    const sent = await printFolio(buildPayload(b));
     if (sent) setNotice(`Room bill for ${b.guest_name} sent to printer.`);
+  };
+
+  const openBillPdf = async (b: Booking) => {
+    setNotice(null);
+    setError(null);
+    setBusyId(b.id);
+    try {
+      const blob = await generateFolioPdf(buildPayload(b));
+      openPdf(blob);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not generate the PDF.");
+    } finally {
+      setBusyId(null);
+    }
+  };
+
+  const whatsAppBill = async (b: Booking) => {
+    setNotice(null);
+    setError(null);
+    if (!b.contact_number) {
+      setError("This booking has no contact number — add one to WhatsApp the bill.");
+      return;
+    }
+    setBusyId(b.id);
+    try {
+      const payload = buildPayload(b);
+      const blob = await generateFolioPdf(payload);
+      const url = await uploadBillPdf(`room-${b.rooms?.room_number ?? "x"}-${b.id.slice(0, 8)}.pdf`, blob);
+      const msg =
+        `Hello ${b.guest_name}! Thank you for staying at ${hotel?.hotel_name ?? "our hotel"}. ` +
+        `Your bill (Total: Rs ${payload.total.toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
+      window.open(buildWhatsAppUrl(b.contact_number, msg), "_blank", "noopener");
+      setNotice(`Bill link ready — WhatsApp opened for ${b.guest_name}.`);
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Could not prepare the WhatsApp bill.");
+    } finally {
+      setBusyId(null);
+    }
   };
 
   return (
@@ -177,6 +232,14 @@ export function BookingList({
                     ? ` · ${b.duration_hours}h block`
                     : ` · ${formatDate(b.check_in_date)} → ${formatDate(b.check_out_date)}`}
                 </p>
+                {b.actual_check_in ? (
+                  <p className="text-xs text-muted-foreground">
+                    In: {new Date(b.actual_check_in).toLocaleString("en-GB")}
+                    {(pendingServiceByBooking[b.id] ?? []).length > 0
+                      ? ` · ${pendingServiceByBooking[b.id]?.length} room-service bill(s) to settle`
+                      : ""}
+                  </p>
+                ) : null}
                 <p className="text-xs text-muted-foreground">
                   Folio:{" "}
                   <span className="font-medium text-foreground">
@@ -220,9 +283,31 @@ export function BookingList({
                       variant="outline"
                       disabled={printing}
                       onClick={() => printBill(b)}
-                      title="Print the room bill"
+                      title="Print the room bill (thermal)"
                     >
                       {printing ? <Loader2 className="animate-spin" /> : <Printer />} Bill
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busyId === b.id}
+                      onClick={() => openBillPdf(b)}
+                      title="Open the bill as a PDF"
+                    >
+                      {busyId === b.id ? <Loader2 className="animate-spin" /> : <FileText />} PDF
+                    </Button>
+                    <Button
+                      size="sm"
+                      variant="outline"
+                      disabled={busyId === b.id || !b.contact_number}
+                      onClick={() => whatsAppBill(b)}
+                      title={
+                        b.contact_number
+                          ? "Send the bill PDF link via WhatsApp"
+                          : "No contact number on this booking"
+                      }
+                    >
+                      {busyId === b.id ? <Loader2 className="animate-spin" /> : <MessageCircle />} WhatsApp
                     </Button>
                     <Button
                       size="sm"

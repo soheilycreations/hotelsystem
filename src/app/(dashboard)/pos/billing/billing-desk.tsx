@@ -5,6 +5,9 @@ import {
   Armchair,
   Bike,
   ConciergeBell,
+  FileText,
+  Loader2,
+  MessageCircle,
   Printer,
   ReceiptText,
   ShoppingBag,
@@ -23,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { useThermalPrint } from "@/hooks/useThermalPrint";
+import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { formatDateTime, formatLKR } from "@/lib/utils";
 import type { ChannelType, HotelSettings, RestaurantOrder } from "@/lib/types";
 import { cancelOrder, markTableBilled, settleOrder } from "../actions";
@@ -44,6 +48,7 @@ export function BillingDesk({
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [pending, startTransition] = useTransition();
   const { print, printing, error: printError } = useThermalPrint();
 
@@ -99,8 +104,8 @@ export function BillingDesk({
     });
   }
 
-  async function handlePrint(order: RestaurantOrder) {
-    const sent = await print({
+  function receiptPayload(order: RestaurantOrder) {
+    return {
       order,
       items: order.order_items ?? [],
       hotel: hotel
@@ -111,7 +116,44 @@ export function BillingDesk({
             phoneSecondary: hotel.phone_secondary,
           }
         : undefined,
-    });
+    };
+  }
+
+  async function handlePdf(order: RestaurantOrder) {
+    setBusy(true);
+    try {
+      openPdf(await generateReceiptPdf(receiptPayload(order)));
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : "Could not generate the PDF.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handleWhatsApp(order: RestaurantOrder) {
+    const phone = order.customer_phone ?? order.bookings?.contact_number ?? null;
+    if (!phone) {
+      setFeedback("No customer number on this bill — add one to WhatsApp it.");
+      return;
+    }
+    setBusy(true);
+    try {
+      const blob = await generateReceiptPdf(receiptPayload(order));
+      const url = await uploadBillPdf(`pos-${order.order_number}-${order.id.slice(0, 8)}.pdf`, blob);
+      const msg =
+        `Hello! Thank you for your order at ${hotel?.hotel_name ?? "our restaurant"}. ` +
+        `Your bill #${order.order_number} (Total: Rs ${Number(order.total_amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
+      window.open(buildWhatsAppUrl(phone, msg), "_blank", "noopener");
+      setFeedback(`Bill link ready — WhatsApp opened.`);
+    } catch (e) {
+      setFeedback(e instanceof Error ? e.message : "Could not prepare the WhatsApp bill.");
+    } finally {
+      setBusy(false);
+    }
+  }
+
+  async function handlePrint(order: RestaurantOrder) {
+    const sent = await print(receiptPayload(order));
     if (sent) setFeedback(`Receipt for bill #${order.order_number} sent to printer.`);
   }
 
@@ -258,7 +300,11 @@ export function BillingDesk({
                 variant={confirmSettleId === selected.id ? "destructive" : "default"}
               >
                 <Wallet className="mr-2 h-4 w-4" />
-                {confirmSettleId === selected.id ? "Settle anyway (KOT pending)" : "Settle & complete"}
+                {confirmSettleId === selected.id
+                  ? "Settle anyway (KOT pending)"
+                  : selected.channel_type === "room_service"
+                  ? "Charge to room folio"
+                  : "Settle & complete"}
               </Button>
               <Button
                 variant="outline"
@@ -268,6 +314,33 @@ export function BillingDesk({
                 <Printer className="mr-2 h-4 w-4" />
                 {printing ? "Printing…" : "Print receipt (ESC/POS)"}
               </Button>
+              <div className="grid grid-cols-2 gap-2">
+                <Button
+                  variant="outline"
+                  onClick={() => handlePdf(selected)}
+                  disabled={busy || (selected.order_items ?? []).length === 0}
+                >
+                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileText className="mr-2 h-4 w-4" />}
+                  PDF
+                </Button>
+                <Button
+                  variant="outline"
+                  onClick={() => handleWhatsApp(selected)}
+                  disabled={
+                    busy ||
+                    (selected.order_items ?? []).length === 0 ||
+                    !(selected.customer_phone ?? selected.bookings?.contact_number)
+                  }
+                  title={
+                    selected.customer_phone ?? selected.bookings?.contact_number
+                      ? "Send the bill PDF link via WhatsApp"
+                      : "No customer number on this bill"
+                  }
+                >
+                  {busy ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <MessageCircle className="mr-2 h-4 w-4" />}
+                  WhatsApp
+                </Button>
+              </div>
               {selected.channel_type === "dine_in" &&
                 selected.restaurant_tables?.current_status !== "billed" && (
                   <Button

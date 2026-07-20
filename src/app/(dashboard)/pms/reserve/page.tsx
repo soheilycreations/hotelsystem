@@ -30,16 +30,19 @@ export default async function ReservePage() {
   // folio down on the printed room bill.
   const bookingIds = bookings.map((b) => b.id);
   const serviceOrdersByBooking: Record<string, { orderNumber: number; amount: number }[]> = {};
+  const pendingServiceByBooking: Record<string, { orderNumber: number; amount: number }[]> = {};
   if (bookingIds.length > 0) {
     const { data: rsOrders } = await supabase
       .from("restaurant_orders")
-      .select("booking_id, order_number, total_amount")
-      .eq("order_status", "completed")
+      .select("booking_id, order_number, total_amount, order_status")
       .eq("channel_type", "room_service")
+      .in("order_status", ["completed", "active"])
       .in("booking_id", bookingIds);
     for (const o of rsOrders ?? []) {
       if (!o.booking_id) continue;
-      (serviceOrdersByBooking[o.booking_id] ??= []).push({
+      const bucket =
+        o.order_status === "completed" ? serviceOrdersByBooking : pendingServiceByBooking;
+      (bucket[o.booking_id] ??= []).push({
         orderNumber: o.order_number,
         amount: Number(o.total_amount),
       });
@@ -63,6 +66,7 @@ export default async function ReservePage() {
           <BookingList
             bookings={bookings}
             serviceOrdersByBooking={serviceOrdersByBooking}
+            pendingServiceByBooking={pendingServiceByBooking}
             hotel={hotel}
           />
         </div>

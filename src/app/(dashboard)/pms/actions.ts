@@ -176,6 +176,7 @@ export async function setBookingStatus(
             status,
             check_in_date: now.toISOString(),
             check_out_date: end.toISOString(),
+            actual_check_in: now.toISOString(),
           })
           .eq("id", bookingId);
         if (error) return { ok: false, error: error.message };
@@ -186,9 +187,12 @@ export async function setBookingStatus(
     }
 
     // Room status flips automatically via Trigger A (housekeeping automator)
+    const patch: Record<string, unknown> = { status };
+    if (status === "checked_in") patch.actual_check_in = new Date().toISOString();
+    if (status === "checked_out") patch.actual_check_out = new Date().toISOString();
     const { error } = await supabase
       .from("bookings")
-      .update({ status })
+      .update(patch)
       .eq("id", bookingId);
     if (error) return { ok: false, error: error.message };
     revalidatePath("/pms/reserve");

@@ -78,7 +78,13 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 
 A configurable service charge (default **10%**, set in Hotel Profile, 0 = off) is applied to every POS order by the database recalculator: `subtotal + service charge = total`. The breakdown shows on the POS order pad, the Billing screen, and prints as its own receipt lines. Room-service totals posted to guest folios include the charge. Past/settled bills are never recalculated retroactively.
 
-Checkout is blocked while a guest still has an **unsettled room-service bill** — settle it on the Billing screen first, and it lands on the folio automatically.
+Checkout is blocked while a guest still has an **unsettled room-service bill**. Room-service orders have a one-tap **"Charge to room folio"** button right on the POS order pad (and on Billing) — charging posts the order to the guest folio via Trigger B. The printed/PDF room bill always shows **both** settled and still-pending room-service orders, so the grand total is complete either way.
+
+## Paperless bills — PDF & WhatsApp
+
+- Every room bill and restaurant bill can open as an **A5 PDF** (generated client-side with jsPDF) — the PDF includes the hotel header, plan/charge/room-service lines, service charge breakdown, and actual check-in/checkout times.
+- **WhatsApp**: one tap generates the PDF, uploads it to the public `bills` storage bucket, and opens WhatsApp with a prefilled message + link to the customer's number (Sri Lankan numbers normalised to +94 automatically). True in-chat file attachments need the WhatsApp Business API or a bot (e.g. Baileys) — the link approach works with zero extra infrastructure; the number field on the booking/bill must be filled.
+- Actual **check-in and check-out timestamps** are recorded the moment staff press the buttons and appear on bills and the bookings list, separate from the booked window.
 
 ## KOT (Kitchen Order Ticket) workflow
 
@@ -87,7 +93,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill** �
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run `supabase/migration-001-kot.sql`, `supabase/migration-002-rateplans-hotel.sql`, then `supabase/migration-003-service-charge.sql` in the SQL Editor (in order, each once) — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run `supabase/migration-001-kot.sql`, `supabase/migration-002-rateplans-hotel.sql`, `supabase/migration-003-service-charge.sql`, then `supabase/migration-004-times-pdf.sql` in the SQL Editor (in order, each once) — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 

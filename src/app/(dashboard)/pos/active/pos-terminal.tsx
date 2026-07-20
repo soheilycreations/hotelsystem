@@ -34,6 +34,7 @@ import {
   openOrder,
   removeOrderItem,
   setDeliveryStatus,
+  settleOrder,
 } from "../actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -397,6 +398,21 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
                     </div>
                   </div>
                 ) : null}
+
+                {selectedOrder.channel_type === "room_service" && (
+                  <Button
+                    variant="secondary"
+                    className="w-full"
+                    disabled={pending || Number(selectedOrder.total_amount) <= 0}
+                    onClick={() => {
+                      run(() => settleOrder(selectedOrder.id));
+                      setSelectedOrderId(null);
+                    }}
+                  >
+                    <ConciergeBell className="mr-2 h-4 w-4" />
+                    Charge to room folio
+                  </Button>
+                )}
 
                 <Button
                   variant="ghost"

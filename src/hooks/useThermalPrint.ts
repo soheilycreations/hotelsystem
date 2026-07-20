@@ -51,6 +51,8 @@ export interface FolioPayload {
   roomTypeName?: string;
   checkInDate: string;
   checkOutDate: string;
+  actualCheckIn?: string | null;
+  actualCheckOut?: string | null;
   stayType?: "overnight" | "short_stay";
   durationHours?: number | null;
   planName?: string | null;
@@ -79,6 +81,8 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
     roomTypeName,
     checkInDate,
     checkOutDate,
+    actualCheckIn,
+    actualCheckOut,
     stayType,
     durationHours,
     planName,
@@ -101,12 +105,27 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
   bytes.push(...row("Room", `${roomNumber}${roomTypeName ? ` (${roomTypeName})` : ""}`));
   if (stayType === "short_stay") {
     bytes.push(...row("Stay", `${durationHours ?? "?"}h block`));
-    bytes.push(...row("From", new Date(checkInDate).toLocaleString("en-GB")));
-    bytes.push(...row("Until", new Date(checkOutDate).toLocaleString("en-GB")));
-  } else {
-    bytes.push(...row("Check-in", new Date(checkInDate).toLocaleDateString("en-GB")));
-    bytes.push(...row("Check-out", new Date(checkOutDate).toLocaleDateString("en-GB")));
   }
+  bytes.push(
+    ...row(
+      actualCheckIn ? "Checked in" : "Check-in",
+      actualCheckIn
+        ? new Date(actualCheckIn).toLocaleString("en-GB")
+        : stayType === "short_stay"
+        ? new Date(checkInDate).toLocaleString("en-GB")
+        : new Date(checkInDate).toLocaleDateString("en-GB")
+    )
+  );
+  bytes.push(
+    ...row(
+      actualCheckOut ? "Checked out" : stayType === "short_stay" ? "Until" : "Check-out",
+      actualCheckOut
+        ? new Date(actualCheckOut).toLocaleString("en-GB")
+        : stayType === "short_stay"
+        ? new Date(checkOutDate).toLocaleString("en-GB")
+        : new Date(checkOutDate).toLocaleDateString("en-GB")
+    )
+  );
   bytes.push(...row("Printed", new Date().toLocaleString("en-GB")));
   bytes.push(...line());
 

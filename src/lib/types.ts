@@ -58,6 +58,8 @@ export interface Booking {
   rate_plan_id: string | null;
   rate_plan_name: string | null;
   rate_plan_price: number | null;
+  actual_check_in: string | null;
+  actual_check_out: string | null;
   status: BookingStatus;
   created_by: string | null;
   created_at: string;

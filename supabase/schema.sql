@@ -103,6 +103,8 @@ create table public.bookings (
   rate_plan_id       uuid references public.room_rate_plans (id) on delete set null,
   rate_plan_name     varchar(120),
   rate_plan_price    numeric(12,2),
+  actual_check_in    timestamptz,
+  actual_check_out   timestamptz,
   status             booking_status not null default 'pending',
   created_by         uuid references public.staff_profiles (id),
   created_at         timestamptz not null default now(),
@@ -616,3 +618,22 @@ commit;
 -- insert into public.staff_profiles (id, full_name, role)
 -- values ('<auth-user-uuid>', 'Ishara', 'admin');
 -- ============================================================================
+
+-- ---------------------------------------------------------------------------
+-- 11. STORAGE — public bucket for paperless PDF bills (WhatsApp links)
+-- ---------------------------------------------------------------------------
+insert into storage.buckets (id, name, public)
+values ('bills', 'bills', true)
+on conflict (id) do nothing;
+
+drop policy if exists "staff upload bills" on storage.objects;
+create policy "staff upload bills" on storage.objects
+  for insert to authenticated with check (bucket_id = 'bills');
+
+drop policy if exists "staff update bills" on storage.objects;
+create policy "staff update bills" on storage.objects
+  for update to authenticated using (bucket_id = 'bills');
+
+drop policy if exists "public read bills" on storage.objects;
+create policy "public read bills" on storage.objects
+  for select using (bucket_id = 'bills');
