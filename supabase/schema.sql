@@ -55,7 +55,7 @@ create table public.staff_profiles (
 create table public.room_types (
   id            uuid primary key default gen_random_uuid(),
   name          varchar(80) not null unique,
-  base_price    numeric(12,2) not null check (base_price >= 0),
+  base_price    numeric(12,2) not null default 0 check (base_price >= 0),
   max_occupancy int not null check (max_occupancy > 0),
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -141,6 +141,8 @@ create table public.restaurant_orders (
   booking_id       uuid references public.bookings (id) on delete set null,
   customer_phone   varchar(40),
   delivery_address text,
+  subtotal         numeric(14,2) not null default 0 check (subtotal >= 0),
+  service_charge   numeric(14,2) not null default 0 check (service_charge >= 0),
   total_amount     numeric(14,2) not null default 0 check (total_amount >= 0),
   order_status     order_status not null default 'active',
   delivery_status  delivery_status,
@@ -231,6 +233,7 @@ create table public.hotel_settings (
   phone_primary   varchar(40),
   phone_secondary varchar(40),
   logo_url        text,
+  service_charge_rate numeric(5,2) not null default 10 check (service_charge_rate >= 0 and service_charge_rate <= 100),
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
 );
@@ -415,12 +418,24 @@ security definer set search_path = public
 as $$
 declare
   v_order_id uuid := coalesce(new.order_id, old.order_id);
+  v_subtotal numeric(14,2);
+  v_rate     numeric(5,2);
+  v_sc       numeric(14,2);
 begin
+  select coalesce(sum(oi.line_total), 0) into v_subtotal
+  from public.order_items oi where oi.order_id = v_order_id;
+
+  select coalesce(hs.service_charge_rate, 0) into v_rate
+  from public.hotel_settings hs where hs.id = 1;
+
+  v_sc := round(v_subtotal * coalesce(v_rate, 0) / 100.0, 2);
+
   update public.restaurant_orders o
-  set total_amount = coalesce((
-    select sum(oi.line_total) from public.order_items oi where oi.order_id = v_order_id
-  ), 0)
+  set subtotal       = v_subtotal,
+      service_charge = v_sc,
+      total_amount   = v_subtotal + v_sc
   where o.id = v_order_id;
+
   return coalesce(new, old);
 end $$;
 

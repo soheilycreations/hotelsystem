@@ -8,7 +8,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 |---|---|---|
 | Overview | `/` | Occupancy %, 14-day revenue vs expenses, live activity feed, channel mix |
 | Room Grid | `/pms/rooms` | Zone-grouped, color-coded status board with in-house guest names and **live short-stay countdowns** (green → amber ≤30 min → red overtime). Gear icon → Room Setup |
-| Room Setup | `/pms/settings` | Rooms + categories + **rate plans** (AC / Non-AC per-night, hourly blocks like "Short Stay — 3h") with availability toggles |
+| Room Setup | `/pms/settings` | Rooms + categories (physical room types only) + **rate plans** — one room sells under any of its category's plans (AC / Non-AC per-night, hourly blocks) |
 | Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend** (+hours, folio tops up), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
 | POS Terminal | `/pos/active` | 4 channels: dine-in (table matrix), room service (charge to folio), takeaway, delivery (status pipeline). Full-menu search + **Send KOT** (kitchen ticket for new items) |
 | Billing | `/pos/billing` | Settle bills, void, mark table billed, KOT-sent indicator (warns before settling un-KOT'd bills), **ESC/POS thermal receipt printing (WebUSB)** |
@@ -65,7 +65,7 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 
 ## Rate plans & short stays
 
-- Each room **category** carries multiple rate plans: per-night (e.g. "AC — Full Night", "Non-AC — Full Night") and time blocks (e.g. "Day Use — 12h", "Short Stay — 3h").
+- A **category is just the physical room type** (Deluxe, Family Suite) — it carries no price. All pricing lives in that category's rate plans: per-night (e.g. "AC — Full Night", "Non-AC — Full Night") and time blocks (e.g. "Day Use — 12h", "Short Stay — 3h"). The same room can be sold as a 3h short stay today and a Non-AC full night tomorrow, each charged by its plan.
 - The booking form shows only the selected room's active plans; the folio opens at plan price × nights, or the flat block price.
 - Bookings store a **snapshot** of the plan name + price, so later price edits never change existing bills.
 - Time-block countdowns re-anchor to the **actual check-in moment** and tick live on the room grid and bookings list. Overtime turns red — staff can then **Extend** (deadline pushed, folio topped up at the plan's hourly equivalent) or add a custom **Charge**; both print as their own bill lines via the `booking_charges` trigger.
@@ -74,6 +74,12 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 
 `/settings` (admin/manager) stores the hotel name, address, two contact numbers, and a logo URL. The name + logo replace the sidebar brand, and the name/address/phones print at the top of room bills and restaurant receipts. Thermal output keeps the header as text — ESC/POS logo rasters are unreliable across clone printers.
 
+## Service charge
+
+A configurable service charge (default **10%**, set in Hotel Profile, 0 = off) is applied to every POS order by the database recalculator: `subtotal + service charge = total`. The breakdown shows on the POS order pad, the Billing screen, and prints as its own receipt lines. Room-service totals posted to guest folios include the charge. Past/settled bills are never recalculated retroactively.
+
+Checkout is blocked while a guest still has an **unsettled room-service bill** — settle it on the Billing screen first, and it lands on the folio automatically.
+
 ## KOT (Kitchen Order Ticket) workflow
 
 - Adding items to an order leaves them **KOT-pending** (no ✓ mark).
@@ -81,7 +87,7 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run `supabase/migration-001-kot.sql` and then `supabase/migration-002-rateplans-hotel.sql` in the SQL Editor (in order, each once) — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run `supabase/migration-001-kot.sql`, `supabase/migration-002-rateplans-hotel.sql`, then `supabase/migration-003-service-charge.sql` in the SQL Editor (in order, each once) — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 

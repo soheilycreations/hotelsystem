@@ -216,6 +216,14 @@ export function buildEscPosReceipt({
   }
 
   bytes.push(...line());
+  const subtotal = Number(order.subtotal ?? order.total_amount);
+  const serviceCharge = Number(order.service_charge ?? 0);
+  if (serviceCharge > 0) {
+    const pct = subtotal > 0 ? Math.round((serviceCharge / subtotal) * 100) : 0;
+    bytes.push(...row("Subtotal", subtotal.toFixed(2)));
+    bytes.push(...row(`Service charge ${pct}%`, serviceCharge.toFixed(2)));
+    bytes.push(...line());
+  }
   bytes.push(ESC, 0x21, 0x10); // emphasized
   bytes.push(...row("TOTAL (LKR)", order.total_amount.toFixed(2)));
   bytes.push(ESC, 0x21, 0x00);

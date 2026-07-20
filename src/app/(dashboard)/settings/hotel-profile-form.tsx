@@ -16,6 +16,7 @@ export function HotelProfileForm({ settings }: { settings: HotelSettings | null 
   const [phone1, setPhone1] = useState(settings?.phone_primary ?? "");
   const [phone2, setPhone2] = useState(settings?.phone_secondary ?? "");
   const [logoUrl, setLogoUrl] = useState(settings?.logo_url ?? "");
+  const [scRate, setScRate] = useState(String(settings?.service_charge_rate ?? 10));
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -87,6 +88,24 @@ export function HotelProfileForm({ settings }: { settings: HotelSettings | null 
                   placeholder="07X XXX XXXX"
                 />
               </div>
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="hp-sc">Service charge on POS sales (%)</Label>
+              <Input
+                id="hp-sc"
+                name="service_charge_rate"
+                type="number"
+                min="0"
+                max="100"
+                step="0.5"
+                value={scRate}
+                onChange={(e) => setScRate(e.target.value)}
+              />
+              <p className="text-xs text-muted-foreground">
+                Added on top of every restaurant/POS bill and shown as its own line. Set 0 to
+                switch it off. Open bills recalculate on their next item change; already-settled
+                bills never change.
+              </p>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="hp-logo">Logo URL</Label>

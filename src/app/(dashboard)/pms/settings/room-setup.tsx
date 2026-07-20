@@ -69,6 +69,12 @@ export function RoomSetup({
     return map;
   }, [rooms]);
 
+  const planCountByType = useMemo(() => {
+    const map = new Map<string, number>();
+    for (const p of ratePlans) map.set(p.room_type_id, (map.get(p.room_type_id) ?? 0) + 1);
+    return map;
+  }, [ratePlans]);
+
   function handleDeleteType(t: RoomType) {
     startTransition(async () => {
       const res = await deleteRoomType(t.id);
@@ -115,7 +121,7 @@ export function RoomSetup({
           <CardHeader className="flex-row items-center justify-between space-y-0">
             <CardTitle className="flex items-center gap-2 text-base">
               <Tags className="h-4 w-4" />
-              Categories & rates
+              Room categories
             </CardTitle>
             <Button size="sm" onClick={() => setTypeDialog({ mode: "create" })}>
               <Plus className="mr-1.5 h-3.5 w-3.5" />
@@ -131,8 +137,8 @@ export function RoomSetup({
                 <div>
                   <p className="text-sm font-medium">{t.name}</p>
                   <p className="text-xs text-muted-foreground">
-                    {formatLKR(Number(t.base_price))} / night · sleeps {t.max_occupancy} ·{" "}
-                    {roomCountByType.get(t.id) ?? 0} room(s)
+                    sleeps {t.max_occupancy} · {roomCountByType.get(t.id) ?? 0} room(s) ·{" "}
+                    {planCountByType.get(t.id) ?? 0} plan(s)
                   </p>
                 </div>
                 <div className="flex gap-1">
@@ -167,7 +173,8 @@ export function RoomSetup({
               </p>
             )}
             <p className="text-xs text-muted-foreground">
-              Changing a rate only affects new bookings — existing folios keep their totals.
+              A category is just the physical room type — all pricing lives in the rate plans
+              below. One room can be sold under any of its category&apos;s plans.
             </p>
           </CardContent>
         </Card>
@@ -194,7 +201,7 @@ export function RoomSetup({
                 <TableRow>
                   <TableHead>Room</TableHead>
                   <TableHead>Category</TableHead>
-                  <TableHead className="text-right">Rate</TableHead>
+                  <TableHead>Plans</TableHead>
                   <TableHead>Zone</TableHead>
                   <TableHead>Status</TableHead>
                   <TableHead className="w-24" />
@@ -205,8 +212,8 @@ export function RoomSetup({
                   <TableRow key={r.id}>
                     <TableCell className="font-medium">{r.room_number}</TableCell>
                     <TableCell className="text-sm">{r.room_types?.name ?? "—"}</TableCell>
-                    <TableCell className="text-right text-sm tabular-nums">
-                      {r.room_types ? formatLKR(Number(r.room_types.base_price)) : "—"}
+                    <TableCell className="text-sm text-muted-foreground">
+                      {planCountByType.get(r.type_id) ?? 0} plan(s)
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">
                       {r.floor_zone ?? "—"}
@@ -427,8 +434,8 @@ function RoomTypeDialog({ item, onDone }: { item?: RoomType; onDone: (msg: strin
         <DialogTitle>{editing ? `Edit — ${item?.name}` : "New room category"}</DialogTitle>
         <DialogDescription>
           {editing
-            ? "Rate changes only apply to bookings made from now on."
-            : "e.g. Standard Double, Deluxe Sea View, Family Suite."}
+            ? "Renaming keeps all rooms and rate plans attached."
+            : "The physical room type only — e.g. Deluxe, Family Suite. Set prices in Rate Plans."}
         </DialogDescription>
       </DialogHeader>
       <form action={submit} className="grid gap-4 py-2">
@@ -436,31 +443,17 @@ function RoomTypeDialog({ item, onDone }: { item?: RoomType; onDone: (msg: strin
           <Label htmlFor="rt-name">Category name</Label>
           <Input id="rt-name" name="name" defaultValue={item?.name} required />
         </div>
-        <div className="grid grid-cols-2 gap-3">
-          <div className="space-y-1.5">
-            <Label htmlFor="rt-price">Nightly rate (LKR)</Label>
-            <Input
-              id="rt-price"
-              name="base_price"
-              type="number"
-              min="0"
-              step="0.01"
-              defaultValue={item ? Number(item.base_price) : undefined}
-              required
-            />
-          </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="rt-occ">Max occupancy</Label>
-            <Input
-              id="rt-occ"
-              name="max_occupancy"
-              type="number"
-              min="1"
-              step="1"
-              defaultValue={item?.max_occupancy ?? 2}
-              required
-            />
-          </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="rt-occ">Max occupancy</Label>
+          <Input
+            id="rt-occ"
+            name="max_occupancy"
+            type="number"
+            min="1"
+            step="1"
+            defaultValue={item?.max_occupancy ?? 2}
+            required
+          />
         </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>

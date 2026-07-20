@@ -30,18 +30,15 @@ function revalidateRooms(): void {
 // ---------------------------------------------------------------------------
 
 function parseTypeForm(formData: FormData):
-  | { ok: true; name: string; basePrice: number; maxOccupancy: number }
+  | { ok: true; name: string; maxOccupancy: number }
   | { ok: false; error: string } {
   const name = String(formData.get("name") ?? "").trim();
-  const basePrice = Number(formData.get("base_price") ?? 0);
   const maxOccupancy = Number(formData.get("max_occupancy") ?? 0);
 
   if (!name) return { ok: false, error: "Category name is required." };
-  if (!Number.isFinite(basePrice) || basePrice <= 0)
-    return { ok: false, error: "Nightly rate must be greater than zero." };
   if (!Number.isInteger(maxOccupancy) || maxOccupancy < 1)
     return { ok: false, error: "Max occupancy must be at least 1." };
-  return { ok: true, name, basePrice, maxOccupancy };
+  return { ok: true, name, maxOccupancy };
 }
 
 export async function createRoomType(formData: FormData): Promise<ActionResult> {
@@ -51,9 +48,9 @@ export async function createRoomType(formData: FormData): Promise<ActionResult> 
     if (!parsed.ok) return parsed;
 
     const supabase = await createClient();
+    // Pricing lives in rate plans — base_price stays at its default.
     const { error } = await supabase.from("room_types").insert({
       name: parsed.name,
-      base_price: parsed.basePrice,
       max_occupancy: parsed.maxOccupancy,
     });
     if (error)
@@ -79,12 +76,10 @@ export async function updateRoomType(
     if (!parsed.ok) return parsed;
 
     const supabase = await createClient();
-    // Rate changes only affect NEW bookings — existing folios keep their totals.
     const { error } = await supabase
       .from("room_types")
       .update({
         name: parsed.name,
-        base_price: parsed.basePrice,
         max_occupancy: parsed.maxOccupancy,
       })
       .eq("id", roomTypeId);

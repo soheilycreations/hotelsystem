@@ -229,9 +229,26 @@ export function BillingDesk({
               )}
             </div>
 
-            <div className="flex items-center justify-between border-t pt-3 text-base font-semibold">
-              <span>Total</span>
-              <span className="tabular-nums">{formatLKR(Number(selected.total_amount))}</span>
+            <div className="space-y-1 border-t pt-3">
+              <div className="flex items-center justify-between text-sm">
+                <span className="text-muted-foreground">Subtotal</span>
+                <span className="tabular-nums">{formatLKR(Number(selected.subtotal))}</span>
+              </div>
+              {Number(selected.service_charge) > 0 && (
+                <div className="flex items-center justify-between text-sm">
+                  <span className="text-muted-foreground">
+                    Service charge
+                    {Number(selected.subtotal) > 0
+                      ? ` (${Math.round((Number(selected.service_charge) / Number(selected.subtotal)) * 100)}%)`
+                      : ""}
+                  </span>
+                  <span className="tabular-nums">{formatLKR(Number(selected.service_charge))}</span>
+                </div>
+              )}
+              <div className="flex items-center justify-between text-base font-semibold">
+                <span>Total</span>
+                <span className="tabular-nums">{formatLKR(Number(selected.total_amount))}</span>
+              </div>
             </div>
 
             <div className="grid gap-2">

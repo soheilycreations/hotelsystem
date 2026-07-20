@@ -20,8 +20,11 @@ export async function updateHotelSettings(formData: FormData): Promise<ActionRes
     const phonePrimary = String(formData.get("phone_primary") ?? "").trim();
     const phoneSecondary = String(formData.get("phone_secondary") ?? "").trim();
     const logoUrl = String(formData.get("logo_url") ?? "").trim();
+    const scRate = Number(formData.get("service_charge_rate") ?? 0);
 
     if (!hotelName) return { ok: false, error: "Hotel name is required." };
+    if (!Number.isFinite(scRate) || scRate < 0 || scRate > 100)
+      return { ok: false, error: "Service charge must be between 0 and 100%." };
     if (logoUrl && !/^https?:\/\//.test(logoUrl))
       return { ok: false, error: "Logo URL must start with http:// or https://" };
 
@@ -34,6 +37,7 @@ export async function updateHotelSettings(formData: FormData): Promise<ActionRes
         phone_primary: phonePrimary || null,
         phone_secondary: phoneSecondary || null,
         logo_url: logoUrl || null,
+        service_charge_rate: scRate,
       })
       .eq("id", 1);
     if (error) return { ok: false, error: error.message };

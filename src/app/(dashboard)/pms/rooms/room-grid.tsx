@@ -3,7 +3,7 @@
 import { useState, useTransition } from "react";
 import { BedDouble, Brush, Loader2, Wrench } from "lucide-react";
 import type { Booking, Room, RoomStatus } from "@/lib/types";
-import { cn, formatLKR } from "@/lib/utils";
+import { cn } from "@/lib/utils";
 import { setRoomStatus } from "../actions";
 import { StayCountdown } from "../reserve/booking-list";
 import { Badge } from "@/components/ui/badge";
@@ -109,8 +109,7 @@ export function RoomGrid({
           <DialogHeader>
             <DialogTitle>Room {selected?.room_number}</DialogTitle>
             <DialogDescription>
-              {selected?.room_types?.name} · {formatLKR(Number(selected?.room_types?.base_price ?? 0))}
-              /night · sleeps {selected?.room_types?.max_occupancy}
+              {selected?.room_types?.name} · sleeps {selected?.room_types?.max_occupancy}
             </DialogDescription>
           </DialogHeader>
 

@@ -318,11 +318,30 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
                   )}
                 </div>
 
-                <div className="flex items-center justify-between border-t pt-3">
-                  <span className="text-sm text-muted-foreground">Running total</span>
-                  <span className="text-lg font-bold tabular-nums">
-                    {formatLKR(Number(selectedOrder.total_amount))}
-                  </span>
+                <div className="space-y-1 border-t pt-3">
+                  <div className="flex items-center justify-between text-sm">
+                    <span className="text-muted-foreground">Subtotal</span>
+                    <span className="tabular-nums">{formatLKR(Number(selectedOrder.subtotal))}</span>
+                  </div>
+                  {Number(selectedOrder.service_charge) > 0 && (
+                    <div className="flex items-center justify-between text-sm">
+                      <span className="text-muted-foreground">
+                        Service charge
+                        {Number(selectedOrder.subtotal) > 0
+                          ? ` (${Math.round((Number(selectedOrder.service_charge) / Number(selectedOrder.subtotal)) * 100)}%)`
+                          : ""}
+                      </span>
+                      <span className="tabular-nums">
+                        {formatLKR(Number(selectedOrder.service_charge))}
+                      </span>
+                    </div>
+                  )}
+                  <div className="flex items-center justify-between">
+                    <span className="text-sm font-medium">Total</span>
+                    <span className="text-lg font-bold tabular-nums">
+                      {formatLKR(Number(selectedOrder.total_amount))}
+                    </span>
+                  </div>
                 </div>
 
                 {/* KOT — send new items to the kitchen */}

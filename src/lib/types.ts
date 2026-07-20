@@ -116,6 +116,8 @@ export interface RestaurantOrder {
   booking_id: string | null;
   customer_phone: string | null;
   delivery_address: string | null;
+  subtotal: number;
+  service_charge: number;
   total_amount: number;
   order_status: OrderStatus;
   delivery_status: DeliveryStatus | null;
@@ -199,6 +201,7 @@ export interface HotelSettings {
   phone_primary: string | null;
   phone_secondary: string | null;
   logo_url: string | null;
+  service_charge_rate: number;
   created_at: string;
   updated_at: string;
 }

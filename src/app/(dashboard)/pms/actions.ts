@@ -142,6 +142,23 @@ export async function setBookingStatus(
     await assertPmsRole();
     const supabase = await createClient();
 
+    // Don't let a guest walk out with an unsettled room-service bill — those
+    // only post to the folio when the order completes (Trigger B).
+    if (status === "checked_out") {
+      const { data: openRs } = await supabase
+        .from("restaurant_orders")
+        .select("order_number")
+        .eq("booking_id", bookingId)
+        .eq("order_status", "active");
+      if (openRs && openRs.length > 0) {
+        const nums = openRs.map((o) => `#${o.order_number}`).join(", ");
+        return {
+          ok: false,
+          error: `Settle room-service bill${openRs.length > 1 ? "s" : ""} ${nums} first (Billing screen) — then check out.`,
+        };
+      }
+    }
+
     // For a time-block stay the countdown starts at the ACTUAL check-in moment,
     // so re-anchor the window when the guest walks in.
     if (status === "checked_in") {
