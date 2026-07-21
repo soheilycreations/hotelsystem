@@ -12,11 +12,12 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend** (+hours, folio tops up), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
 | POS Terminal | `/pos/active` | 4 channels: dine-in (table matrix), room service (charge to folio), takeaway, delivery (status pipeline). Full-menu search + **Send KOT** (kitchen ticket for new items) |
 | Billing | `/pos/billing` | Settle bills, void, mark table billed, KOT-sent indicator (warns before settling un-KOT'd bills), **ESC/POS thermal receipt printing (WebUSB)** |
-| Menu Items | `/pos/menu` | Add/edit dishes, change prices, availability toggle (hides from POS instantly) |
-| Inventory | `/inventory` | Live stock table, low-stock highlighting, stock in/out adjustments with audit log |
-| Recipes & Costing | `/inventory/recipes` | Per-dish recipe editor — food cost, margin %, profit per plate |
+| Menu Items | `/pos/menu` | Add/edit/**delete** dishes, change prices, availability toggle, and a **Categories manager** (add/rename/delete — categories are no longer fixed) |
+| Inventory | `/inventory` | Live stock table, low-stock highlighting, stock in/out adjustments with audit log, **edit** (name/unit/cost/reorder level) and **delete** (blocked while used in a recipe) |
+| Recipes & Costing | `/inventory/recipes` | Per-dish recipe editor — ingredient cost + an editable flat **"other cost"** (packaging/gas/misc), margin %, profit per plate |
 | Expenses | `/finance/expenses` | Expense logger (utilities / purchasing / salary / maintenance / marketing) |
 | P&L Report | `/finance/reports` | 30-day revenue vs expenses, channel mix, expense breakdown — room-service revenue de-duplicated |
+| Daily Summary | `/finance/daily-summary` | One day, fully broken down: room sales (checkouts that day), item-wise POS sales, expenses, and a **net cash balance**. Date picker + prev/next day, **PDF export** |
 
 ## Database automation (the "brain" lives in Postgres)
 
@@ -63,6 +64,17 @@ Deploy to Vercel: push to GitHub → import → add the two env vars.
 
 Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epson TM-T series and compatible clones. On the first print, the browser asks you to pick the USB printer. Browsers without WebUSB fall back to `window.print()`.
 
+## Menu categories, item deletion, and recipe "other costs"
+
+- Menu categories are a real, editable table now (`menu_categories`) — add, rename, or delete them from the **Categories** dialog on the Menu Items page. A category can't be deleted while any menu item still uses it.
+- Menu items and inventory items can be **deleted**, not just hidden — but only if they were never used (an item that appears in a past order, or an ingredient still linked to a recipe, is protected by a database foreign key and the action returns a clear message telling you to switch it off / unlink it first instead).
+- Recipe Costing now has an editable **"Other costs"** field per dish — a flat amount (packaging, gas, misc.) added on top of the ingredient subtotal for margin calculations. It never touches inventory stock.
+- **Stock only deducts for dishes that have a recipe defined.** The Billing screen now shows a warning naming any item on the bill with no recipe, so it's obvious in the moment rather than a silent gap — define the recipe on `/inventory/recipes` to fix it going forward.
+
+## Daily Summary & cash reconciliation
+
+`/finance/daily-summary` gives a single day's complete picture for closing the till: room sales for every checkout that day (de-duplicated against room-service the same way as the P&L report), an item-by-item POS sales table, the day's expenses, and a **net cash balance** (revenue − expenses). Use the date picker or the prev/next arrows to check any day, and **Export PDF** for a printable/shareable A4 report — handy for daily reconciliation without opening a spreadsheet.
+
 ## Rate plans & short stays
 
 - A **category is just the physical room type** (Deluxe, Family Suite) — it carries no price. All pricing lives in that category's rate plans: per-night (e.g. "AC — Full Night", "Non-AC — Full Night") and time blocks (e.g. "Day Use — 12h", "Short Stay — 3h"). The same room can be sold as a 3h short stay today and a Non-AC full night tomorrow, each charged by its plan.
@@ -93,7 +105,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run `supabase/migration-001-kot.sql`, `supabase/migration-002-rateplans-hotel.sql`, `supabase/migration-003-service-charge.sql`, then `supabase/migration-004-times-pdf.sql` in the SQL Editor (in order, each once) — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 002 → 003 → 004 → 005** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 

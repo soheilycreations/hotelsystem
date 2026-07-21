@@ -11,7 +11,9 @@ export default async function BillingPage() {
   const [{ data: orders }, { data: hotel }] = await Promise.all([
     supabase
       .from("restaurant_orders")
-      .select("*, restaurant_tables(*), bookings(*, rooms(*)), order_items(*, menu_items(*))")
+      .select(
+        "*, restaurant_tables(*), bookings(*, rooms(*)), order_items(*, menu_items(*, menu_recipe_ingredients(id)))"
+      )
       .eq("order_status", "active")
       .order("created_at", { ascending: true }),
     supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),

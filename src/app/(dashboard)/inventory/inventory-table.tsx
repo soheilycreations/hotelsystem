@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, PackagePlus, Plus, SlidersHorizontal } from "lucide-react";
+import { AlertTriangle, PackagePlus, Pencil, Plus, SlidersHorizontal, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,7 +27,7 @@ import {
 } from "@/components/ui/table";
 import { formatLKR } from "@/lib/utils";
 import type { InventoryItem } from "@/lib/types";
-import { adjustStock, createInventoryItem } from "./actions";
+import { adjustStock, createInventoryItem, deleteInventoryItem, updateInventoryItem } from "./actions";
 
 export function InventoryTable({
   items,
@@ -38,6 +38,8 @@ export function InventoryTable({
 }) {
   const [query, setQuery] = useState("");
   const [adjusting, setAdjusting] = useState<InventoryItem | null>(null);
+  const [editing, setEditing] = useState<InventoryItem | null>(null);
+  const [pending, startTransition] = useTransition();
   const [addOpen, setAddOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
 
@@ -56,6 +58,13 @@ export function InventoryTable({
     () => items.reduce((sum, i) => sum + Number(i.quantity_in_stock) * Number(i.unit_cost), 0),
     [items]
   );
+
+  function handleDelete(item: InventoryItem) {
+    startTransition(async () => {
+      const res = await deleteInventoryItem(item.id);
+      setFeedback(res.ok ? `${item.name} deleted.` : res.error ?? "Could not delete.");
+    });
+  }
 
   return (
     <div className="space-y-4">
@@ -140,14 +149,38 @@ export function InventoryTable({
                       )}
                     </TableCell>
                     <TableCell>
-                      <Button
-                        size="sm"
-                        variant="outline"
-                        onClick={() => setAdjusting(item)}
-                      >
-                        <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
-                        Adjust
-                      </Button>
+                      <div className="flex gap-1">
+                        <Button
+                          size="sm"
+                          variant="outline"
+                          onClick={() => setAdjusting(item)}
+                        >
+                          <SlidersHorizontal className="mr-1.5 h-3.5 w-3.5" />
+                          Adjust
+                        </Button>
+                        {canManage && (
+                          <>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8"
+                              onClick={() => setEditing(item)}
+                            >
+                              <Pencil className="h-3.5 w-3.5" />
+                            </Button>
+                            <Button
+                              size="icon"
+                              variant="ghost"
+                              className="h-8 w-8 text-destructive hover:text-destructive"
+                              disabled={pending}
+                              title="Delete — only possible if unused in any recipe"
+                              onClick={() => handleDelete(item)}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          </>
+                        )}
+                      </div>
                     </TableCell>
                   </TableRow>
                 );
@@ -170,6 +203,19 @@ export function InventoryTable({
             item={adjusting}
             onDone={(msg) => {
               setAdjusting(null);
+              setFeedback(msg);
+            }}
+          />
+        )}
+      </Dialog>
+
+      <Dialog open={editing !== null} onOpenChange={(open) => !open && setEditing(null)}>
+        {editing && (
+          <EditItemDialog
+            key={editing.id}
+            item={editing}
+            onDone={(msg) => {
+              setEditing(null);
               setFeedback(msg);
             }}
           />
@@ -320,6 +366,80 @@ function AddItemDialog({ onDone }: { onDone: (msg: string) => void }) {
           <Button type="submit" disabled={pending}>
             <PackagePlus className="mr-2 h-4 w-4" />
             Add item
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
+function EditItemDialog({
+  item,
+  onDone,
+}: {
+  item: InventoryItem;
+  onDone: (msg: string) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function submit(formData: FormData) {
+    startTransition(async () => {
+      const res = await updateInventoryItem(item.id, formData);
+      if (res.ok) onDone(`${item.name} updated.`);
+      else setError(res.error ?? "Could not save.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Edit — {item.name}</DialogTitle>
+        <DialogDescription>
+          Stock quantity isn&apos;t changed here — use &ldquo;Adjust&rdquo; for stock in/out.
+        </DialogDescription>
+      </DialogHeader>
+      <form action={submit} className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-inv-name">Name</Label>
+          <Input id="edit-inv-name" name="name" defaultValue={item.name} required />
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-inv-unit">Unit</Label>
+            <Select id="edit-inv-unit" name="unit" defaultValue={item.unit}>
+              <option value="grams">grams</option>
+              <option value="ml">ml</option>
+              <option value="units">units</option>
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="edit-inv-cost">Unit cost (LKR)</Label>
+            <Input
+              id="edit-inv-cost"
+              name="unit_cost"
+              type="number"
+              min="0"
+              step="any"
+              defaultValue={Number(item.unit_cost)}
+            />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="edit-inv-reorder">Reorder level</Label>
+          <Input
+            id="edit-inv-reorder"
+            name="reorder_level"
+            type="number"
+            min="0"
+            step="any"
+            defaultValue={Number(item.reorder_level)}
+          />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : "Save changes"}
           </Button>
         </DialogFooter>
       </form>

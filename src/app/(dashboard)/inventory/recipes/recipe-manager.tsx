@@ -9,30 +9,29 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { formatLKR } from "@/lib/utils";
-import type { InventoryItem, MenuCategory } from "@/lib/types";
+import type { InventoryItem, MenuCategoryRow } from "@/lib/types";
 import type { MenuItemWithRecipe } from "./page";
-import { addRecipeIngredient, removeRecipeIngredient } from "../actions";
+import { addRecipeIngredient, removeRecipeIngredient, updateOtherCost } from "../actions";
 
-const CATEGORY_LABEL: Record<MenuCategory, string> = {
-  appetizers: "Appetizers",
-  mains: "Mains",
-  drinks: "Drinks",
-  desserts: "Desserts",
-};
-
-function recipeCost(item: MenuItemWithRecipe): number {
+function ingredientCost(item: MenuItemWithRecipe): number {
   return item.menu_recipe_ingredients.reduce(
     (sum, ing) => sum + Number(ing.quantity_needed) * Number(ing.inventory_items?.unit_cost ?? 0),
     0
   );
 }
 
+function totalCost(item: MenuItemWithRecipe): number {
+  return ingredientCost(item) + Number(item.other_cost ?? 0);
+}
+
 export function RecipeManager({
   menuItems,
   inventory,
+  categories,
 }: {
   menuItems: MenuItemWithRecipe[];
   inventory: InventoryItem[];
+  categories: MenuCategoryRow[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(menuItems[0]?.id ?? null);
   const selected = useMemo(
@@ -62,16 +61,16 @@ export function RecipeManager({
           <CardTitle className="text-base">Menu costing</CardTitle>
         </CardHeader>
         <CardContent className="space-y-1 px-3 pb-3">
-          {(Object.keys(CATEGORY_LABEL) as MenuCategory[]).map((cat) => {
-            const group = menuItems.filter((m) => m.category === cat);
+          {categories.map((cat) => {
+            const group = menuItems.filter((m) => m.category_id === cat.id);
             if (group.length === 0) return null;
             return (
-              <div key={cat} className="pb-2">
+              <div key={cat.id} className="pb-2">
                 <p className="px-2 pb-1 pt-2 text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {CATEGORY_LABEL[cat]}
+                  {cat.name}
                 </p>
                 {group.map((item) => {
-                  const cost = recipeCost(item);
+                  const cost = totalCost(item);
                   const price = Number(item.selling_price);
                   const margin = price > 0 ? ((price - cost) / price) * 100 : 0;
                   const active = selected?.id === item.id;
@@ -121,10 +120,13 @@ function RecipeEditor({
 }) {
   const [ingredientId, setIngredientId] = useState("");
   const [quantity, setQuantity] = useState("");
+  const [otherCost, setOtherCost] = useState(String(item.other_cost ?? 0));
   const [error, setError] = useState<string | null>(null);
+  const [otherCostSaved, setOtherCostSaved] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const cost = recipeCost(item);
+  const ingCost = ingredientCost(item);
+  const cost = ingCost + Number(otherCost || 0);
   const price = Number(item.selling_price);
   const profit = price - cost;
   const margin = price > 0 ? (profit / price) * 100 : 0;
@@ -163,13 +165,31 @@ function RecipeEditor({
     });
   }
 
+  function saveOtherCost() {
+    const value = Number(otherCost);
+    if (!Number.isFinite(value) || value < 0) {
+      setError("Other costs can't be negative.");
+      return;
+    }
+    setError(null);
+    startTransition(async () => {
+      const res = await updateOtherCost(item.id, value);
+      if (res.ok) {
+        setOtherCostSaved(true);
+        setTimeout(() => setOtherCostSaved(false), 2000);
+      } else {
+        setError(res.error ?? "Could not save.");
+      }
+    });
+  }
+
   return (
     <Card>
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between">
           <div>
             <CardTitle className="text-base">{item.name}</CardTitle>
-            <p className="text-sm text-muted-foreground">{CATEGORY_LABEL[item.category]}</p>
+            <p className="text-sm text-muted-foreground">{item.menu_categories?.name}</p>
           </div>
           <Badge variant={healthy ? "success" : "warning"}>
             {healthy ? (
@@ -238,6 +258,35 @@ function RecipeEditor({
               No ingredients yet — orders for this dish won&apos;t deduct any stock.
             </p>
           )}
+        </div>
+
+        <div className="flex items-center justify-between rounded-md border border-dashed px-3 py-2 text-sm text-muted-foreground">
+          <span>Ingredients subtotal</span>
+          <span className="tabular-nums">{formatLKR(ingCost)}</span>
+        </div>
+
+        <div className="rounded-lg border bg-muted/30 p-3">
+          <p className="mb-2 text-sm font-medium">Other costs — packaging, gas, misc.</p>
+          <div className="flex items-center gap-2">
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={otherCost}
+              onChange={(e) => setOtherCost(e.target.value)}
+              className="max-w-[160px]"
+            />
+            <Button size="sm" variant="outline" onClick={saveOtherCost} disabled={pending}>
+              Save
+            </Button>
+            {otherCostSaved && (
+              <span className="text-xs text-emerald-500">Saved ✓</span>
+            )}
+          </div>
+          <p className="mt-2 text-xs text-muted-foreground">
+            A flat amount added on top of the ingredients subtotal — doesn&apos;t touch inventory
+            stock. Use it for packaging, gas, or anything not worth tracking as a line ingredient.
+          </p>
         </div>
 
         <div className="rounded-lg border bg-muted/30 p-3">

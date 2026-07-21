@@ -11,7 +11,6 @@ export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery";
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";
-export type MenuCategory = "appetizers" | "mains" | "drinks" | "desserts";
 export type InventoryUnit = "grams" | "ml" | "units";
 export type ExpenseCategory = "utilities" | "purchasing" | "salary" | "maintenance" | "marketing";
 export type LogSeverity = "info" | "warning" | "critical";
@@ -100,14 +99,24 @@ export interface RestaurantTable {
   updated_at: string;
 }
 
+export interface MenuCategoryRow {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface MenuItem {
   id: string;
   name: string;
-  category: MenuCategory;
+  category_id: string;
   selling_price: number;
+  other_cost: number;
   is_available: boolean;
   created_at: string;
   updated_at: string;
+  menu_categories?: MenuCategoryRow; // joined
+  menu_recipe_ingredients?: Pick<MenuRecipeIngredient, "id">[]; // joined (recipe presence check)
 }
 
 export interface RestaurantOrder {
@@ -221,6 +230,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/inventory/recipes": ["admin", "manager"],
   "/finance/expenses": ["admin", "manager"],
   "/finance/reports": ["admin", "manager"],
+  "/finance/daily-summary": ["admin", "manager"],
 };
 
 export function canAccess(role: StaffRole | null, pathname: string): boolean {

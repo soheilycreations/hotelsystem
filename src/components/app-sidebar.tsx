@@ -8,6 +8,7 @@ import {
   BookOpen,
   Building2,
   CalendarCheck,
+  CalendarDays,
   ChefHat,
   Hotel,
   LayoutDashboard,
@@ -42,11 +43,12 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/pos/active", label: "POS Terminal", icon: UtensilsCrossed, group: "Restaurant" },
   { href: "/pos/billing", label: "Billing", icon: Receipt, group: "Restaurant" },
   { href: "/pos/menu", label: "Menu Items", icon: BookOpen, group: "Restaurant" },
-  { href: "/settings", label: "Hotel Profile", icon: Building2, group: "Settings" },
   { href: "/inventory", label: "Inventory", icon: Package, group: "Kitchen" },
   { href: "/inventory/recipes", label: "Recipe Costing", icon: ChefHat, group: "Kitchen" },
+  { href: "/finance/daily-summary", label: "Daily Summary", icon: CalendarDays, group: "Finance" },
   { href: "/finance/expenses", label: "Expenses", icon: Wallet, group: "Finance" },
   { href: "/finance/reports", label: "P&L Reports", icon: ScrollText, group: "Finance" },
+  { href: "/settings", label: "Hotel Profile", icon: Building2, group: "Settings" },
 ];
 
 const ROLE_LABELS: Record<string, string> = {

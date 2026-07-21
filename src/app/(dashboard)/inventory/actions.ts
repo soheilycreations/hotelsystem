@@ -126,6 +126,87 @@ export async function addRecipeIngredient(
   }
 }
 
+export async function updateInventoryItem(
+  inventoryItemId: string,
+  formData: FormData
+): Promise<ActionResult> {
+  try {
+    await assertRole(RECIPE_ROLES);
+    const supabase = await createClient();
+
+    const name = String(formData.get("name") ?? "").trim();
+    const unit = String(formData.get("unit") ?? "") as InventoryUnit;
+    const unitCost = Number(formData.get("unit_cost") ?? 0);
+    const reorderLevel = Number(formData.get("reorder_level") ?? 0);
+
+    if (!name) return { ok: false, error: "Item name is required." };
+    if (!["grams", "ml", "units"].includes(unit))
+      return { ok: false, error: "Pick a valid unit." };
+    if (unitCost < 0 || reorderLevel < 0)
+      return { ok: false, error: "Values cannot be negative." };
+
+    // Stock quantity is changed only via Adjust — this only updates the
+    // descriptive fields, so it can't be used to silently top up stock.
+    const { error } = await supabase
+      .from("inventory_items")
+      .update({ name, unit, unit_cost: unitCost, reorder_level: reorderLevel })
+      .eq("id", inventoryItemId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/recipes");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function deleteInventoryItem(inventoryItemId: string): Promise<ActionResult> {
+  try {
+    await assertRole(RECIPE_ROLES);
+    const supabase = await createClient();
+
+    const { count } = await supabase
+      .from("menu_recipe_ingredients")
+      .select("id", { count: "exact", head: true })
+      .eq("inventory_item_id", inventoryItemId);
+    if ((count ?? 0) > 0)
+      return {
+        ok: false,
+        error: `Cannot delete — used in ${count} recipe(s). Remove it from those recipes first.`,
+      };
+
+    const { error } = await supabase.from("inventory_items").delete().eq("id", inventoryItemId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/recipes");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function updateOtherCost(menuItemId: string, otherCost: number): Promise<ActionResult> {
+  try {
+    await assertRole(RECIPE_ROLES);
+    if (!Number.isFinite(otherCost) || otherCost < 0)
+      return { ok: false, error: "Other costs can't be negative." };
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("menu_items")
+      .update({ other_cost: Math.round(otherCost * 100) / 100 })
+      .eq("id", menuItemId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/inventory/recipes");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 export async function removeRecipeIngredient(recipeIngredientId: string): Promise<ActionResult> {
   try {
     await assertRole(RECIPE_ROLES);

@@ -254,6 +254,21 @@ export function BillingDesk({
                 Guest: {selected.bookings.guest_name} — settling posts this to the room folio.
               </p>
             )}
+            {(() => {
+              const noRecipe = (selected.order_items ?? []).filter(
+                (i) => (i.menu_items?.menu_recipe_ingredients ?? []).length === 0
+              );
+              if (noRecipe.length === 0) return null;
+              const names = Array.from(
+                new Set(noRecipe.map((i) => i.menu_items?.name ?? "item"))
+              ).join(", ");
+              return (
+                <p className="rounded-md bg-amber-500/10 px-2.5 py-1.5 text-xs text-amber-500">
+                  No recipe set for {names} — stock won&apos;t deduct for{" "}
+                  {noRecipe.length > 1 ? "these lines" : "this line"} on settle.
+                </p>
+              );
+            })()}
           </CardHeader>
           <CardContent className="space-y-4">
             <div className="space-y-2">

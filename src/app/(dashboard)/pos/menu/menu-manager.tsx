@@ -1,13 +1,13 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import Link from "next/link";
-import { AlertTriangle, Pencil, Plus, UtensilsCrossed } from "lucide-react";
+import { AlertTriangle, Pencil, Plus, Settings2, Trash2, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
 import {
   Dialog,
+  DialogClose,
   DialogContent,
   DialogDescription,
   DialogFooter,
@@ -27,21 +27,29 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatLKR } from "@/lib/utils";
-import type { MenuCategory } from "@/lib/types";
+import type { MenuCategoryRow } from "@/lib/types";
 import type { MenuItemWithRecipeCount } from "./page";
-import { createMenuItem, toggleMenuItemAvailability, updateMenuItem } from "./actions";
+import {
+  createMenuCategory,
+  createMenuItem,
+  deleteMenuCategory,
+  deleteMenuItem,
+  renameMenuCategory,
+  toggleMenuItemAvailability,
+  updateMenuItem,
+} from "./actions";
 
-const CATEGORY_LABEL: Record<MenuCategory, string> = {
-  appetizers: "Appetizers",
-  mains: "Mains",
-  drinks: "Drinks",
-  desserts: "Desserts",
-};
-
-export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
+export function MenuManager({
+  items,
+  categories,
+}: {
+  items: MenuItemWithRecipeCount[];
+  categories: MenuCategoryRow[];
+}) {
   const [query, setQuery] = useState("");
   const [editing, setEditing] = useState<MenuItemWithRecipeCount | null>(null);
   const [addOpen, setAddOpen] = useState(false);
+  const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -67,6 +75,13 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
     });
   }
 
+  function handleDelete(item: MenuItemWithRecipeCount) {
+    startTransition(async () => {
+      const res = await deleteMenuItem(item.id);
+      setFeedback(res.ok ? `${item.name} deleted.` : res.error ?? "Could not delete.");
+    });
+  }
+
   return (
     <div className="space-y-4">
       <div className="flex flex-wrap items-center gap-3">
@@ -83,15 +98,34 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
               {missingRecipes} without a recipe
             </Badge>
           )}
+          <Dialog open={categoriesOpen} onOpenChange={setCategoriesOpen}>
+            <DialogTrigger asChild>
+              <Button size="sm" variant="outline">
+                <Settings2 className="mr-2 h-4 w-4" />
+                Categories
+              </Button>
+            </DialogTrigger>
+            <CategoriesDialog
+              categories={categories}
+              itemCountByCategory={Object.fromEntries(
+                categories.map((c) => [
+                  c.id,
+                  items.filter((i) => i.category_id === c.id).length,
+                ])
+              )}
+              onFeedback={setFeedback}
+            />
+          </Dialog>
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>
-              <Button size="sm">
+              <Button size="sm" disabled={categories.length === 0}>
                 <Plus className="mr-2 h-4 w-4" />
                 New item
               </Button>
             </DialogTrigger>
             <MenuItemDialog
               mode="create"
+              categories={categories}
               onDone={(msg) => {
                 setAddOpen(false);
                 setFeedback(msg);
@@ -102,6 +136,11 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
       </div>
 
       {feedback && <p className="rounded-md bg-muted px-3 py-2 text-xs">{feedback}</p>}
+      {categories.length === 0 && (
+        <p className="rounded-md border border-dashed px-3 py-6 text-center text-sm text-muted-foreground">
+          No categories yet — add one under &ldquo;Categories&rdquo; before creating menu items.
+        </p>
+      )}
 
       <Card>
         <CardContent className="px-0">
@@ -113,7 +152,7 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
                 <TableHead className="text-right">Price</TableHead>
                 <TableHead>Recipe</TableHead>
                 <TableHead>On POS</TableHead>
-                <TableHead className="w-20" />
+                <TableHead className="w-32" />
               </TableRow>
             </TableHeader>
             <TableBody>
@@ -121,7 +160,7 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
                 <TableRow key={item.id} className={item.is_available ? "" : "opacity-60"}>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{CATEGORY_LABEL[item.category]}</Badge>
+                    <Badge variant="secondary">{item.menu_categories?.name ?? "—"}</Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatLKR(Number(item.selling_price))}
@@ -132,12 +171,12 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
                         {item.menu_recipe_ingredients.length} ingredients
                       </span>
                     ) : (
-                      <Link
+                      <a
                         href="/inventory/recipes"
                         className="text-sm text-amber-500 underline-offset-2 hover:underline"
                       >
                         No recipe — no stock deduction
-                      </Link>
+                      </a>
                     )}
                   </TableCell>
                   <TableCell>
@@ -159,10 +198,22 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
                     </button>
                   </TableCell>
                   <TableCell>
-                    <Button size="sm" variant="outline" onClick={() => setEditing(item)}>
-                      <Pencil className="mr-1.5 h-3.5 w-3.5" />
-                      Edit
-                    </Button>
+                    <div className="flex gap-1">
+                      <Button size="sm" variant="outline" onClick={() => setEditing(item)}>
+                        <Pencil className="mr-1.5 h-3.5 w-3.5" />
+                        Edit
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        disabled={pending}
+                        title="Delete — only possible if it was never ordered"
+                        onClick={() => handleDelete(item)}
+                      >
+                        <Trash2 className="h-3.5 w-3.5" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -185,6 +236,7 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
             key={editing.id}
             mode="edit"
             item={editing}
+            categories={categories}
             onDone={(msg) => {
               setEditing(null);
               setFeedback(msg);
@@ -199,10 +251,12 @@ export function MenuManager({ items }: { items: MenuItemWithRecipeCount[] }) {
 function MenuItemDialog({
   mode,
   item,
+  categories,
   onDone,
 }: {
   mode: "create" | "edit";
   item?: MenuItemWithRecipeCount;
+  categories: MenuCategoryRow[];
   onDone: (msg: string) => void;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -246,10 +300,14 @@ function MenuItemDialog({
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">
             <Label htmlFor="menu-category">Category</Label>
-            <Select id="menu-category" name="category" defaultValue={item?.category ?? "mains"}>
-              {(Object.keys(CATEGORY_LABEL) as MenuCategory[]).map((c) => (
-                <option key={c} value={c}>
-                  {CATEGORY_LABEL[c]}
+            <Select
+              id="menu-category"
+              name="category_id"
+              defaultValue={item?.category_id ?? categories[0]?.id}
+            >
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
                 </option>
               ))}
             </Select>
@@ -268,6 +326,22 @@ function MenuItemDialog({
             />
           </div>
         </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="menu-other-cost">Other costs (LKR) — packaging, gas, etc.</Label>
+          <Input
+            id="menu-other-cost"
+            name="other_cost"
+            type="number"
+            min="0"
+            step="0.01"
+            defaultValue={item ? Number(item.other_cost) : 0}
+            placeholder="0.00"
+          />
+          <p className="text-xs text-muted-foreground">
+            A flat amount added to this dish&apos;s food cost on the Recipe Costing page —
+            doesn&apos;t touch inventory.
+          </p>
+        </div>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
           <Button type="submit" disabled={pending}>
@@ -275,6 +349,146 @@ function MenuItemDialog({
           </Button>
         </DialogFooter>
       </form>
+    </DialogContent>
+  );
+}
+
+function CategoriesDialog({
+  categories,
+  itemCountByCategory,
+  onFeedback,
+}: {
+  categories: MenuCategoryRow[];
+  itemCountByCategory: Record<string, number>;
+  onFeedback: (msg: string) => void;
+}) {
+  const [pending, startTransition] = useTransition();
+  const [error, setError] = useState<string | null>(null);
+  const [renamingId, setRenamingId] = useState<string | null>(null);
+  const [renameValue, setRenameValue] = useState("");
+  const [newName, setNewName] = useState("");
+
+  function addCategory() {
+    if (!newName.trim()) return;
+    const fd = new FormData();
+    fd.set("name", newName.trim());
+    startTransition(async () => {
+      const res = await createMenuCategory(fd);
+      if (res.ok) {
+        setNewName("");
+        onFeedback(`Category “${newName.trim()}” added.`);
+      } else {
+        setError(res.error ?? "Could not add the category.");
+      }
+    });
+  }
+
+  function saveRename(id: string) {
+    if (!renameValue.trim()) return;
+    const fd = new FormData();
+    fd.set("name", renameValue.trim());
+    startTransition(async () => {
+      const res = await renameMenuCategory(id, fd);
+      if (res.ok) {
+        setRenamingId(null);
+        onFeedback("Category renamed.");
+      } else {
+        setError(res.error ?? "Could not rename.");
+      }
+    });
+  }
+
+  function remove(c: MenuCategoryRow) {
+    startTransition(async () => {
+      const res = await deleteMenuCategory(c.id);
+      onFeedback(res.ok ? `Category “${c.name}” deleted.` : res.error ?? "Could not delete.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Menu categories</DialogTitle>
+        <DialogDescription>
+          These group items on the Menu Items page and the POS terminal tabs.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="space-y-2 py-2">
+        {categories.map((c) => (
+          <div key={c.id} className="flex items-center gap-2 rounded-md border px-3 py-2">
+            {renamingId === c.id ? (
+              <>
+                <Input
+                  autoFocus
+                  value={renameValue}
+                  onChange={(e) => setRenameValue(e.target.value)}
+                  className="h-8"
+                />
+                <Button size="sm" disabled={pending} onClick={() => saveRename(c.id)}>
+                  Save
+                </Button>
+                <Button size="sm" variant="ghost" onClick={() => setRenamingId(null)}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <>
+                <span className="flex-1 text-sm font-medium">{c.name}</span>
+                <span className="text-xs text-muted-foreground">
+                  {itemCountByCategory[c.id] ?? 0} item(s)
+                </span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8"
+                  onClick={() => {
+                    setRenamingId(c.id);
+                    setRenameValue(c.name);
+                  }}
+                >
+                  <Pencil className="h-3.5 w-3.5" />
+                </Button>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-8 w-8 text-destructive hover:text-destructive"
+                  disabled={pending || (itemCountByCategory[c.id] ?? 0) > 0}
+                  title={
+                    (itemCountByCategory[c.id] ?? 0) > 0
+                      ? "Move its items to another category first"
+                      : "Delete category"
+                  }
+                  onClick={() => remove(c)}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </>
+            )}
+          </div>
+        ))}
+        {categories.length === 0 && (
+          <p className="text-sm text-muted-foreground">No categories yet.</p>
+        )}
+
+        <div className="flex items-center gap-2 pt-2">
+          <Input
+            placeholder="New category name"
+            value={newName}
+            onChange={(e) => setNewName(e.target.value)}
+            className="h-8"
+          />
+          <Button size="sm" disabled={pending || !newName.trim()} onClick={addCategory}>
+            <Plus className="mr-1.5 h-3.5 w-3.5" />
+            Add
+          </Button>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+      <DialogFooter>
+        <DialogClose asChild>
+          <Button variant="outline">Done</Button>
+        </DialogClose>
+      </DialogFooter>
     </DialogContent>
   );
 }

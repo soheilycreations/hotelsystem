@@ -19,7 +19,7 @@ import type {
   Booking,
   ChannelType,
   DeliveryStatus,
-  MenuCategory,
+  MenuCategoryRow,
   MenuItem,
   RestaurantOrder,
   RestaurantTable,
@@ -46,6 +46,7 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 
 interface PosTerminalProps {
   tables: RestaurantTable[];
+  categories: MenuCategoryRow[];
   menu: MenuItem[];
   orders: RestaurantOrder[];
   guests: Pick<Booking, "id" | "guest_name" | "rooms">[];
@@ -58,16 +59,15 @@ const TABLE_STYLES: Record<TableStatus, string> = {
   billed: "border-amber-500/40 bg-amber-500/10 hover:bg-amber-500/20",
 };
 
-const CATEGORIES: MenuCategory[] = ["appetizers", "mains", "drinks", "desserts"];
 const DELIVERY_FLOW: DeliveryStatus[] = ["pending", "cooking", "dispatched", "delivered"];
 
-export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) {
+export function PosTerminal({ tables, categories, menu, orders, guests }: PosTerminalProps) {
   const [channel, setChannel] = useState<ChannelType>("dine_in");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [guestId, setGuestId] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
-  const [category, setCategory] = useState<MenuCategory>("mains");
+  const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "");
   const [menuQuery, setMenuQuery] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
@@ -440,15 +440,14 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
                   </div>
                   {menuQuery.trim() === "" ? (
                     <div className="flex flex-wrap gap-1.5">
-                      {CATEGORIES.map((c) => (
+                      {categories.map((c) => (
                         <Button
-                          key={c}
+                          key={c.id}
                           size="sm"
-                          variant={category === c ? "default" : "outline"}
-                          onClick={() => setCategory(c)}
-                          className="capitalize"
+                          variant={categoryId === c.id ? "default" : "outline"}
+                          onClick={() => setCategoryId(c.id)}
                         >
-                          {c}
+                          {c.name}
                         </Button>
                       ))}
                     </div>
@@ -458,7 +457,7 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
                       ? menu.filter((m) =>
                           m.name.toLowerCase().includes(menuQuery.trim().toLowerCase())
                         )
-                      : menu.filter((m) => m.category === category)
+                      : menu.filter((m) => m.category_id === categoryId)
                     ).map((m) => (
                       <button
                         key={m.id}
@@ -470,7 +469,7 @@ export function PosTerminal({ tables, menu, orders, guests }: PosTerminalProps) 
                         <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
                           {formatLKR(Number(m.selling_price))}
                           {menuQuery.trim() !== "" ? (
-                            <span className="ml-1.5 capitalize">· {m.category}</span>
+                            <span className="ml-1.5">· {m.menu_categories?.name}</span>
                           ) : null}
                         </p>
                       </button>
