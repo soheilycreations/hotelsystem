@@ -215,7 +215,7 @@ export function BookingList({
           bookings.map((b) => (
             <div
               key={b.id}
-              className="flex flex-col gap-3 rounded-lg border p-3 sm:flex-row sm:items-center sm:justify-between"
+              className="flex flex-col gap-3 rounded-lg border p-3"
             >
               <div className="min-w-0">
                 <div className="flex flex-wrap items-center gap-2">
@@ -225,7 +225,7 @@ export function BookingList({
                   </Badge>
                   <StayCountdown booking={b} />
                 </div>
-                <p className="text-xs text-muted-foreground">
+                <p className="mt-0.5 text-xs text-muted-foreground">
                   Room {b.rooms?.room_number ?? "—"}
                   {b.rate_plan_name ? ` · ${b.rate_plan_name}` : ""}
                   {b.stay_type === "short_stay"
@@ -253,7 +253,7 @@ export function BookingList({
                   {b.contact_number ? ` · ${b.contact_number}` : ""}
                 </p>
               </div>
-              <div className="flex shrink-0 flex-wrap gap-2">
+              <div className="flex flex-wrap gap-2 border-t pt-3">
                 {b.status === "pending" ? (
                   <>
                     <Button size="sm" disabled={pendingId === b.id} onClick={() => update(b.id, "checked_in")}>

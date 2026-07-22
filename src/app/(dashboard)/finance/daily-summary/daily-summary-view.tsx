@@ -77,6 +77,15 @@ export function DailySummaryView({
   const totalRevenue = roomRevenueTotal + posTotal;
   const netCash = totalRevenue - expensesTotal;
 
+  function toDateKey(d: Date): string {
+    // Build YYYY-MM-DD from LOCAL date parts — toISOString() would convert to
+    // UTC first and silently shift the date by a day in +5:30 timezones.
+    const y = d.getFullYear();
+    const m = String(d.getMonth() + 1).padStart(2, "0");
+    const day = String(d.getDate()).padStart(2, "0");
+    return `${y}-${m}-${day}`;
+  }
+
   function goToDate(next: string) {
     startTransition(() => {
       router.push(`/finance/daily-summary?date=${next}`);
@@ -84,9 +93,9 @@ export function DailySummaryView({
   }
 
   function shiftDay(delta: number) {
-    const d = new Date(`${date}T00:00:00`);
+    const d = new Date(`${date}T12:00:00`); // midday avoids DST-edge edge cases
     d.setDate(d.getDate() + delta);
-    goToDate(d.toISOString().slice(0, 10));
+    goToDate(toDateKey(d));
   }
 
   async function exportPdf() {

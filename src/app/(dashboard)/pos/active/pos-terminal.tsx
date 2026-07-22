@@ -13,7 +13,6 @@ import {
   Search,
   ShoppingBag,
   Trash2,
-  UtensilsCrossed,
 } from "lucide-react";
 import type {
   Booking,
@@ -128,7 +127,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
             <p className="text-sm text-muted-foreground">
               Tap a vacant table to open an order, or an occupied one to keep adding items.
             </p>
-            <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+            <div className="flex flex-wrap gap-2">
               {tables.map((table) => {
                 const order = orderForTable(table.id);
                 return (
@@ -136,30 +135,27 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                     key={table.id}
                     disabled={pending}
                     onClick={() => handleTableTap(table)}
+                    title={`Seats ${table.capacity} · ${table.floor_zone ?? "—"}`}
                     className={cn(
-                      "rounded-xl border p-4 text-left transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+                      "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
                       TABLE_STYLES[table.current_status],
                       selectedOrder?.table_id === table.id && "ring-2 ring-ring"
                     )}
                   >
-                    <div className="flex items-center justify-between">
-                      <span className="text-lg font-bold">{table.table_number}</span>
-                      <UtensilsCrossed className="h-4 w-4 opacity-70" />
-                    </div>
-                    <p className="text-xs text-muted-foreground">
-                      Seats {table.capacity} · {table.floor_zone ?? "—"}
-                    </p>
-                    <div className="mt-2 flex items-center justify-between">
-                      <Badge variant="outline" className="capitalize">{table.current_status}</Badge>
-                      {order ? (
-                        <span className="text-xs font-semibold tabular-nums">
-                          {formatLKR(Number(order.total_amount))}
-                        </span>
-                      ) : null}
-                    </div>
+                    {table.table_number}
+                    {order ? (
+                      <span className="text-xs font-normal opacity-80">
+                        {formatLKR(Number(order.total_amount))}
+                      </span>
+                    ) : null}
                   </button>
                 );
               })}
+              {tables.length === 0 && (
+                <p className="text-sm text-muted-foreground">
+                  No tables set up yet — add some from the gear icon above.
+                </p>
+              )}
             </div>
           </TabsContent>
 
@@ -213,6 +209,65 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
             </Button>
           </TabsContent>
         </Tabs>
+
+        {/* Menu — always visible so it works for whichever order is active */}
+        <div className="space-y-3 rounded-lg border p-4">
+          <div className="flex items-center justify-between gap-3">
+            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
+              Menu
+            </h2>
+            {!selectedOrder && (
+              <span className="text-xs text-muted-foreground">
+                Select a table or open an order first
+              </span>
+            )}
+          </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              value={menuQuery}
+              onChange={(e) => setMenuQuery(e.target.value)}
+              placeholder="Search the whole menu…"
+              className="pl-8"
+            />
+          </div>
+          {menuQuery.trim() === "" ? (
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((c) => (
+                <Button
+                  key={c.id}
+                  size="sm"
+                  variant={categoryId === c.id ? "default" : "outline"}
+                  onClick={() => setCategoryId(c.id)}
+                >
+                  {c.name}
+                </Button>
+              ))}
+            </div>
+          ) : null}
+          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {(menuQuery.trim() !== ""
+              ? menu.filter((m) => m.name.toLowerCase().includes(menuQuery.trim().toLowerCase()))
+              : menu.filter((m) => m.category_id === categoryId)
+            ).map((m) => (
+              <button
+                key={m.id}
+                disabled={pending || !selectedOrder}
+                onClick={() => selectedOrder && run(() => addOrderItem(selectedOrder.id, m.id, 1))}
+                className="rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+              >
+                <p className="font-medium leading-snug">{m.name}</p>
+                <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
+                  {formatLKR(Number(m.selling_price))}
+                  {menuQuery.trim() !== "" ? <span className="ml-1.5">· {m.menu_categories?.name}</span> : null}
+                </p>
+              </button>
+            ))}
+          </div>
+          <p className="text-xs text-muted-foreground">
+            Settle and print from the Billing screen — stock deducts automatically on settle.
+          </p>
+        </div>
 
         {/* Non-table active orders */}
         {offTableOrders.length > 0 ? (
@@ -278,7 +333,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
 
             {!selectedOrder ? (
               <p className="text-sm text-muted-foreground">
-                Tap a table or open a channel order, then punch in items from the menu below.
+                Tap a table or open a channel order, then add items from the Menu panel on the left.
               </p>
             ) : (
               <>
@@ -426,59 +481,6 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                 >
                   <Minus /> Void this order
                 </Button>
-
-                {/* Menu grid */}
-                <div className="space-y-2 border-t pt-3">
-                  <div className="relative">
-                    <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-                    <Input
-                      value={menuQuery}
-                      onChange={(e) => setMenuQuery(e.target.value)}
-                      placeholder="Search the whole menu…"
-                      className="pl-8"
-                    />
-                  </div>
-                  {menuQuery.trim() === "" ? (
-                    <div className="flex flex-wrap gap-1.5">
-                      {categories.map((c) => (
-                        <Button
-                          key={c.id}
-                          size="sm"
-                          variant={categoryId === c.id ? "default" : "outline"}
-                          onClick={() => setCategoryId(c.id)}
-                        >
-                          {c.name}
-                        </Button>
-                      ))}
-                    </div>
-                  ) : null}
-                  <div className="grid max-h-64 grid-cols-2 gap-2 overflow-y-auto">
-                    {(menuQuery.trim() !== ""
-                      ? menu.filter((m) =>
-                          m.name.toLowerCase().includes(menuQuery.trim().toLowerCase())
-                        )
-                      : menu.filter((m) => m.category_id === categoryId)
-                    ).map((m) => (
-                      <button
-                        key={m.id}
-                        disabled={pending}
-                        onClick={() => run(() => addOrderItem(selectedOrder.id, m.id, 1))}
-                        className="rounded-lg border p-2.5 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-                      >
-                        <p className="font-medium leading-snug">{m.name}</p>
-                        <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                          {formatLKR(Number(m.selling_price))}
-                          {menuQuery.trim() !== "" ? (
-                            <span className="ml-1.5">· {m.menu_categories?.name}</span>
-                          ) : null}
-                        </p>
-                      </button>
-                    ))}
-                  </div>
-                  <p className="text-xs text-muted-foreground">
-                    Settle and print from the Billing screen — stock deducts automatically on settle.
-                  </p>
-                </div>
               </>
             )}
           </CardContent>

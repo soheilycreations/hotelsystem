@@ -226,6 +226,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/pos/active": ["admin", "manager", "cashier", "kitchen_staff"],
   "/pos/billing": ["admin", "manager", "cashier"],
   "/pos/menu": ["admin", "manager"],
+  "/pos/tables": ["admin", "manager"],
   "/inventory": ["admin", "manager", "kitchen_staff"],
   "/inventory/recipes": ["admin", "manager"],
   "/finance/expenses": ["admin", "manager"],

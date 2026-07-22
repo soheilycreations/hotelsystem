@@ -10,7 +10,8 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Room Grid | `/pms/rooms` | Zone-grouped, color-coded status board with in-house guest names and **live short-stay countdowns** (green → amber ≤30 min → red overtime). Gear icon → Room Setup |
 | Room Setup | `/pms/settings` | Rooms + categories (physical room types only) + **rate plans** — one room sells under any of its category's plans (AC / Non-AC per-night, hourly blocks) |
 | Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend** (+hours, folio tops up), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
-| POS Terminal | `/pos/active` | 4 channels: dine-in (table matrix), room service (charge to folio), takeaway, delivery (status pipeline). Full-menu search + **Send KOT** (kitchen ticket for new items) |
+| POS Terminal | `/pos/active` | 4 channels: dine-in (compact table strip), room service (charge to folio), takeaway, delivery (status pipeline). A large, always-visible **Menu panel** (search + categories) works for whichever order is active. **Send KOT** (kitchen ticket for new items). Gear icon → Table Setup |
+| Table Setup | `/pos/tables` | Add/edit/**delete** restaurant tables (number, seats, zone) — instantly reflected on the POS terminal |
 | Billing | `/pos/billing` | Settle bills, void, mark table billed, KOT-sent indicator (warns before settling un-KOT'd bills), **ESC/POS thermal receipt printing (WebUSB)** |
 | Menu Items | `/pos/menu` | Add/edit/**delete** dishes, change prices, availability toggle, and a **Categories manager** (add/rename/delete — categories are no longer fixed) |
 | Inventory | `/inventory` | Live stock table, low-stock highlighting, stock in/out adjustments with audit log, **edit** (name/unit/cost/reorder level) and **delete** (blocked while used in a recipe) |
@@ -120,6 +121,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 | `/pos/active` | ✅ | ✅ | — | ✅ | ✅ (delivery status only) |
 | `/pos/billing` | ✅ | ✅ | — | ✅ | — |
 | `/pos/menu` | ✅ | ✅ | — | — | — |
+| `/pos/tables` | ✅ | ✅ | — | — | — |
 | `/inventory` | ✅ | ✅ | — | — | ✅ |
 | `/inventory/recipes` | ✅ | ✅ | — | — | — |
 | `/finance/*` | ✅ | ✅ | — | — | — |
