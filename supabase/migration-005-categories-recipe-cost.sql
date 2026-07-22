@@ -18,10 +18,17 @@ on conflict (name) do nothing;
 
 alter table public.menu_items add column if not exists category_id uuid;
 
-update public.menu_items mi
-set category_id = mc.id
-from public.menu_categories mc
-where mi.category_id is null and lower(mc.name) = mi.category::text;
+do $$ begin
+  if exists (
+    select 1 from information_schema.columns
+    where table_schema = 'public' and table_name = 'menu_items' and column_name = 'category'
+  ) then
+    update public.menu_items mi
+    set category_id = mc.id
+    from public.menu_categories mc
+    where mi.category_id is null and lower(mc.name) = mi.category::text;
+  end if;
+end $$;
 
 do $$ begin
   alter table public.menu_items
