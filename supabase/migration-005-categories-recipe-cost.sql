@@ -23,9 +23,12 @@ set category_id = mc.id
 from public.menu_categories mc
 where mi.category_id is null and lower(mc.name) = mi.category::text;
 
-alter table public.menu_items
-  add constraint if not exists fk_menu_items_category
-  foreign key (category_id) references public.menu_categories (id) on delete restrict;
+do $$ begin
+  alter table public.menu_items
+    add constraint fk_menu_items_category
+    foreign key (category_id) references public.menu_categories (id) on delete restrict;
+exception when duplicate_object then null;
+end $$;
 
 alter table public.menu_items alter column category_id set not null;
 alter table public.menu_items drop column if exists category;
