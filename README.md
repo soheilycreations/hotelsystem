@@ -8,6 +8,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 |---|---|---|
 | Overview | `/` | Occupancy %, 14-day revenue vs expenses, live activity feed, channel mix |
 | Room Grid | `/pms/rooms` | Zone-grouped, color-coded status board with in-house guest names and **live short-stay countdowns** (green → amber ≤30 min → red overtime). Gear icon → Room Setup |
+| Backfill Data | `/backfill` | Type in past bookings and POS sales from an old paper register, picking the real historical date — records land correctly in Daily Summary/P&L/activity feed without touching today's real room status |
 | Room Setup | `/pms/settings` | Rooms + categories (physical room types only) + **rate plans** — one room sells under any of its category's plans (AC / Non-AC per-night, hourly blocks) |
 | Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend** (+hours, folio tops up), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
 | POS Terminal | `/pos/active` | 5 channels: dine-in (compact table strip), room service (charge to folio), takeaway, delivery (status pipeline), **Banquet** (function name + custom bill lines). A large, always-visible **Menu panel** (search + categories + qty box) works for whichever order is active. **Send KOT** (kitchen ticket for new items). Gear icon → Table Setup |
@@ -88,6 +89,21 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 
 `/finance/daily-summary` gives a single day's complete picture for closing the till: room sales for every checkout that day (de-duplicated against room-service the same way as the P&L report), an item-by-item POS sales table, the day's expenses, and a **net cash balance** (revenue − expenses). Use the date picker or the prev/next arrows to check any day, and **Export PDF** for a printable/shareable A4 report — handy for daily reconciliation without opening a spreadsheet.
 
+## Dashboard (Overview)
+
+- **Today's snapshot** — check-ins/check-outs today, today's revenue vs yesterday, and a shortcut to Daily Summary.
+- **Activity feed** replaces the old "system feed" — merges check-ins, check-outs, settled bills, expenses, and system alerts (housekeeping/low-stock/folio-post) into one timeline, most recent first, last 10.
+- **Revenue vs expenses chart** now buckets by **business date**, matching Daily Summary and P&L — a bill settled late but dated to an earlier day shows on the right bar, not "today's".
+- **Quick action tiles** — KOT-pending bill count (→ Billing), low-stock item count (→ Inventory), and shortcuts to Bookings and the POS terminal.
+- **Channel mix** now includes Banquet alongside dine-in/room-service/takeaway/delivery.
+
+## Backfilling the old paper register
+
+`/backfill` (admin/manager) exists for migrating a physical booking book into the system:
+
+- **Historical booking** — enter guest, room, the real check-in/check-out dates and the total amount; it's saved directly as "checked out". Because this is a plain insert (not a status *change*), Trigger A never fires, so **today's actual room status is never touched**.
+- **Historical POS/restaurant sale** — one description + one amount for a whole day's takings (or itemize with several entries), dated to the real day. Internally it opens a Banquet-channel order, adds it as a custom line, sets the business date, and settles it in one step — so it shows correctly in Daily Summary, P&L, and the item-sales breakdown.
+
 ## Rate plans & short stays
 
 - A **category is just the physical room type** (Deluxe, Family Suite) — it carries no price. All pricing lives in that category's rate plans: per-night (e.g. "AC — Full Night", "Non-AC — Full Night") and time blocks (e.g. "Day Use — 12h", "Short Stay — 3h"). The same room can be sold as a 3h short stay today and a Non-AC full night tomorrow, each charged by its plan.
@@ -134,6 +150,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 | `/pos/billing` | ✅ | ✅ | — | ✅ | — |
 | `/pos/menu` | ✅ | ✅ | — | — | — |
 | `/pos/tables` | ✅ | ✅ | — | — | — |
+| `/backfill` | ✅ | ✅ | — | — | — |
 | `/inventory` | ✅ | ✅ | — | — | ✅ |
 | `/inventory/recipes` | ✅ | ✅ | — | — | — |
 | `/finance/*` | ✅ | ✅ | — | — | — |

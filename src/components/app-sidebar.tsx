@@ -11,6 +11,7 @@ import {
   CalendarDays,
   ChefHat,
   Hotel,
+  History,
   LayoutDashboard,
   LogOut,
   Menu,
@@ -49,6 +50,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/finance/expenses", label: "Expenses", icon: Wallet, group: "Finance" },
   { href: "/finance/reports", label: "P&L Reports", icon: ScrollText, group: "Finance" },
   { href: "/settings", label: "Hotel Profile", icon: Building2, group: "Settings" },
+  { href: "/backfill", label: "Backfill Data", icon: History, group: "Settings" },
 ];
 
 const ROLE_LABELS: Record<string, string> = {
