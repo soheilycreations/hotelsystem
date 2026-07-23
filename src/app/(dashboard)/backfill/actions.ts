@@ -55,9 +55,14 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
     if (!Number.isFinite(amount) || amount <= 0)
       return { ok: false, error: "Amount must be greater than zero." };
 
-    // Noon avoids any timezone-driven off-by-one-day surprises for a date-only record.
-    const checkInIso = new Date(`${checkIn}T12:00:00`).toISOString();
-    const checkOutIso = new Date(`${checkOut}T12:00:00`).toISOString();
+    // Noon avoids timezone-driven off-by-one-day surprises for a date-only
+    // record. For a same-day guest (day-use / walk-in-walk-out), check-in and
+    // check-out would otherwise land on the exact same timestamp, which the
+    // database rejects (check-out must be strictly after check-in) — so
+    // spread them across the day instead.
+    const sameDay = checkIn === checkOut;
+    const checkInIso = new Date(`${checkIn}T${sameDay ? "10:00:00" : "12:00:00"}`).toISOString();
+    const checkOutIso = new Date(`${checkOut}T${sameDay ? "18:00:00" : "12:00:00"}`).toISOString();
 
     const { error } = await supabase.from("bookings").insert({
       room_id: roomId,
