@@ -19,11 +19,11 @@ create type booking_status    as enum ('pending', 'checked_in', 'checked_out', '
 create type stay_type       as enum ('overnight', 'short_stay');
 create type rate_plan_kind  as enum ('per_night', 'block');
 create type table_status      as enum ('vacant', 'occupied', 'reserved', 'billed');
-create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'delivery');
+create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'delivery', 'banquet');
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
 create type inventory_unit    as enum ('grams', 'ml', 'units');
-create type expense_category  as enum ('utilities', 'purchasing', 'salary', 'maintenance', 'marketing');
+create type expense_category  as enum ('utilities', 'purchasing', 'salary', 'maintenance', 'marketing', 'function_cost');
 create type log_severity      as enum ('info', 'warning', 'critical');
 
 -- ---------------------------------------------------------------------------
@@ -136,6 +136,7 @@ create table public.menu_items (
   category_id   uuid not null references public.menu_categories (id) on delete restrict,
   selling_price numeric(12,2) not null check (selling_price >= 0),
   other_cost    numeric(12,2) not null default 0 check (other_cost >= 0), -- packaging/gas/misc, not stock-tracked
+  service_chargeable boolean not null default true, -- false for items that should never attract service charge
   is_available  boolean not null default true,
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
@@ -150,6 +151,9 @@ create table public.restaurant_orders (
   booking_id       uuid references public.bookings (id) on delete set null,
   customer_phone   varchar(40),
   delivery_address text,
+  event_name       varchar(160), -- banquet function name, e.g. "Kamal's Wedding"
+  business_date    date not null default current_date, -- editable at settle time so late-night bills post to the right day
+
   subtotal         numeric(14,2) not null default 0 check (subtotal >= 0),
   service_charge   numeric(14,2) not null default 0 check (service_charge >= 0),
   total_amount     numeric(14,2) not null default 0 check (total_amount >= 0),
@@ -166,14 +170,22 @@ create table public.restaurant_orders (
 
 -- 3.8 Order line items
 create table public.order_items (
-  id             uuid primary key default gen_random_uuid(),
-  order_id       uuid not null references public.restaurant_orders (id) on delete cascade,
-  menu_item_id   uuid not null references public.menu_items (id) on delete restrict,
-  quantity       int not null check (quantity > 0),
-  unit_price     numeric(12,2) not null check (unit_price >= 0),
-  line_total     numeric(14,2) generated always as (quantity * unit_price) stored,
-  kot_printed_at timestamptz, -- null = not yet on a KOT; set when the kitchen ticket prints
-  created_at     timestamptz not null default now()
+  id                 uuid primary key default gen_random_uuid(),
+  order_id           uuid not null references public.restaurant_orders (id) on delete cascade,
+  menu_item_id       uuid references public.menu_items (id) on delete restrict, -- null for custom lines
+  quantity           int not null check (quantity > 0),
+  unit_price         numeric(12,2) not null check (unit_price >= 0),
+  line_total         numeric(14,2) generated always as (quantity * unit_price) stored,
+  kot_printed_at     timestamptz, -- null = not yet on a KOT; set when the kitchen ticket prints
+  is_custom          boolean not null default false, -- free-text line (e.g. "AC Charge"), not a menu item
+  custom_description varchar(200),
+  service_chargeable boolean not null default true, -- false for pass-through/external lines
+  created_at         timestamptz not null default now(),
+  constraint chk_order_item_shape check (
+    (is_custom = false and menu_item_id is not null and custom_description is null)
+    or
+    (is_custom = true and menu_item_id is null and custom_description is not null)
+  )
 );
 
 -- 3.9 Inventory items
@@ -280,6 +292,7 @@ create index idx_bookings_dates            on public.bookings (check_in_date, ch
 create index idx_tables_status             on public.restaurant_tables (current_status);
 create index idx_orders_status             on public.restaurant_orders (order_status);
 create index idx_orders_channel            on public.restaurant_orders (channel_type);
+create index idx_orders_business_date      on public.restaurant_orders (business_date);
 create index idx_orders_table              on public.restaurant_orders (table_id) where table_id is not null;
 create index idx_orders_booking            on public.restaurant_orders (booking_id) where booking_id is not null;
 create index idx_orders_created_at         on public.restaurant_orders (created_at desc);
@@ -429,16 +442,22 @@ as $$
 declare
   v_order_id uuid := coalesce(new.order_id, old.order_id);
   v_subtotal numeric(14,2);
+  v_sc_base  numeric(14,2);
   v_rate     numeric(5,2);
   v_sc       numeric(14,2);
 begin
   select coalesce(sum(oi.line_total), 0) into v_subtotal
   from public.order_items oi where oi.order_id = v_order_id;
 
+  -- Service charge applies only to food/beverage (service_chargeable) lines —
+  -- custom/external pass-through lines like "AC Charge" are excluded.
+  select coalesce(sum(oi.line_total) filter (where oi.service_chargeable), 0) into v_sc_base
+  from public.order_items oi where oi.order_id = v_order_id;
+
   select coalesce(hs.service_charge_rate, 0) into v_rate
   from public.hotel_settings hs where hs.id = 1;
 
-  v_sc := round(v_subtotal * coalesce(v_rate, 0) / 100.0, 2);
+  v_sc := round(v_sc_base * coalesce(v_rate, 0) / 100.0, 2);
 
   update public.restaurant_orders o
   set subtotal       = v_subtotal,

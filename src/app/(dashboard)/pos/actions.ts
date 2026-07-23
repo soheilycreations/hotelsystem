@@ -32,6 +32,7 @@ export interface OpenOrderInput {
   bookingId?: string;
   customerPhone?: string;
   deliveryAddress?: string;
+  eventName?: string;
 }
 
 export async function openOrder(input: OpenOrderInput): Promise<ActionResult> {
@@ -45,6 +46,8 @@ export async function openOrder(input: OpenOrderInput): Promise<ActionResult> {
       return { ok: false, error: "Pick an in-house guest for room service." };
     if (input.channel === "delivery" && !input.deliveryAddress?.trim())
       return { ok: false, error: "Delivery orders need an address." };
+    if (input.channel === "banquet" && !input.eventName?.trim())
+      return { ok: false, error: "Give the function/event a name." };
 
     const { data, error } = await supabase
       .from("restaurant_orders")
@@ -54,6 +57,7 @@ export async function openOrder(input: OpenOrderInput): Promise<ActionResult> {
         booking_id: input.bookingId ?? null,
         customer_phone: input.customerPhone?.trim() || null,
         delivery_address: input.deliveryAddress?.trim() || null,
+        event_name: input.channel === "banquet" ? input.eventName?.trim() || null : null,
         delivery_status: input.channel === "delivery" ? "pending" : null,
         order_status: "active",
         created_by: profile.id,
@@ -89,7 +93,7 @@ export async function addOrderItem(
 
     const { data: menuItem } = await supabase
       .from("menu_items")
-      .select("selling_price, is_available")
+      .select("selling_price, is_available, service_chargeable")
       .eq("id", menuItemId)
       .single();
     if (!menuItem) return { ok: false, error: "Menu item not found." };
@@ -116,9 +120,92 @@ export async function addOrderItem(
           menu_item_id: menuItemId,
           quantity,
           unit_price: menuItem.selling_price,
+          service_chargeable: menuItem.service_chargeable,
         });
 
     if (error) return { ok: false, error: error.message };
+    revalidatePos();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function setOrderBusinessDate(orderId: string, date: string): Promise<ActionResult> {
+  try {
+    await assertRole(POS_ROLES);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return { ok: false, error: "Pick a valid date." };
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("restaurant_orders")
+      .update({ business_date: date })
+      .eq("id", orderId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePos();
+    revalidatePath("/finance/reports");
+    revalidatePath("/finance/daily-summary");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export interface CustomOrderItemInput {
+  orderId: string;
+  description: string;
+  amount: number;
+  serviceChargeable: boolean;
+  logAsExpense: boolean;
+  expenseAmount?: number; // defaults to `amount` when logAsExpense is true
+}
+
+/**
+ * Adds a typed (non-menu) line to a bill — e.g. "AC Charge" on a banquet
+ * function. Optionally logs the same cost as an expense in the same step,
+ * so a pass-through charge (hotel pays an external vendor, then bills the
+ * customer) shows correctly as both revenue and an expense.
+ */
+export async function addCustomOrderItem(input: CustomOrderItemInput): Promise<ActionResult> {
+  try {
+    const profile = await assertRole(POS_ROLES);
+    const description = input.description.trim();
+    if (!description) return { ok: false, error: "Describe the item (e.g. AC Charge)." };
+    if (!Number.isFinite(input.amount) || input.amount <= 0)
+      return { ok: false, error: "Amount must be greater than zero." };
+
+    const supabase = await createClient();
+    const { error } = await supabase.from("order_items").insert({
+      order_id: input.orderId,
+      menu_item_id: null,
+      is_custom: true,
+      custom_description: description,
+      service_chargeable: input.serviceChargeable,
+      quantity: 1,
+      unit_price: Math.round(input.amount * 100) / 100,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    if (input.logAsExpense) {
+      const expenseAmount = input.expenseAmount ?? input.amount;
+      if (!Number.isFinite(expenseAmount) || expenseAmount <= 0)
+        return { ok: false, error: "Expense amount must be greater than zero." };
+
+      const { error: expError } = await supabase.from("expenses").insert({
+        category: "function_cost",
+        amount: Math.round(expenseAmount * 100) / 100,
+        date: new Date().toISOString().slice(0, 10),
+        description: `${description} (billed to customer)`,
+        logged_by: profile.id,
+      });
+      if (expError) return { ok: false, error: expError.message };
+      revalidatePath("/finance/expenses");
+      revalidatePath("/finance/reports");
+      revalidatePath("/finance/daily-summary");
+    }
+
     revalidatePos();
     return { ok: true };
   } catch (e) {
@@ -148,6 +235,7 @@ export async function markKotPrinted(orderId: string): Promise<ActionResult> {
       .from("order_items")
       .update({ kot_printed_at: new Date().toISOString() })
       .eq("order_id", orderId)
+      .eq("is_custom", false)
       .is("kot_printed_at", null);
     if (error) return { ok: false, error: error.message };
     revalidatePos();

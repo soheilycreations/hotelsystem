@@ -16,6 +16,7 @@ const EXPENSE_CATEGORIES: ExpenseCategory[] = [
   "salary",
   "maintenance",
   "marketing",
+  "function_cost",
 ];
 
 async function assertFinanceRole() {

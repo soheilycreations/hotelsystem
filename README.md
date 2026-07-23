@@ -10,7 +10,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Room Grid | `/pms/rooms` | Zone-grouped, color-coded status board with in-house guest names and **live short-stay countdowns** (green → amber ≤30 min → red overtime). Gear icon → Room Setup |
 | Room Setup | `/pms/settings` | Rooms + categories (physical room types only) + **rate plans** — one room sells under any of its category's plans (AC / Non-AC per-night, hourly blocks) |
 | Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend** (+hours, folio tops up), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
-| POS Terminal | `/pos/active` | 4 channels: dine-in (compact table strip), room service (charge to folio), takeaway, delivery (status pipeline). A large, always-visible **Menu panel** (search + categories) works for whichever order is active. **Send KOT** (kitchen ticket for new items). Gear icon → Table Setup |
+| POS Terminal | `/pos/active` | 5 channels: dine-in (compact table strip), room service (charge to folio), takeaway, delivery (status pipeline), **Banquet** (function name + custom bill lines). A large, always-visible **Menu panel** (search + categories + qty box) works for whichever order is active. **Send KOT** (kitchen ticket for new items). Gear icon → Table Setup |
 | Table Setup | `/pos/tables` | Add/edit/**delete** restaurant tables (number, seats, zone) — instantly reflected on the POS terminal |
 | Billing | `/pos/billing` | Settle bills, void, mark table billed, KOT-sent indicator (warns before settling un-KOT'd bills), **ESC/POS thermal receipt printing (WebUSB)** |
 | Menu Items | `/pos/menu` | Add/edit/**delete** dishes, change prices, availability toggle, and a **Categories manager** (add/rename/delete — categories are no longer fixed) |
@@ -65,6 +65,18 @@ Deploy to Vercel: push to GitHub → import → add the two env vars.
 
 Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epson TM-T series and compatible clones. On the first print, the browser asks you to pick the USB printer. Browsers without WebUSB fall back to `window.print()`.
 
+## Banquet Hall & custom bill lines
+
+- A dedicated **Banquet** channel on the POS terminal — no table needed, just a function/event name (e.g. "Perera Wedding — 120 pax") and an optional contact number.
+- Food & beverage still comes from the normal Menu panel. For everything else — AC charge, decoration, external services — the order pad has an **"Add custom item"** box: type a description and amount, and it goes straight onto the bill as its own line.
+- **Service charge applies only to food & beverage.** Each custom line has a "Service chargeable" checkbox (off by default), and every menu item now has its own **"Applies service charge"** toggle in Menu Items — so even a normal menu item can be excluded (e.g. a merchandise or rental item you sell through the regular menu) and it will never attract service charge, guaranteed by the database.
+- **Pass-through costs**: a custom line can optionally **"Also log as an expense"** — e.g. the hotel is billed Rs 5,000 by an AC rental company and bills the customer Rs 6,000; check the box, the same (or a different, editable) amount is logged under the new **Function Cost** expense category in the same step. Revenue and cost both show up correctly instead of just netting invisibly.
+
+## Billing date & quantity entry
+
+- Every bill has a **business date** — defaults to the day it was opened, but is editable right on the Billing screen ("Counts toward: [date]"). Settle a banquet function the morning after and it still posts to last night's date in the Daily Summary and P&L report, instead of defaulting to "today."
+- The POS Menu panel has a small **quantity box** next to the search bar — set it once (e.g. 5) and the next tap on any item adds that many at once, then resets back to 1.
+
 ## Menu categories, item deletion, and recipe "other costs"
 
 - Menu categories are a real, editable table now (`menu_categories`) — add, rename, or delete them from the **Categories** dialog on the Menu Items page. A category can't be deleted while any menu item still uses it.
@@ -106,7 +118,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run migrations **001 → 002 → 003 → 004 → 005** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 002 → 003 → 004 → 005 → 006 → 007** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 

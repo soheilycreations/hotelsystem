@@ -3,12 +3,14 @@
 import { useMemo, useState, useTransition } from "react";
 import {
   Armchair,
+  BadgePlus,
   Bike,
   Check,
   ChefHat,
   ConciergeBell,
   Loader2,
   Minus,
+  PartyPopper,
   Plus,
   Search,
   ShoppingBag,
@@ -27,6 +29,7 @@ import type {
 import { cn, formatLKR } from "@/lib/utils";
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import {
+  addCustomOrderItem,
   addOrderItem,
   cancelOrder,
   markKotPrinted,
@@ -66,8 +69,15 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
   const [guestId, setGuestId] = useState("");
   const [phone, setPhone] = useState("");
   const [address, setAddress] = useState("");
+  const [eventName, setEventName] = useState("");
   const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "");
   const [menuQuery, setMenuQuery] = useState("");
+  const [addQty, setAddQty] = useState("1");
+  const [customDesc, setCustomDesc] = useState("");
+  const [customAmount, setCustomAmount] = useState("");
+  const [customChargeable, setCustomChargeable] = useState(false);
+  const [customLogExpense, setCustomLogExpense] = useState(false);
+  const [customExpenseAmount, setCustomExpenseAmount] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const { printKot, printing, error: printError } = useThermalPrint();
@@ -103,8 +113,12 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
       openOrder({
         channel,
         bookingId: channel === "room_service" ? guestId : undefined,
-        customerPhone: channel === "takeaway" || channel === "delivery" ? phone : undefined,
+        customerPhone:
+          channel === "takeaway" || channel === "delivery" || channel === "banquet"
+            ? phone
+            : undefined,
         deliveryAddress: channel === "delivery" ? address : undefined,
+        eventName: channel === "banquet" ? eventName : undefined,
       })
     );
   };
@@ -121,6 +135,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
             <TabsTrigger value="room_service"><ConciergeBell className="mr-1.5 h-4 w-4" />Room service</TabsTrigger>
             <TabsTrigger value="takeaway"><ShoppingBag className="mr-1.5 h-4 w-4" />Takeaway</TabsTrigger>
             <TabsTrigger value="delivery"><Bike className="mr-1.5 h-4 w-4" />Delivery</TabsTrigger>
+            <TabsTrigger value="banquet"><PartyPopper className="mr-1.5 h-4 w-4" />Banquet</TabsTrigger>
           </TabsList>
 
           <TabsContent value="dine_in" className="space-y-3">
@@ -208,6 +223,37 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
               {pending ? <Loader2 className="animate-spin" /> : <Plus />} Open delivery order
             </Button>
           </TabsContent>
+
+          <TabsContent value="banquet" className="space-y-3">
+            <div className="grid gap-3 sm:grid-cols-2">
+              <div className="space-y-1.5">
+                <Label htmlFor="bq-event">Function / event name</Label>
+                <Input
+                  id="bq-event"
+                  value={eventName}
+                  onChange={(e) => setEventName(e.target.value)}
+                  placeholder="e.g. Perera Wedding — 120 pax"
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="bq-phone">Customer contact (optional)</Label>
+                <Input
+                  id="bq-phone"
+                  value={phone}
+                  onChange={(e) => setPhone(e.target.value)}
+                  placeholder="07X XXX XXXX"
+                />
+              </div>
+            </div>
+            <Button onClick={openChannelOrder} disabled={pending || !eventName.trim()}>
+              {pending ? <Loader2 className="animate-spin" /> : <Plus />} Open banquet order
+            </Button>
+            <p className="text-xs text-muted-foreground">
+              Add food &amp; beverage from the Menu panel below. Use &ldquo;Add custom
+              item&rdquo; on the order pad for AC charges, decoration, or other external
+              services — those can skip service charge and optionally log as an expense too.
+            </p>
+          </TabsContent>
         </Tabs>
 
         {/* Menu — always visible so it works for whichever order is active */}
@@ -222,15 +268,31 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
               </span>
             )}
           </div>
-          <div className="relative">
-            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+          <div className="flex gap-2">
+            <div className="relative flex-1">
+              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+              <Input
+                value={menuQuery}
+                onChange={(e) => setMenuQuery(e.target.value)}
+                placeholder="Search the whole menu…"
+                className="pl-8"
+              />
+            </div>
             <Input
-              value={menuQuery}
-              onChange={(e) => setMenuQuery(e.target.value)}
-              placeholder="Search the whole menu…"
-              className="pl-8"
+              type="number"
+              min="1"
+              step="1"
+              value={addQty}
+              onChange={(e) => setAddQty(e.target.value)}
+              title="Quantity to add when you tap an item"
+              className="w-16 text-center"
             />
           </div>
+          {addQty !== "1" && addQty.trim() !== "" && (
+            <p className="text-xs text-muted-foreground">
+              Tapping an item now adds <span className="font-medium">×{addQty}</span> at once.
+            </p>
+          )}
           {menuQuery.trim() === "" ? (
             <div className="flex flex-wrap gap-1.5">
               {categories.map((c) => (
@@ -253,7 +315,12 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
               <button
                 key={m.id}
                 disabled={pending || !selectedOrder}
-                onClick={() => selectedOrder && run(() => addOrderItem(selectedOrder.id, m.id, 1))}
+                onClick={() => {
+                  if (!selectedOrder) return;
+                  const qty = Math.max(1, Math.floor(Number(addQty)) || 1);
+                  run(() => addOrderItem(selectedOrder.id, m.id, qty));
+                  setAddQty("1");
+                }}
                 className="rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
               >
                 <p className="font-medium leading-snug">{m.name}</p>
@@ -290,7 +357,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                       #{o.order_number} · {o.channel_type.replace("_", " ")}
                     </p>
                     <p className="text-xs text-muted-foreground">
-                      {o.bookings?.guest_name ?? o.customer_phone ?? "Walk-in"}
+                      {o.event_name ?? o.bookings?.guest_name ?? o.customer_phone ?? "Walk-in"}
                     </p>
                   </div>
                   <div className="text-right">
@@ -346,7 +413,12 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                       <div key={item.id} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
                         <div className="min-w-0">
                           <p className="flex items-center gap-1.5 truncate font-medium">
-                            {item.menu_items?.name}
+                            {item.is_custom ? item.custom_description : item.menu_items?.name}
+                            {item.is_custom && !item.service_chargeable ? (
+                              <span className="text-xs font-normal text-muted-foreground">
+                                (no SC)
+                              </span>
+                            ) : null}
                             {item.kot_printed_at ? (
                               <span title="Sent to kitchen">
                                 <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
@@ -403,7 +475,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                 {/* KOT — send new items to the kitchen */}
                 {(() => {
                   const pendingKot = (selectedOrder.order_items ?? []).filter(
-                    (i) => !i.kot_printed_at
+                    (i) => !i.kot_printed_at && !i.is_custom
                   );
                   return (
                     <div className="space-y-1.5">
@@ -453,6 +525,87 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                     </div>
                   </div>
                 ) : null}
+
+                {selectedOrder.channel_type === "banquet" && (
+                  <div className="space-y-2 rounded-lg border border-dashed p-3">
+                    <p className="flex items-center gap-1.5 text-sm font-medium">
+                      <PartyPopper className="h-3.5 w-3.5" />
+                      Add custom item
+                    </p>
+                    <Input
+                      value={customDesc}
+                      onChange={(e) => setCustomDesc(e.target.value)}
+                      placeholder="e.g. AC Charge, Decoration"
+                    />
+                    <div className="grid grid-cols-2 gap-2">
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={customAmount}
+                        onChange={(e) => setCustomAmount(e.target.value)}
+                        placeholder="Amount (LKR)"
+                      />
+                      <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                        <input
+                          type="checkbox"
+                          checked={customChargeable}
+                          onChange={(e) => setCustomChargeable(e.target.checked)}
+                          className="h-3.5 w-3.5 accent-current"
+                        />
+                        Service chargeable
+                      </label>
+                    </div>
+                    <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+                      <input
+                        type="checkbox"
+                        checked={customLogExpense}
+                        onChange={(e) => setCustomLogExpense(e.target.checked)}
+                        className="h-3.5 w-3.5 accent-current"
+                      />
+                      Also log as an expense (pass-through cost)
+                    </label>
+                    {customLogExpense && (
+                      <Input
+                        type="number"
+                        min="0"
+                        step="0.01"
+                        value={customExpenseAmount}
+                        onChange={(e) => setCustomExpenseAmount(e.target.value)}
+                        placeholder={`Expense amount (defaults to ${customAmount || "0"})`}
+                      />
+                    )}
+                    <Button
+                      size="sm"
+                      className="w-full"
+                      disabled={pending || !customDesc.trim() || !customAmount}
+                      onClick={() => {
+                        const amount = Number(customAmount);
+                        const expenseAmount = customExpenseAmount
+                          ? Number(customExpenseAmount)
+                          : undefined;
+                        run(() =>
+                          addCustomOrderItem({
+                            orderId: selectedOrder.id,
+                            description: customDesc,
+                            amount,
+                            serviceChargeable: customChargeable,
+                            logAsExpense: customLogExpense,
+                            expenseAmount,
+                          })
+                        );
+                        setCustomDesc("");
+                        setCustomAmount("");
+                        setCustomChargeable(false);
+                        setCustomLogExpense(false);
+                        setCustomExpenseAmount("");
+                      }}
+                    >
+                      <BadgePlus className="mr-2 h-4 w-4" />
+                      Add to bill
+                    </Button>
+                  </div>
+                )}
 
                 {selectedOrder.channel_type === "room_service" && (
                   <Button

@@ -8,11 +8,11 @@ export type BookingStatus = "pending" | "checked_in" | "checked_out" | "cancelle
 export type StayType = "overnight" | "short_stay";
 export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
-export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery";
+export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" | "banquet";
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";
 export type InventoryUnit = "grams" | "ml" | "units";
-export type ExpenseCategory = "utilities" | "purchasing" | "salary" | "maintenance" | "marketing";
+export type ExpenseCategory = "utilities" | "purchasing" | "salary" | "maintenance" | "marketing" | "function_cost";
 export type LogSeverity = "info" | "warning" | "critical";
 
 export interface StaffProfile {
@@ -112,6 +112,7 @@ export interface MenuItem {
   category_id: string;
   selling_price: number;
   other_cost: number;
+  service_chargeable: boolean;
   is_available: boolean;
   created_at: string;
   updated_at: string;
@@ -127,6 +128,8 @@ export interface RestaurantOrder {
   booking_id: string | null;
   customer_phone: string | null;
   delivery_address: string | null;
+  event_name: string | null;
+  business_date: string;
   subtotal: number;
   service_charge: number;
   total_amount: number;
@@ -143,11 +146,14 @@ export interface RestaurantOrder {
 export interface OrderItem {
   id: string;
   order_id: string;
-  menu_item_id: string;
+  menu_item_id: string | null; // null for custom (free-text) lines
   quantity: number;
   unit_price: number;
   line_total: number;
   kot_printed_at: string | null;
+  is_custom: boolean;
+  custom_description: string | null;
+  service_chargeable: boolean;
   created_at: string;
   menu_items?: MenuItem; // joined
 }

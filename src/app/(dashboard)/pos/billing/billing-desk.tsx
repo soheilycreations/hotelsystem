@@ -4,10 +4,12 @@ import { useMemo, useState, useTransition } from "react";
 import {
   Armchair,
   Bike,
+  CalendarDays,
   ConciergeBell,
   FileText,
   Loader2,
   MessageCircle,
+  PartyPopper,
   Printer,
   ReceiptText,
   ShoppingBag,
@@ -17,6 +19,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
 import {
   Table,
   TableBody,
@@ -29,13 +32,14 @@ import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { formatDateTime, formatLKR } from "@/lib/utils";
 import type { ChannelType, HotelSettings, RestaurantOrder } from "@/lib/types";
-import { cancelOrder, markTableBilled, settleOrder } from "../actions";
+import { cancelOrder, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }> = {
   dine_in: { label: "Dine-in", icon: Armchair },
   room_service: { label: "Room Service", icon: ConciergeBell },
   takeaway: { label: "Takeaway", icon: ShoppingBag },
   delivery: { label: "Delivery", icon: Bike },
+  banquet: { label: "Banquet", icon: PartyPopper },
 };
 
 export function BillingDesk({
@@ -49,6 +53,7 @@ export function BillingDesk({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
+  const [savingDate, setSavingDate] = useState(false);
   const [pending, startTransition] = useTransition();
   const { print, printing, error: printError } = useThermalPrint();
 
@@ -63,7 +68,7 @@ export function BillingDesk({
   );
 
   function handleSettle(order: RestaurantOrder) {
-    const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at);
+    const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom);
     if (kotPending && confirmSettleId !== order.id) {
       // First click with unsent items — warn, but allow settling on the next click.
       setConfirmSettleId(order.id);
@@ -152,6 +157,20 @@ export function BillingDesk({
     }
   }
 
+  async function handleDateChange(order: RestaurantOrder, date: string) {
+    setSavingDate(true);
+    try {
+      const res = await setOrderBusinessDate(order.id, date);
+      setFeedback(
+        res.ok
+          ? `Bill #${order.order_number} now counts toward ${date}.`
+          : res.error ?? "Could not update the date."
+      );
+    } finally {
+      setSavingDate(false);
+    }
+  }
+
   async function handlePrint(order: RestaurantOrder) {
     const sent = await print(receiptPayload(order));
     if (sent) setFeedback(`Receipt for bill #${order.order_number} sent to printer.`);
@@ -188,6 +207,7 @@ export function BillingDesk({
                 <TableHead>Bill</TableHead>
                 <TableHead>Channel</TableHead>
                 <TableHead>Reference</TableHead>
+                <TableHead>Date</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
@@ -200,6 +220,8 @@ export function BillingDesk({
                     ? `Table ${order.restaurant_tables.table_number}`
                     : order.bookings
                     ? `${order.bookings.guest_name} · Rm ${order.bookings.rooms?.room_number ?? "—"}`
+                    : order.event_name
+                    ? order.event_name
                     : order.customer_phone ?? "—";
                 return (
                   <TableRow
@@ -220,6 +242,9 @@ export function BillingDesk({
                       </span>
                     </TableCell>
                     <TableCell className="text-sm text-muted-foreground">{ref}</TableCell>
+                    <TableCell className="text-sm text-muted-foreground">
+                      {order.business_date}
+                    </TableCell>
                     <TableCell className="text-right font-medium">
                       {formatLKR(Number(order.total_amount))}
                     </TableCell>
@@ -238,7 +263,7 @@ export function BillingDesk({
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">Bill #{selected.order_number}</CardTitle>
               <div className="flex items-center gap-1.5">
-                {(selected.order_items ?? []).some((i) => !i.kot_printed_at) ? (
+                {(selected.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom) ? (
                   <Badge variant="warning">KOT pending</Badge>
                 ) : (selected.order_items ?? []).length > 0 ? (
                   <Badge variant="success">KOT sent</Badge>
@@ -249,6 +274,20 @@ export function BillingDesk({
             <p className="text-xs text-muted-foreground">
               Opened {formatDateTime(selected.created_at)}
             </p>
+            <div className="flex items-center gap-2">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
+              <label htmlFor="bill-business-date" className="text-xs text-muted-foreground">
+                Counts toward:
+              </label>
+              <Input
+                id="bill-business-date"
+                type="date"
+                value={selected.business_date}
+                onChange={(e) => handleDateChange(selected, e.target.value)}
+                disabled={savingDate}
+                className="h-7 w-36 px-2 py-1 text-xs"
+              />
+            </div>
             {selected.bookings && (
               <p className="text-xs text-muted-foreground">
                 Guest: {selected.bookings.guest_name} — settling posts this to the room folio.
@@ -256,7 +295,7 @@ export function BillingDesk({
             )}
             {(() => {
               const noRecipe = (selected.order_items ?? []).filter(
-                (i) => (i.menu_items?.menu_recipe_ingredients ?? []).length === 0
+                (i) => !i.is_custom && (i.menu_items?.menu_recipe_ingredients ?? []).length === 0
               );
               if (noRecipe.length === 0) return null;
               const names = Array.from(
@@ -275,8 +314,11 @@ export function BillingDesk({
               {(selected.order_items ?? []).map((item) => (
                 <div key={item.id} className="flex items-center justify-between text-sm">
                   <span>
-                    {item.menu_items?.name ?? "Item"}{" "}
+                    {item.is_custom ? item.custom_description : item.menu_items?.name ?? "Item"}{" "}
                     <span className="text-muted-foreground">× {item.quantity}</span>
+                    {item.is_custom && !item.service_chargeable ? (
+                      <span className="ml-1.5 text-xs text-muted-foreground">(no SC)</span>
+                    ) : null}
                   </span>
                   <span className="tabular-nums">{formatLKR(Number(item.line_total))}</span>
                 </div>

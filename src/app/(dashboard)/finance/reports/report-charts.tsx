@@ -23,6 +23,7 @@ const CHANNEL_LABEL: Record<ChannelType, string> = {
   room_service: "Room Service",
   takeaway: "Takeaway",
   delivery: "Delivery",
+  banquet: "Banquet",
 };
 
 const EXPENSE_LABEL: Record<ExpenseCategory, string> = {
@@ -31,6 +32,7 @@ const EXPENSE_LABEL: Record<ExpenseCategory, string> = {
   salary: "Salary",
   maintenance: "Maintenance",
   marketing: "Marketing",
+  function_cost: "Function Cost",
 };
 
 const PIE_COLORS = ["#38bdf8", "#a78bfa", "#fbbf24", "#34d399", "#f87171"];

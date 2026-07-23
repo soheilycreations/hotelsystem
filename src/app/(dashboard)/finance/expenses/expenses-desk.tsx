@@ -28,6 +28,7 @@ const CATEGORY_LABEL: Record<ExpenseCategory, string> = {
   salary: "Salary",
   maintenance: "Maintenance",
   marketing: "Marketing",
+  function_cost: "Function Cost",
 };
 
 const CATEGORY_BADGE: Record<ExpenseCategory, "info" | "success" | "warning" | "danger" | "secondary"> = {
@@ -36,6 +37,7 @@ const CATEGORY_BADGE: Record<ExpenseCategory, "info" | "success" | "warning" | "
   salary: "success",
   maintenance: "danger",
   marketing: "secondary",
+  function_cost: "secondary",
 };
 
 export function ExpensesDesk({ expenses }: { expenses: ExpenseWithLogger[] }) {

@@ -30,9 +30,9 @@ export default async function ReportsPage() {
   const [{ data: orders }, { data: expenses }, { data: checkouts }] = await Promise.all([
     supabase
       .from("restaurant_orders")
-      .select("total_amount, channel_type, created_at")
+      .select("total_amount, channel_type, business_date")
       .eq("order_status", "completed")
-      .gte("created_at", sinceIso),
+      .gte("business_date", sinceDate),
     supabase
       .from("expenses")
       .select("amount, category, date")
@@ -85,6 +85,7 @@ export default async function ReportsPage() {
     room_service: 0,
     takeaway: 0,
     delivery: 0,
+    banquet: 0,
   };
 
   let posRevenue = 0;
@@ -92,7 +93,7 @@ export default async function ReportsPage() {
     const amount = Number(o.total_amount);
     posRevenue += amount;
     channelTotals[o.channel_type as ChannelType] += amount;
-    const key = String(o.created_at).slice(0, 10);
+    const key = String(o.business_date).slice(0, 10);
     const point = series.get(key);
     if (point) point.revenue += amount;
   }
@@ -115,6 +116,7 @@ export default async function ReportsPage() {
     salary: 0,
     maintenance: 0,
     marketing: 0,
+    function_cost: 0,
   };
 
   let totalExpenses = 0;

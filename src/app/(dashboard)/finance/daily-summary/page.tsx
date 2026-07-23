@@ -40,10 +40,9 @@ export default async function DailySummaryPage({
         .lt("actual_check_out", endIso),
       supabase
         .from("restaurant_orders")
-        .select("id, subtotal, service_charge, total_amount, order_items(quantity, line_total, menu_items(name))")
+        .select("id, subtotal, service_charge, total_amount, order_items(quantity, line_total, is_custom, custom_description, menu_items(name))")
         .eq("order_status", "completed")
-        .gte("updated_at", startIso)
-        .lt("updated_at", endIso),
+        .eq("business_date", date),
       supabase
         .from("expenses")
         .select("category, description, amount")
@@ -94,7 +93,9 @@ export default async function DailySummaryPage({
     posTotal += Number(o.total_amount);
     for (const it of o.order_items ?? []) {
       const menuItem = it.menu_items as unknown as { name: string } | null;
-      const name = menuItem?.name ?? "Unknown item";
+      const name = it.is_custom
+        ? (it.custom_description as string | null) ?? "Custom charge"
+        : menuItem?.name ?? "Unknown item";
       const cur = itemTotals.get(name) ?? { qty: 0, revenue: 0 };
       cur.qty += Number(it.quantity);
       cur.revenue += Number(it.line_total);

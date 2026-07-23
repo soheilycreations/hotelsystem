@@ -164,6 +164,9 @@ export function MenuManager({
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatLKR(Number(item.selling_price))}
+                    {!item.service_chargeable && (
+                      <span className="ml-1.5 text-xs text-muted-foreground">(no SC)</span>
+                    )}
                   </TableCell>
                   <TableCell>
                     {item.menu_recipe_ingredients.length > 0 ? (
@@ -342,6 +345,15 @@ function MenuItemDialog({
             doesn&apos;t touch inventory.
           </p>
         </div>
+        <label className="flex items-center gap-2 text-sm">
+          <input
+            type="checkbox"
+            name="service_chargeable"
+            defaultChecked={item ? item.service_chargeable : true}
+            className="h-4 w-4 accent-current"
+          />
+          Applies service charge (uncheck for non-food/beverage items)
+        </label>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
           <Button type="submit" disabled={pending}>

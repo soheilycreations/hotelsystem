@@ -25,12 +25,20 @@ function revalidateMenu(): void {
 }
 
 function parseMenuForm(formData: FormData):
-  | { ok: true; name: string; categoryId: string; price: number; otherCost: number }
+  | {
+      ok: true;
+      name: string;
+      categoryId: string;
+      price: number;
+      otherCost: number;
+      serviceChargeable: boolean;
+    }
   | { ok: false; error: string } {
   const name = String(formData.get("name") ?? "").trim();
   const categoryId = String(formData.get("category_id") ?? "");
   const price = Number(formData.get("selling_price") ?? 0);
   const otherCost = Number(formData.get("other_cost") ?? 0);
+  const serviceChargeable = formData.get("service_chargeable") === "on";
 
   if (!name) return { ok: false, error: "Item name is required." };
   if (!categoryId) return { ok: false, error: "Pick a category." };
@@ -38,7 +46,7 @@ function parseMenuForm(formData: FormData):
     return { ok: false, error: "Selling price must be greater than zero." };
   if (!Number.isFinite(otherCost) || otherCost < 0)
     return { ok: false, error: "Other costs can't be negative." };
-  return { ok: true, name, categoryId, price, otherCost };
+  return { ok: true, name, categoryId, price, otherCost, serviceChargeable };
 }
 
 export async function createMenuItem(formData: FormData): Promise<ActionResult> {
@@ -53,6 +61,7 @@ export async function createMenuItem(formData: FormData): Promise<ActionResult> 
       category_id: parsed.categoryId,
       selling_price: parsed.price,
       other_cost: parsed.otherCost,
+      service_chargeable: parsed.serviceChargeable,
       is_available: true,
     });
     if (error) return { ok: false, error: error.message };
@@ -74,8 +83,8 @@ export async function updateMenuItem(
     if (!parsed.ok) return parsed;
 
     const supabase = await createClient();
-    // Existing bill lines keep their unit_price snapshot — price edits only
-    // affect items added from now on.
+    // Existing bill lines keep their unit_price + service-charge snapshot —
+    // edits here only affect items added to bills from now on.
     const { error } = await supabase
       .from("menu_items")
       .update({
@@ -83,6 +92,7 @@ export async function updateMenuItem(
         category_id: parsed.categoryId,
         selling_price: parsed.price,
         other_cost: parsed.otherCost,
+        service_chargeable: parsed.serviceChargeable,
       })
       .eq("id", menuItemId);
     if (error) return { ok: false, error: error.message };
