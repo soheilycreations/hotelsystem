@@ -14,6 +14,7 @@ import {
   Wallet,
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { colomboDateKey, colomboDaysAgo, colomboToday } from "@/lib/colombo-date";
 import { formatLKR, formatDateTime } from "@/lib/utils";
 import type { Booking, ChannelType, Expense, Room } from "@/lib/types";
 import { StatCard } from "@/components/stat-card";
@@ -23,11 +24,6 @@ import { RevenueChart } from "./revenue-chart";
 import { LiveRefresher } from "./live-refresher";
 
 export const dynamic = "force-dynamic";
-
-/** "Today" in Sri Lanka (UTC+5:30, no DST) regardless of server timezone. */
-function colomboToday(): string {
-  return new Date(Date.now() + 5.5 * 3600 * 1000).toISOString().slice(0, 10);
-}
 
 type ActivityKind = "check_in" | "check_out" | "bill" | "expense" | "housekeeping" | "low_stock" | "system";
 
@@ -59,9 +55,7 @@ function activityKindForLog(eventType: string): ActivityKind {
 export default async function OverviewPage() {
   const supabase = await createClient();
   const today = colomboToday();
-  const since = new Date();
-  since.setDate(since.getDate() - 13);
-  const sinceDate = since.toISOString().slice(0, 10);
+  const sinceDate = colomboDaysAgo(13);
 
   const [
     roomsRes,
@@ -126,11 +120,9 @@ export default async function OverviewPage() {
   // bill settled late but dated to an earlier day lands on the right bar.
   const days: { day: string; revenue: number; expenses: number }[] = [];
   for (let i = 13; i >= 0; i--) {
-    const d = new Date();
-    d.setDate(d.getDate() - i);
-    const key = d.toISOString().slice(0, 10);
+    const key = colomboDateKey(Date.now() - i * 86_400_000);
     days.push({
-      day: d.toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+      day: new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
       revenue: completed
         .filter((o) => o.business_date === key)
         .reduce((s, o) => s + Number(o.total_amount), 0),
@@ -148,7 +140,7 @@ export default async function OverviewPage() {
   const todayRevenue = completed
     .filter((o) => o.business_date === today)
     .reduce((s, o) => s + Number(o.total_amount), 0);
-  const yesterday = new Date(Date.now() - 86_400_000).toISOString().slice(0, 10);
+  const yesterday = colomboDaysAgo(1);
   const yesterdayRevenue = completed
     .filter((o) => o.business_date === yesterday)
     .reduce((s, o) => s + Number(o.total_amount), 0);

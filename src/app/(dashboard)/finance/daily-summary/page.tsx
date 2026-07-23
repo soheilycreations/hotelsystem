@@ -1,15 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
+import { colomboToday } from "@/lib/colombo-date";
 import type { HotelSettings } from "@/lib/types";
 import { DailySummaryView } from "./daily-summary-view";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Daily Summary" };
-
-/** "Today" in Sri Lanka (UTC+5:30, no DST) regardless of server timezone. */
-function colomboToday(): string {
-  const colombo = new Date(Date.now() + 5.5 * 3600 * 1000);
-  return colombo.toISOString().slice(0, 10);
-}
 
 /** UTC instants for the start/end of a given calendar date in Colombo time. */
 function colomboDayRange(dateStr: string): { startIso: string; endIso: string } {

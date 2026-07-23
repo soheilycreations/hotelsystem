@@ -1,5 +1,6 @@
 import { Banknote, BedDouble, TrendingDown, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
+import { colomboDateKey, colomboDaysAgo } from "@/lib/colombo-date";
 import { StatCard } from "@/components/stat-card";
 import { formatLKR } from "@/lib/utils";
 import type { ChannelType, ExpenseCategory } from "@/lib/types";
@@ -21,11 +22,8 @@ export interface DailyPnlPoint {
 export default async function ReportsPage() {
   const supabase = await createClient();
 
-  const since = new Date();
-  since.setDate(since.getDate() - (DAYS - 1));
-  since.setHours(0, 0, 0, 0);
-  const sinceIso = since.toISOString();
-  const sinceDate = sinceIso.slice(0, 10);
+  const sinceDate = colomboDaysAgo(DAYS - 1);
+  const sinceIso = new Date(`${sinceDate}T00:00:00+05:30`).toISOString();
 
   const [{ data: orders }, { data: expenses }, { data: checkouts }] = await Promise.all([
     supabase
@@ -68,12 +66,10 @@ export default async function ReportsPage() {
   // ----- Build the daily series -----
   const series = new Map<string, DailyPnlPoint>();
   for (let i = 0; i < DAYS; i++) {
-    const d = new Date(since);
-    d.setDate(since.getDate() + i);
-    const key = d.toISOString().slice(0, 10);
+    const key = colomboDateKey(new Date(`${sinceDate}T00:00:00`).getTime() + i * 86_400_000);
     series.set(key, {
       date: key,
-      label: d.toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      label: new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
       revenue: 0,
       expenses: 0,
       profit: 0,
