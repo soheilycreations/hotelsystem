@@ -117,6 +117,11 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
     });
     if (!opened.ok || !opened.orderId) return { ok: false, error: opened.error ?? "Could not open." };
 
+    // Flag it so channel-mix reports separate this from real Banquet
+    // function revenue instead of lumping them together.
+    const supabase = await createClient();
+    await supabase.from("restaurant_orders").update({ is_historical: true }).eq("id", opened.orderId);
+
     const lineAdded = await addCustomOrderItem({
       orderId: opened.orderId,
       description,

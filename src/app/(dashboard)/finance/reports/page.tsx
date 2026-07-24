@@ -28,7 +28,7 @@ export default async function ReportsPage() {
   const [{ data: orders }, { data: expenses }, { data: checkouts }] = await Promise.all([
     supabase
       .from("restaurant_orders")
-      .select("total_amount, channel_type, business_date")
+      .select("total_amount, channel_type, business_date, is_historical")
       .eq("order_status", "completed")
       .gte("business_date", sinceDate),
     supabase
@@ -80,19 +80,21 @@ export default async function ReportsPage() {
     });
   }
 
-  const channelTotals: Record<ChannelType, number> = {
+  const channelTotals: Record<string, number> = {
     dine_in: 0,
     room_service: 0,
     takeaway: 0,
     delivery: 0,
     banquet: 0,
+    historical: 0, // backfilled entries — kept separate so they don't inflate real Banquet revenue
   };
 
   let posRevenue = 0;
   for (const o of orders ?? []) {
     const amount = Number(o.total_amount);
     posRevenue += amount;
-    channelTotals[o.channel_type as ChannelType] += amount;
+    const bucket = o.is_historical ? "historical" : (o.channel_type as ChannelType);
+    channelTotals[bucket] = (channelTotals[bucket] ?? 0) + amount;
     const key = String(o.business_date).slice(0, 10);
     const point = series.get(key);
     if (point) point.revenue += amount;

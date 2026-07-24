@@ -15,15 +15,16 @@ import {
 } from "recharts";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { formatLKR } from "@/lib/utils";
-import type { ChannelType, ExpenseCategory } from "@/lib/types";
+import type { ExpenseCategory } from "@/lib/types";
 import type { DailyPnlPoint } from "./page";
 
-const CHANNEL_LABEL: Record<ChannelType, string> = {
+const CHANNEL_LABEL: Record<string, string> = {
   dine_in: "Dine-in",
   room_service: "Room Service",
   takeaway: "Takeaway",
   delivery: "Delivery",
   banquet: "Banquet",
+  historical: "Historical Entries",
 };
 
 const EXPENSE_LABEL: Record<ExpenseCategory, string> = {
@@ -79,11 +80,11 @@ export function ReportCharts({
   expenseTotals,
 }: {
   points: DailyPnlPoint[];
-  channelTotals: Record<ChannelType, number>;
+  channelTotals: Record<string, number>;
   expenseTotals: Record<ExpenseCategory, number>;
 }) {
-  const channelData = (Object.keys(channelTotals) as ChannelType[])
-    .map((c) => ({ name: CHANNEL_LABEL[c], value: channelTotals[c] }))
+  const channelData = Object.keys(channelTotals)
+    .map((c) => ({ name: CHANNEL_LABEL[c] ?? c, value: channelTotals[c] ?? 0 }))
     .filter((d) => d.value > 0);
 
   const expenseData = (Object.keys(expenseTotals) as ExpenseCategory[])

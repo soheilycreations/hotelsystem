@@ -153,6 +153,7 @@ create table public.restaurant_orders (
   delivery_address text,
   event_name       varchar(160), -- banquet function name, e.g. "Kamal's Wedding"
   business_date    date not null default current_date, -- editable at settle time so late-night bills post to the right day
+  is_historical    boolean not null default false, -- true for Backfill-created entries — kept out of the real Banquet channel-mix bucket
 
   subtotal         numeric(14,2) not null default 0 check (subtotal >= 0),
   service_charge   numeric(14,2) not null default 0 check (service_charge >= 0),

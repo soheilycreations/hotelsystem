@@ -72,7 +72,7 @@ export default async function OverviewPage() {
     supabase.from("rooms").select("id, status"),
     supabase
       .from("restaurant_orders")
-      .select("id, order_number, total_amount, order_status, channel_type, business_date")
+      .select("id, order_number, total_amount, order_status, channel_type, business_date, is_historical")
       .gte("business_date", sinceDate),
     supabase.from("expenses").select("amount, date, description, category, created_at").gte("date", sinceDate),
     supabase.from("system_logs").select("*").order("created_at", { ascending: false }).limit(8),
@@ -109,6 +109,7 @@ export default async function OverviewPage() {
     order_status: string;
     channel_type: ChannelType;
     business_date: string;
+    is_historical: boolean;
   }[];
   const expenses = (expensesRes.data ?? []) as (Pick<
     Expense,
@@ -418,9 +419,11 @@ export default async function OverviewPage() {
             <ReceiptText className="h-4 w-4" /> Channel mix (14 days)
           </CardTitle>
         </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-3 lg:grid-cols-5">
+        <CardContent className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
           {(["dine_in", "room_service", "takeaway", "delivery", "banquet"] as ChannelType[]).map((channel) => {
-            const channelOrders = completed.filter((o) => o.channel_type === channel);
+            const channelOrders = completed.filter(
+              (o) => o.channel_type === channel && !(channel === "banquet" && o.is_historical)
+            );
             const value = channelOrders.reduce((s, o) => s + Number(o.total_amount), 0);
             return (
               <div key={channel} className="rounded-lg border p-3">
@@ -432,6 +435,20 @@ export default async function OverviewPage() {
               </div>
             );
           })}
+          {(() => {
+            const historicalOrders = completed.filter((o) => o.is_historical);
+            const value = historicalOrders.reduce((s, o) => s + Number(o.total_amount), 0);
+            if (historicalOrders.length === 0) return null;
+            return (
+              <div className="rounded-lg border border-dashed p-3">
+                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
+                  historical entries
+                </p>
+                <p className="mt-1 text-lg font-semibold tabular-nums">{formatLKR(value)}</p>
+                <p className="text-xs text-muted-foreground">{historicalOrders.length} backfilled</p>
+              </div>
+            );
+          })()}
         </CardContent>
       </Card>
     </div>

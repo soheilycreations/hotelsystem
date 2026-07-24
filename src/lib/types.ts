@@ -130,6 +130,7 @@ export interface RestaurantOrder {
   delivery_address: string | null;
   event_name: string | null;
   business_date: string;
+  is_historical: boolean;
   subtotal: number;
   service_charge: number;
   total_amount: number;
