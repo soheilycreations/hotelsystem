@@ -67,6 +67,7 @@ export default async function OverviewPage() {
     todayBookingsRes,
     kotRes,
     inventoryRes,
+    checkoutsRes,
   ] = await Promise.all([
     supabase.from("rooms").select("id, status"),
     supabase
@@ -91,6 +92,13 @@ export default async function OverviewPage() {
       .select("id, order_items(is_custom, kot_printed_at)")
       .eq("order_status", "active"),
     supabase.from("inventory_items").select("id, name, quantity_in_stock, reorder_level"),
+    // Room revenue for the chart — checkouts in the window (business_date has
+    // no equivalent on bookings, so actual_check_out is the correct anchor).
+    supabase
+      .from("bookings")
+      .select("id, total_folio_amount, actual_check_out")
+      .eq("status", "checked_out")
+      .gte("actual_check_out", `${sinceDate}T00:00:00+05:30`),
   ]);
 
   const rooms = (roomsRes.data ?? []) as Pick<Room, "id" | "status">[];
@@ -116,16 +124,51 @@ export default async function OverviewPage() {
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const openFolios = (folioRes.data ?? []).reduce((sum, b) => sum + Number(b.total_folio_amount), 0);
 
-  // 14-day POS revenue vs expenses series — bucketed by business_date so a
-  // bill settled late but dated to an earlier day lands on the right bar.
+  // Room revenue for the chart — room-service orders are counted in POS
+  // revenue AND posted onto folios by Trigger B, so subtract them per
+  // booking here (same de-dupe as the P&L report) to avoid double counting.
+  const checkouts = (checkoutsRes.data ?? []) as {
+    id: string;
+    total_folio_amount: number;
+    actual_check_out: string | null;
+  }[];
+  const checkoutIds = checkouts.map((b) => b.id);
+  const roomServiceByBooking = new Map<string, number>();
+  if (checkoutIds.length > 0) {
+    const { data: rsOrders } = await supabase
+      .from("restaurant_orders")
+      .select("booking_id, total_amount")
+      .eq("order_status", "completed")
+      .eq("channel_type", "room_service")
+      .in("booking_id", checkoutIds);
+    for (const o of rsOrders ?? []) {
+      if (!o.booking_id) continue;
+      roomServiceByBooking.set(
+        o.booking_id,
+        (roomServiceByBooking.get(o.booking_id) ?? 0) + Number(o.total_amount)
+      );
+    }
+  }
+  const roomRevenue14d = checkouts.reduce(
+    (sum, b) => sum + Math.max(0, Number(b.total_folio_amount) - (roomServiceByBooking.get(b.id) ?? 0)),
+    0
+  );
+
+  // 14-day total revenue (room + POS) vs expenses series — bucketed by
+  // business_date / actual_check_out so a bill or checkout dated to an
+  // earlier day lands on the right bar, not "today's".
   const days: { day: string; revenue: number; expenses: number }[] = [];
   for (let i = 13; i >= 0; i--) {
     const key = colomboDateKey(Date.now() - i * 86_400_000);
+    const posForDay = completed
+      .filter((o) => o.business_date === key)
+      .reduce((s, o) => s + Number(o.total_amount), 0);
+    const roomForDay = checkouts
+      .filter((b) => b.actual_check_out && colomboDateKey(new Date(b.actual_check_out).getTime()) === key)
+      .reduce((s, b) => s + Math.max(0, Number(b.total_folio_amount) - (roomServiceByBooking.get(b.id) ?? 0)), 0);
     days.push({
       day: new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
-      revenue: completed
-        .filter((o) => o.business_date === key)
-        .reduce((s, o) => s + Number(o.total_amount), 0),
+      revenue: posForDay + roomForDay,
       expenses: expenses.filter((e) => e.date === key).reduce((s, e) => s + Number(e.amount), 0),
     });
   }
@@ -141,13 +184,8 @@ export default async function OverviewPage() {
   const todayCheckOuts = todayBookings.filter(
     (b) => b.actual_check_out && colomboDateKey(new Date(b.actual_check_out).getTime()) === today
   ).length;
-  const todayRevenue = completed
-    .filter((o) => o.business_date === today)
-    .reduce((s, o) => s + Number(o.total_amount), 0);
-  const yesterday = colomboDaysAgo(1);
-  const yesterdayRevenue = completed
-    .filter((o) => o.business_date === yesterday)
-    .reduce((s, o) => s + Number(o.total_amount), 0);
+  const todayRevenue = days[days.length - 1]?.revenue ?? 0;
+  const yesterdayRevenue = days[days.length - 2]?.revenue ?? 0;
   const revenueDelta = todayRevenue - yesterdayRevenue;
 
   // KOT-pending bill count
@@ -231,9 +269,9 @@ export default async function OverviewPage() {
           icon={BedDouble}
         />
         <StatCard
-          title="POS revenue (14d)"
+          title="Restaurant / POS (14d)"
           value={formatLKR(posRevenue)}
-          hint={`${completed.length} settled bills`}
+          hint={`${completed.length} settled bills · Rooms: ${formatLKR(roomRevenue14d)}`}
           icon={TrendingUp}
         />
         <StatCard
@@ -293,8 +331,8 @@ export default async function OverviewPage() {
       <div className="grid gap-4 lg:grid-cols-3">
         <Card className="lg:col-span-2">
           <CardHeader>
-            <CardTitle>Revenue vs expenses</CardTitle>
-            <CardDescription>Settled POS bills against logged expenses, per day.</CardDescription>
+            <CardTitle>Total revenue vs expenses</CardTitle>
+            <CardDescription>Room checkouts + settled POS bills, against logged expenses, per day.</CardDescription>
           </CardHeader>
           <CardContent className="pl-0">
             <RevenueChart data={days} />
