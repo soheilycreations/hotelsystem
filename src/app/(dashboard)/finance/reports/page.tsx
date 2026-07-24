@@ -35,12 +35,16 @@ export default async function ReportsPage() {
       .from("expenses")
       .select("amount, category, date")
       .gte("date", sinceDate),
-    // Room revenue recognized on checkout (folio settled)
+    // Room revenue recognized on checkout (folio settled). actual_check_out
+    // is used instead of updated_at — updated_at reflects whenever the row
+    // was last touched (including a Backfill insert done TODAY for a stay
+    // that actually happened weeks ago), while actual_check_out is the real
+    // checkout moment either way.
     supabase
       .from("bookings")
-      .select("id, total_folio_amount, updated_at")
+      .select("id, total_folio_amount, actual_check_out")
       .eq("status", "checked_out")
-      .gte("updated_at", sinceIso),
+      .gte("actual_check_out", sinceIso),
   ]);
 
   // Room-service orders are counted in POS revenue AND posted onto folios by
@@ -101,7 +105,8 @@ export default async function ReportsPage() {
       Number(b.total_folio_amount) - (roomServiceByBooking.get(b.id) ?? 0)
     );
     roomRevenue += amount;
-    const key = String(b.updated_at).slice(0, 10);
+    if (!b.actual_check_out) continue;
+    const key = colomboDateKey(new Date(b.actual_check_out).getTime());
     const point = series.get(key);
     if (point) point.revenue += amount;
   }

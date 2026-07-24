@@ -135,8 +135,12 @@ export default async function OverviewPage() {
     Booking,
     "id" | "actual_check_in" | "actual_check_out"
   >[];
-  const todayCheckIns = todayBookings.filter((b) => b.actual_check_in?.slice(0, 10) === today).length;
-  const todayCheckOuts = todayBookings.filter((b) => b.actual_check_out?.slice(0, 10) === today).length;
+  const todayCheckIns = todayBookings.filter(
+    (b) => b.actual_check_in && colomboDateKey(new Date(b.actual_check_in).getTime()) === today
+  ).length;
+  const todayCheckOuts = todayBookings.filter(
+    (b) => b.actual_check_out && colomboDateKey(new Date(b.actual_check_out).getTime()) === today
+  ).length;
   const todayRevenue = completed
     .filter((o) => o.business_date === today)
     .reduce((s, o) => s + Number(o.total_amount), 0);
