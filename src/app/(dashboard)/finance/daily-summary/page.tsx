@@ -40,9 +40,9 @@ export default async function DailySummaryPage({
         .eq("business_date", date),
       supabase
         .from("expenses")
-        .select("category, description, amount")
+        .select("category_id, description, amount, expense_categories(name)")
         .eq("date", date)
-        .order("category"),
+        .order("category_id"),
     ]);
 
   // Room-service orders are counted in POS revenue AND posted onto folios —
@@ -114,7 +114,7 @@ export default async function DailySummaryPage({
       posServiceCharge={posServiceCharge}
       posTotal={posTotal}
       expenses={(expenses ?? []).map((e) => ({
-        category: e.category,
+        category: (e.expense_categories as { name?: string } | null)?.name ?? "Uncategorised",
         description: e.description,
         amount: Number(e.amount),
       }))}

@@ -74,7 +74,10 @@ export default async function OverviewPage() {
       .from("restaurant_orders")
       .select("id, order_number, total_amount, order_status, channel_type, business_date, is_historical")
       .gte("business_date", sinceDate),
-    supabase.from("expenses").select("amount, date, description, category, created_at").gte("date", sinceDate),
+    supabase
+      .from("expenses")
+      .select("amount, date, description, category_id, created_at, expense_categories(name)")
+      .gte("date", sinceDate),
     supabase.from("system_logs").select("*").order("created_at", { ascending: false }).limit(8),
     supabase.from("bookings").select("total_folio_amount").in("status", ["checked_in"]),
     // Recent check-ins/check-outs for the activity feed (last 13 days)
@@ -111,10 +114,10 @@ export default async function OverviewPage() {
     business_date: string;
     is_historical: boolean;
   }[];
-  const expenses = (expensesRes.data ?? []) as (Pick<
+  const expenses = (expensesRes.data ?? []) as unknown as (Pick<
     Expense,
-    "amount" | "date" | "description" | "category"
-  > & { created_at: string })[];
+    "amount" | "date" | "description" | "category_id"
+  > & { created_at: string; expense_categories: { name: string }[] | { name: string } | null })[];
 
   const occupied = rooms.filter((r) => r.status === "occupied").length;
   const occupancyPct = rooms.length ? Math.round((occupied / rooms.length) * 100) : 0;
@@ -235,7 +238,10 @@ export default async function OverviewPage() {
   for (const e of expenses) {
     activity.push({
       kind: "expense",
-      message: `Expense logged — ${formatLKR(Number(e.amount))} (${e.category.replace("_", " ")}${e.description ? `: ${e.description}` : ""}).`,
+      message: `Expense logged — ${formatLKR(Number(e.amount))} (${
+        (Array.isArray(e.expense_categories) ? e.expense_categories[0]?.name : e.expense_categories?.name) ??
+        "Uncategorised"
+      }${e.description ? `: ${e.description}` : ""}).`,
       at: e.created_at,
     });
   }

@@ -18,7 +18,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Inventory | `/inventory` | Live stock table, low-stock highlighting, stock in/out adjustments with audit log, **edit** (name/unit/cost/reorder level) and **delete** (blocked while used in a recipe) |
 | Recipes & Costing | `/inventory/recipes` | Per-dish recipe editor — ingredient cost + an editable flat **"other cost"** (packaging/gas/misc), margin %, profit per plate |
 | Expenses | `/finance/expenses` | Expense logger (utilities / purchasing / salary / maintenance / marketing) |
-| P&L Report | `/finance/reports` | 30-day revenue vs expenses, channel mix, expense breakdown — room-service revenue de-duplicated |
+| P&L Report | `/finance/reports` | **Date range picker** (custom from/to, or "This month" / "Last 30 days" presets), a daily chart split into **Room / Food / Expenses** with independent show/hide toggles, channel mix (Banquet vs Backfilled "Historical Entries" kept separate), and a dynamic expense-category breakdown |
 | Daily Summary | `/finance/daily-summary` | One day, fully broken down: room sales (checkouts that day), item-wise POS sales, expenses, and a **net cash balance**. Date picker + prev/next day, **PDF export** |
 
 ## Database automation (the "brain" lives in Postgres)
@@ -78,6 +78,13 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 - Every bill has a **business date** — defaults to the day it was opened, but is editable right on the Billing screen ("Counts toward: [date]"). Settle a banquet function the morning after and it still posts to last night's date in the Daily Summary and P&L report, instead of defaulting to "today."
 - The POS Menu panel has a small **quantity box** next to the search bar — set it once (e.g. 5) and the next tap on any item adds that many at once, then resets back to 1.
 
+## Expense categories & P&L filtering
+
+- Expense categories are a real, editable table now (`expense_categories`) — same pattern as menu categories. Add, rename, or delete them from the gear icon next to "Log an expense." A category can't be deleted while any expense still uses it.
+- The P&L Report's daily chart now shows **Room sales**, **Food/POS sales**, and **Expenses** as three independently toggleable series (checkboxes above the chart) instead of one combined "revenue" bar — so you can isolate exactly what you want to look at.
+- A **date range picker** replaces the fixed 30-day window — pick any custom From/To range, or use the "This month" / "Last 30 days" quick presets. Every stat card, the daily chart, the channel mix, and the expense breakdown all respect the selected range.
+- The channel-mix chart keeps **Banquet** (real functions booked through the POS terminal) separate from **Historical Entries** (anything logged via Backfill), so backfilled data doesn't make it look like every day was a banquet function.
+
 ## Menu categories, item deletion, and recipe "other costs"
 
 - Menu categories are a real, editable table now (`menu_categories`) — add, rename, or delete them from the **Categories** dialog on the Menu Items page. A category can't be deleted while any menu item still uses it.
@@ -134,7 +141,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run migrations **001 → 002 → 003 → 004 → 005 → 006 → 007** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 

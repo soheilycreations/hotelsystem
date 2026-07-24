@@ -12,7 +12,6 @@ export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" |
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";
 export type InventoryUnit = "grams" | "ml" | "units";
-export type ExpenseCategory = "utilities" | "purchasing" | "salary" | "maintenance" | "marketing" | "function_cost";
 export type LogSeverity = "info" | "warning" | "critical";
 
 export interface StaffProfile {
@@ -179,14 +178,22 @@ export interface MenuRecipeIngredient {
   inventory_items?: InventoryItem; // joined
 }
 
+export interface ExpenseCategoryRow {
+  id: string;
+  name: string;
+  sort_order: number;
+  created_at: string;
+}
+
 export interface Expense {
   id: string;
-  category: ExpenseCategory;
+  category_id: string;
   amount: number;
   date: string;
   description: string | null;
   logged_by: string | null;
   created_at: string;
+  expense_categories?: ExpenseCategoryRow; // joined
 }
 
 export interface SystemLog {

@@ -23,7 +23,6 @@ create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'd
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
 create type inventory_unit    as enum ('grams', 'ml', 'units');
-create type expense_category  as enum ('utilities', 'purchasing', 'salary', 'maintenance', 'marketing', 'function_cost');
 create type log_severity      as enum ('info', 'warning', 'critical');
 
 -- ---------------------------------------------------------------------------
@@ -260,10 +259,18 @@ create table public.hotel_settings (
   updated_at      timestamptz not null default now()
 );
 
+-- 3.10c Expense categories (editable)
+create table public.expense_categories (
+  id         uuid primary key default gen_random_uuid(),
+  name       varchar(60) not null unique,
+  sort_order int not null default 0,
+  created_at timestamptz not null default now()
+);
+
 -- 3.11 Expenses ledger
 create table public.expenses (
   id          uuid primary key default gen_random_uuid(),
-  category    expense_category not null,
+  category_id uuid not null references public.expense_categories (id) on delete restrict,
   amount      numeric(14,2) not null check (amount > 0),
   date        date not null default current_date,
   description text,
@@ -302,6 +309,7 @@ create index idx_order_items_menu          on public.order_items (menu_item_id);
 create index idx_rate_plans_type            on public.room_rate_plans (room_type_id);
 create index idx_order_items_kot_pending   on public.order_items (order_id) where kot_printed_at is null;
 create index idx_menu_items_category      on public.menu_items (category_id);
+create index idx_expenses_category        on public.expenses (category_id);
 create index idx_recipe_menu               on public.menu_recipe_ingredients (menu_item_id);
 create index idx_recipe_inventory          on public.menu_recipe_ingredients (inventory_item_id);
 create index idx_inventory_low_stock       on public.inventory_items (quantity_in_stock, reorder_level);
@@ -487,6 +495,7 @@ alter table public.order_items            enable row level security;
 alter table public.inventory_items        enable row level security;
 alter table public.menu_recipe_ingredients enable row level security;
 alter table public.menu_categories         enable row level security;
+alter table public.expense_categories      enable row level security;
 alter table public.hotel_settings         enable row level security;
 alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
@@ -529,6 +538,8 @@ create policy "staff read inventory"  on public.inventory_items        for selec
 create policy "kitchen write inv"     on public.inventory_items        for all    using (public.get_my_role() in ('admin','manager','kitchen_staff')) with check (public.get_my_role() in ('admin','manager','kitchen_staff'));
 create policy "staff read categories" on public.menu_categories        for select using (public.get_my_role() is not null);
 create policy "mgmt write categories" on public.menu_categories        for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
+create policy "staff read expense categories" on public.expense_categories for select using (public.get_my_role() is not null);
+create policy "mgmt write expense categories" on public.expense_categories for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read recipes"    on public.menu_recipe_ingredients for select using (public.get_my_role() is not null);
 create policy "mgmt write recipes"    on public.menu_recipe_ingredients for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read hotel"      on public.hotel_settings    for select using (public.get_my_role() is not null);
@@ -558,6 +569,7 @@ alter publication supabase_realtime add table public.restaurant_tables;
 alter publication supabase_realtime add table public.restaurant_orders;
 alter publication supabase_realtime add table public.order_items;
 alter publication supabase_realtime add table public.menu_categories;
+alter publication supabase_realtime add table public.expense_categories;
 alter publication supabase_realtime add table public.inventory_items;
 alter publication supabase_realtime add table public.system_logs;
 
@@ -628,6 +640,10 @@ from (values
 join public.menu_categories mc on mc.name = v.category_name;
 
 insert into public.hotel_settings (id) values (1) on conflict (id) do nothing;
+
+insert into public.expense_categories (name, sort_order) values
+  ('Utilities', 1), ('Purchasing', 2), ('Salary', 3),
+  ('Maintenance', 4), ('Marketing', 5), ('Function Cost', 6);
 
 insert into public.menu_recipe_ingredients (menu_item_id, inventory_item_id, quantity_needed)
 select m.id, i.id, r.qty
