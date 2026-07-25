@@ -16,7 +16,7 @@ function encode(text: string): number[] {
   return Array.from(new TextEncoder().encode(text));
 }
 
-function line(char = "-", width = 42): number[] {
+function line(char = "-", width = 48): number[] {
   return encode(char.repeat(width) + "\n");
 }
 
@@ -24,7 +24,7 @@ function money(value: number): string {
   return value.toFixed(2);
 }
 
-function row(left: string, right: string, width = 42): number[] {
+function row(left: string, right: string, width = 48): number[] {
   const space = Math.max(1, width - left.length - right.length);
   return encode(left + " ".repeat(space) + right + "\n");
 }
