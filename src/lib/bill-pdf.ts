@@ -81,6 +81,7 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
   header(l, payload.hotel, "GUEST FOLIO / ROOM BILL");
 
   l.row("Guest", payload.guestName);
+  if (payload.guestIdNumber) l.row("NIC / Passport", payload.guestIdNumber);
   l.row(
     "Room",
     `${payload.roomNumber}${payload.roomTypeName ? ` (${payload.roomTypeName})` : ""}`

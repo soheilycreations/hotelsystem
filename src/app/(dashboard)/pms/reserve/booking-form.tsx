@@ -89,9 +89,15 @@ export function BookingForm({
             <Label htmlFor="guest_name">Guest name</Label>
             <Input id="guest_name" name="guest_name" placeholder="e.g. Nimal Perera" required />
           </div>
-          <div className="space-y-1.5">
-            <Label htmlFor="contact_number">Contact number</Label>
-            <Input id="contact_number" name="contact_number" type="tel" placeholder="07X XXX XXXX" />
+          <div className="grid grid-cols-2 gap-3">
+            <div className="space-y-1.5">
+              <Label htmlFor="guest_id_number">NIC / Passport No.</Label>
+              <Input id="guest_id_number" name="guest_id_number" placeholder="e.g. 200012345678" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="contact_number">Contact number</Label>
+              <Input id="contact_number" name="contact_number" type="tel" placeholder="07X XXX XXXX" />
+            </div>
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="room_id">Room</Label>

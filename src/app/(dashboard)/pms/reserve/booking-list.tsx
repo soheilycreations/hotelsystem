@@ -129,6 +129,7 @@ export function BookingList({
     );
     return {
       guestName: b.guest_name,
+      guestIdNumber: b.guest_id_number,
       roomNumber: b.rooms?.room_number ?? "—",
       roomTypeName: b.rooms?.room_types?.name,
       checkInDate: b.check_in_date,
@@ -231,6 +232,7 @@ export function BookingList({
                   {b.stay_type === "short_stay"
                     ? ` · ${b.duration_hours}h block`
                     : ` · ${formatDate(b.check_in_date)} → ${formatDate(b.check_out_date)}`}
+                  {b.guest_id_number ? ` · ID: ${b.guest_id_number}` : ""}
                 </p>
                 {b.actual_check_in ? (
                   <p className="text-xs text-muted-foreground">

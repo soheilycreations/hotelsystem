@@ -92,6 +92,7 @@ create table public.bookings (
   id                 uuid primary key default gen_random_uuid(),
   room_id            uuid references public.rooms (id) on delete set null,
   guest_name         varchar(160) not null,
+  guest_id_number    varchar(40), -- NIC/passport, recorded at check-in
   contact_number     varchar(40),
   check_in_date      timestamptz not null,
   check_out_date     timestamptz not null,

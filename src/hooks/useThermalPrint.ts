@@ -47,6 +47,7 @@ export interface HotelHeader {
 
 export interface FolioPayload {
   guestName: string;
+  guestIdNumber?: string | null;
   roomNumber: string;
   roomTypeName?: string;
   checkInDate: string;
@@ -77,6 +78,7 @@ function pushHotelHeader(bytes: number[], hotel: HotelHeader | undefined, fallba
 export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
   const {
     guestName,
+    guestIdNumber,
     roomNumber,
     roomTypeName,
     checkInDate,
@@ -102,6 +104,7 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
 
   bytes.push(ESC, 0x61, 0x00); // left
   bytes.push(...row("Guest", guestName));
+  if (guestIdNumber) bytes.push(...row("NIC / Passport", guestIdNumber));
   bytes.push(...row("Room", `${roomNumber}${roomTypeName ? ` (${roomTypeName})` : ""}`));
   if (stayType === "short_stay") {
     bytes.push(...row("Stay", `${durationHours ?? "?"}h block`));
@@ -275,6 +278,7 @@ export function useThermalPrint(): UseThermalPrintResult {
     try {
       const nav = navigator as Navigator & {
         usb?: {
+          getDevices: () => Promise<USBLikeDevice[]>;
           requestDevice: (opts: { filters: { classCode: number }[] }) => Promise<USBLikeDevice>;
         };
       };
@@ -284,7 +288,13 @@ export function useThermalPrint(): UseThermalPrintResult {
         return true;
       }
 
-      const device = await nav.usb.requestDevice({ filters: [{ classCode: 7 }] });
+      // Reuse a printer the user already granted access to — getDevices()
+      // never shows a permission prompt. Only fall back to requestDevice()
+      // (which does show the chooser) the very first time, or if the
+      // browser has forgotten the grant (e.g. site data was cleared).
+      const known = await nav.usb.getDevices();
+      const device = known[0] ?? (await nav.usb.requestDevice({ filters: [{ classCode: 7 }] }));
+
       await device.open();
       if (device.configuration === null) await device.selectConfiguration(1);
       await device.claimInterface(0);

@@ -41,6 +41,7 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
 
     const roomId = String(formData.get("room_id") ?? "");
     const guestName = String(formData.get("guest_name") ?? "").trim();
+    const guestIdNumber = String(formData.get("guest_id_number") ?? "").trim();
     const contactNumber = String(formData.get("contact_number") ?? "").trim();
     const checkIn = String(formData.get("check_in_date") ?? "");
     const checkOut = String(formData.get("check_out_date") ?? "");
@@ -67,6 +68,7 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
     const { error } = await supabase.from("bookings").insert({
       room_id: roomId,
       guest_name: guestName,
+      guest_id_number: guestIdNumber || null,
       contact_number: contactNumber || null,
       check_in_date: checkInIso,
       check_out_date: checkOutIso,

@@ -67,9 +67,13 @@ function HistoricalBookingForm({ rooms }: { rooms: Room[] }) {
               </Select>
             </div>
             <div className="space-y-1.5">
-              <Label htmlFor="hb-contact">Contact (optional)</Label>
-              <Input id="hb-contact" name="contact_number" placeholder="07X XXX XXXX" />
+              <Label htmlFor="hb-idnum">NIC / Passport (optional)</Label>
+              <Input id="hb-idnum" name="guest_id_number" placeholder="e.g. 200012345678" />
             </div>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="hb-contact">Contact (optional)</Label>
+            <Input id="hb-contact" name="contact_number" placeholder="07X XXX XXXX" />
           </div>
           <div className="grid grid-cols-2 gap-3">
             <div className="space-y-1.5">

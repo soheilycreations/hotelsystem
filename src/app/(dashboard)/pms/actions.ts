@@ -40,6 +40,7 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
     const roomId = String(formData.get("room_id") ?? "");
     const ratePlanId = String(formData.get("rate_plan_id") ?? "");
     const guestName = String(formData.get("guest_name") ?? "").trim();
+    const guestIdNumber = String(formData.get("guest_id_number") ?? "").trim();
     const contact = String(formData.get("contact_number") ?? "").trim();
     const checkIn = String(formData.get("check_in_date") ?? "");
     const checkOut = String(formData.get("check_out_date") ?? "");
@@ -104,6 +105,7 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
       .insert({
         room_id: roomId,
         guest_name: guestName,
+        guest_id_number: guestIdNumber || null,
         contact_number: contact || null,
         check_in_date: checkInIso,
         check_out_date: checkOutIso,

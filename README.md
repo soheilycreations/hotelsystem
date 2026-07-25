@@ -80,6 +80,8 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 
 ## Expense categories & P&L filtering
 
+- The booking form now records the guest's **NIC / Passport number** alongside their name and contact — shown on the room grid's in-house guest popup, the bookings list, and printed/PDF room bills.
+
 - Expense categories are a real, editable table now (`expense_categories`) — same pattern as menu categories. Add, rename, or delete them from the gear icon next to "Log an expense." A category can't be deleted while any expense still uses it.
 - The P&L Report's daily chart now shows **Room sales**, **Food/POS sales**, and **Expenses** as three independently toggleable series (checkboxes above the chart) instead of one combined "revenue" bar — so you can isolate exactly what you want to look at.
 - A **date range picker** replaces the fixed 30-day window — pick any custom From/To range, or use the "This month" / "Last 30 days" quick presets. Every stat card, the daily chart, the channel mix, and the expense breakdown all respect the selected range.
@@ -141,7 +143,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run migrations **001 → 002 → 003 → 004 → 005 → 006 → 007 → 008 → 009** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 010** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 

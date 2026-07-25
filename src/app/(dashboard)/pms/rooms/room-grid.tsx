@@ -122,6 +122,9 @@ export function RoomGrid({
                   {bookingByRoom[selected.id]?.stay_type === "short_stay"
                     ? ` · ${bookingByRoom[selected.id]?.duration_hours}h block`
                     : ""}
+                  {bookingByRoom[selected.id]?.guest_id_number
+                    ? ` · ID: ${bookingByRoom[selected.id]?.guest_id_number}`
+                    : ""}
                 </p>
               </div>
               <StayCountdown booking={bookingByRoom[selected.id] as Booking} />

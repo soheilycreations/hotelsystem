@@ -47,6 +47,7 @@ export interface Booking {
   id: string;
   room_id: string | null;
   guest_name: string;
+  guest_id_number: string | null;
   contact_number: string | null;
   check_in_date: string;
   check_out_date: string;
