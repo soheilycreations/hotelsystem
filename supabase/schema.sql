@@ -22,6 +22,8 @@ create type table_status      as enum ('vacant', 'occupied', 'reserved', 'billed
 create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'delivery', 'banquet');
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
+create type payment_method    as enum ('cash', 'card', 'bank_transfer');
+create type cash_direction    as enum ('in', 'out');
 create type inventory_unit    as enum ('grams', 'ml', 'units');
 create type log_severity      as enum ('info', 'warning', 'critical');
 
@@ -105,6 +107,7 @@ create table public.bookings (
   actual_check_in    timestamptz,
   actual_check_out   timestamptz,
   status             booking_status not null default 'pending',
+  payment_method     payment_method, -- set at checkout
   created_by         uuid references public.staff_profiles (id),
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
@@ -159,6 +162,7 @@ create table public.restaurant_orders (
   service_charge   numeric(14,2) not null default 0 check (service_charge >= 0),
   total_amount     numeric(14,2) not null default 0 check (total_amount >= 0),
   order_status     order_status not null default 'active',
+  payment_method   payment_method, -- set at settle time
   delivery_status  delivery_status,
   created_by       uuid references public.staff_profiles (id),
   created_at       timestamptz not null default now(),
@@ -275,6 +279,20 @@ create table public.expenses (
   amount      numeric(14,2) not null check (amount > 0),
   date        date not null default current_date,
   description text,
+  payment_method payment_method not null default 'cash',
+  logged_by   uuid references public.staff_profiles (id),
+  created_at  timestamptz not null default now()
+);
+
+-- 3.11b Cash movements — bank deposits, owner withdrawals, float top-ups,
+-- and any other cash-in-hand adjustment that isn't revenue or an expense.
+create table public.cash_movements (
+  id          uuid primary key default gen_random_uuid(),
+  direction   cash_direction not null,
+  category    varchar(60) not null, -- e.g. 'Bank Deposit', 'Owner Withdrawal', 'Float Top-up'
+  description text,
+  amount      numeric(14,2) not null check (amount > 0),
+  date        date not null default current_date,
   logged_by   uuid references public.staff_profiles (id),
   created_at  timestamptz not null default now()
 );
@@ -315,7 +333,7 @@ create index idx_recipe_menu               on public.menu_recipe_ingredients (me
 create index idx_recipe_inventory          on public.menu_recipe_ingredients (inventory_item_id);
 create index idx_inventory_low_stock       on public.inventory_items (quantity_in_stock, reorder_level);
 create index idx_expenses_date             on public.expenses (date desc);
-create index idx_expenses_category         on public.expenses (category);
+create index idx_cash_movements_date       on public.cash_movements (date);
 create index idx_logs_event                on public.system_logs (event_type, created_at desc);
 
 -- updated_at triggers
@@ -497,6 +515,7 @@ alter table public.inventory_items        enable row level security;
 alter table public.menu_recipe_ingredients enable row level security;
 alter table public.menu_categories         enable row level security;
 alter table public.expense_categories      enable row level security;
+alter table public.cash_movements          enable row level security;
 alter table public.hotel_settings         enable row level security;
 alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
@@ -541,6 +560,8 @@ create policy "staff read categories" on public.menu_categories        for selec
 create policy "mgmt write categories" on public.menu_categories        for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read expense categories" on public.expense_categories for select using (public.get_my_role() is not null);
 create policy "mgmt write expense categories" on public.expense_categories for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
+create policy "staff read cash movements" on public.cash_movements for select using (public.get_my_role() is not null);
+create policy "mgmt write cash movements" on public.cash_movements for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read recipes"    on public.menu_recipe_ingredients for select using (public.get_my_role() is not null);
 create policy "mgmt write recipes"    on public.menu_recipe_ingredients for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read hotel"      on public.hotel_settings    for select using (public.get_my_role() is not null);
@@ -571,6 +592,7 @@ alter publication supabase_realtime add table public.restaurant_orders;
 alter publication supabase_realtime add table public.order_items;
 alter publication supabase_realtime add table public.menu_categories;
 alter publication supabase_realtime add table public.expense_categories;
+alter publication supabase_realtime add table public.cash_movements;
 alter publication supabase_realtime add table public.inventory_items;
 alter publication supabase_realtime add table public.system_logs;
 

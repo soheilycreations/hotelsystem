@@ -9,6 +9,8 @@ export type StayType = "overnight" | "short_stay";
 export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" | "banquet";
+export type PaymentMethod = "cash" | "card" | "bank_transfer";
+export type CashDirection = "in" | "out";
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";
 export type InventoryUnit = "grams" | "ml" | "units";
@@ -60,6 +62,7 @@ export interface Booking {
   actual_check_in: string | null;
   actual_check_out: string | null;
   status: BookingStatus;
+  payment_method: PaymentMethod | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -135,6 +138,7 @@ export interface RestaurantOrder {
   service_charge: number;
   total_amount: number;
   order_status: OrderStatus;
+  payment_method: PaymentMethod | null;
   delivery_status: DeliveryStatus | null;
   created_by: string | null;
   created_at: string;
@@ -192,9 +196,21 @@ export interface Expense {
   amount: number;
   date: string;
   description: string | null;
+  payment_method: PaymentMethod;
   logged_by: string | null;
   created_at: string;
   expense_categories?: ExpenseCategoryRow; // joined
+}
+
+export interface CashMovement {
+  id: string;
+  direction: CashDirection;
+  category: string;
+  description: string | null;
+  amount: number;
+  date: string;
+  logged_by: string | null;
+  created_at: string;
 }
 
 export interface SystemLog {
@@ -248,6 +264,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/finance/expenses": ["admin", "manager"],
   "/finance/reports": ["admin", "manager"],
   "/finance/daily-summary": ["admin", "manager"],
+  "/finance/cash-book": ["admin", "manager"],
 };
 
 export function canAccess(role: StaffRole | null, pathname: string): boolean {

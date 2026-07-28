@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import type { ChannelType, DeliveryStatus } from "@/lib/types";
+import type { ChannelType, DeliveryStatus, PaymentMethod } from "@/lib/types";
 
 interface ActionResult {
   ok: boolean;
@@ -285,7 +285,10 @@ export async function setDeliveryStatus(
  * Trigger B then deducts recipe stock, posts room-service totals to the
  * guest folio, and frees the table — all inside Postgres.
  */
-export async function settleOrder(orderId: string): Promise<ActionResult> {
+export async function settleOrder(
+  orderId: string,
+  paymentMethod: PaymentMethod = "cash"
+): Promise<ActionResult> {
   try {
     await assertRole(POS_ROLES);
     const supabase = await createClient();
@@ -302,7 +305,7 @@ export async function settleOrder(orderId: string): Promise<ActionResult> {
 
     const { error } = await supabase
       .from("restaurant_orders")
-      .update({ order_status: "completed" })
+      .update({ order_status: "completed", payment_method: paymentMethod })
       .eq("id", orderId);
     if (error) return { ok: false, error: error.message };
 

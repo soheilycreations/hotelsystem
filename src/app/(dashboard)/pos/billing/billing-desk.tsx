@@ -20,6 +20,8 @@ import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
 import {
   Table,
   TableBody,
@@ -31,7 +33,7 @@ import {
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { formatDateTime, formatLKR } from "@/lib/utils";
-import type { ChannelType, HotelSettings, RestaurantOrder } from "@/lib/types";
+import type { ChannelType, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
 import { cancelOrder, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }> = {
@@ -52,6 +54,7 @@ export function BillingDesk({
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [busy, setBusy] = useState(false);
   const [savingDate, setSavingDate] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -79,7 +82,7 @@ export function BillingDesk({
     }
     setConfirmSettleId(null);
     startTransition(async () => {
-      const res = await settleOrder(order.id);
+      const res = await settleOrder(order.id, paymentMethod);
       setFeedback(
         res.ok
           ? `Bill #${order.order_number} settled — stock deducted${
@@ -351,6 +354,22 @@ export function BillingDesk({
             </div>
 
             <div className="grid gap-2">
+              {selected.channel_type !== "room_service" && (
+                <div className="space-y-1.5">
+                  <Label htmlFor="settle-payment-method" className="text-xs text-muted-foreground">
+                    Paid by
+                  </Label>
+                  <Select
+                    id="settle-payment-method"
+                    value={paymentMethod}
+                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                  >
+                    <option value="cash">Cash</option>
+                    <option value="card">Card</option>
+                    <option value="bank_transfer">Bank Transfer</option>
+                  </Select>
+                </div>
+              )}
               <Button
                 onClick={() => handleSettle(selected)}
                 disabled={pending || Number(selected.total_amount) <= 0}

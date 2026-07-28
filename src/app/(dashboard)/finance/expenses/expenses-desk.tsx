@@ -134,17 +134,27 @@ export function ExpensesDesk({
                 <Input id="exp-date" name="date" type="date" defaultValue={today} required />
               </div>
             </div>
-            <div className="space-y-1.5">
-              <Label htmlFor="exp-amount">Amount (LKR)</Label>
-              <Input
-                id="exp-amount"
-                name="amount"
-                type="number"
-                min="0"
-                step="0.01"
-                placeholder="0.00"
-                required
-              />
+            <div className="grid grid-cols-2 gap-3">
+              <div className="space-y-1.5">
+                <Label htmlFor="exp-amount">Amount (LKR)</Label>
+                <Input
+                  id="exp-amount"
+                  name="amount"
+                  type="number"
+                  min="0"
+                  step="0.01"
+                  placeholder="0.00"
+                  required
+                />
+              </div>
+              <div className="space-y-1.5">
+                <Label htmlFor="exp-payment">Paid by</Label>
+                <Select id="exp-payment" name="payment_method" defaultValue="cash">
+                  <option value="cash">Cash</option>
+                  <option value="card">Card</option>
+                  <option value="bank_transfer">Bank Transfer</option>
+                </Select>
+              </div>
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="exp-desc">Description</Label>

@@ -34,17 +34,21 @@ export async function logExpense(formData: FormData): Promise<ActionResult> {
     const amount = Number(formData.get("amount") ?? 0);
     const date = String(formData.get("date") ?? "");
     const description = String(formData.get("description") ?? "").trim();
+    const paymentMethod = String(formData.get("payment_method") ?? "cash");
 
     if (!categoryId) return { ok: false, error: "Pick a valid expense category." };
     if (!Number.isFinite(amount) || amount <= 0)
       return { ok: false, error: "Amount must be greater than zero." };
     if (!date) return { ok: false, error: "Pick the expense date." };
+    if (!["cash", "card", "bank_transfer"].includes(paymentMethod))
+      return { ok: false, error: "Pick a valid payment method." };
 
     const { error } = await supabase.from("expenses").insert({
       category_id: categoryId,
       amount,
       date,
       description: description || null,
+      payment_method: paymentMethod,
       logged_by: profile.id,
     });
     if (error) return { ok: false, error: error.message };

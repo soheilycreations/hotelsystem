@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import type { BookingStatus, RoomStatus } from "@/lib/types";
+import type { BookingStatus, PaymentMethod, RoomStatus } from "@/lib/types";
 
 interface ActionResult {
   ok: boolean;
@@ -138,7 +138,8 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
 
 export async function setBookingStatus(
   bookingId: string,
-  status: BookingStatus
+  status: BookingStatus,
+  paymentMethod?: PaymentMethod
 ): Promise<ActionResult> {
   try {
     await assertPmsRole();
@@ -191,7 +192,10 @@ export async function setBookingStatus(
     // Room status flips automatically via Trigger A (housekeeping automator)
     const patch: Record<string, unknown> = { status };
     if (status === "checked_in") patch.actual_check_in = new Date().toISOString();
-    if (status === "checked_out") patch.actual_check_out = new Date().toISOString();
+    if (status === "checked_out") {
+      patch.actual_check_out = new Date().toISOString();
+      patch.payment_method = paymentMethod ?? "cash";
+    }
     const { error } = await supabase
       .from("bookings")
       .update(patch)

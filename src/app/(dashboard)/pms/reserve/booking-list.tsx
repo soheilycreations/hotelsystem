@@ -13,7 +13,7 @@ import {
   Timer,
   XCircle,
 } from "lucide-react";
-import type { Booking, HotelSettings } from "@/lib/types";
+import type { Booking, HotelSettings, PaymentMethod } from "@/lib/types";
 import { formatDate, formatLKR } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
@@ -92,6 +92,7 @@ export function BookingList({
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [extending, setExtending] = useState<Booking | null>(null);
   const [charging, setCharging] = useState<Booking | null>(null);
+  const [checkingOut, setCheckingOut] = useState<Booking | null>(null);
   const [, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const { printFolio, printing, error: printError } = useThermalPrint();
@@ -315,7 +316,7 @@ export function BookingList({
                       size="sm"
                       variant="secondary"
                       disabled={pendingId === b.id}
-                      onClick={() => update(b.id, "checked_out")}
+                      onClick={() => setCheckingOut(b)}
                     >
                       {pendingId === b.id ? <Loader2 className="animate-spin" /> : <DoorOpen />} Check out
                     </Button>
@@ -351,6 +352,19 @@ export function BookingList({
             booking={charging}
             onDone={(msg) => {
               setCharging(null);
+              setNotice(msg);
+            }}
+          />
+        )}
+      </Dialog>
+
+      {/* Checkout — payment method */}
+      <Dialog open={checkingOut !== null} onOpenChange={(open) => !open && setCheckingOut(null)}>
+        {checkingOut && (
+          <CheckoutDialog
+            booking={checkingOut}
+            onDone={(msg) => {
+              setCheckingOut(null);
               setNotice(msg);
             }}
           />
@@ -467,6 +481,59 @@ function ChargeDialog({ booking, onDone }: { booking: Booking; onDone: (msg: str
         <Button onClick={submit} disabled={pending}>
           <BadgePlus className="mr-2 h-4 w-4" />
           {pending ? "Adding…" : "Add to folio"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+function CheckoutDialog({
+  booking,
+  onDone,
+}: {
+  booking: Booking;
+  onDone: (msg: string) => void;
+}) {
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function submit() {
+    startTransition(async () => {
+      const res = await setBookingStatus(booking.id, "checked_out", paymentMethod);
+      if (res.ok) onDone(`${booking.guest_name} checked out — ${formatLKR(Number(booking.total_folio_amount))} (${paymentMethod.replace("_", " ")}).`);
+      else setError(res.error ?? "Could not check out.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Check out — {booking.guest_name}</DialogTitle>
+        <DialogDescription>
+          Folio total: {formatLKR(Number(booking.total_folio_amount))}. Pick how the guest paid —
+          this feeds the Cash Book so cash-in-hand stays accurate.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="checkout-payment">Paid by</Label>
+          <Select
+            id="checkout-payment"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+          >
+            <option value="cash">Cash</option>
+            <option value="card">Card</option>
+            <option value="bank_transfer">Bank Transfer</option>
+          </Select>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+      <DialogFooter>
+        <Button onClick={submit} disabled={pending}>
+          <DoorOpen className="mr-2 h-4 w-4" />
+          {pending ? "Checking out…" : "Confirm check out"}
         </Button>
       </DialogFooter>
     </DialogContent>

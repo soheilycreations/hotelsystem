@@ -20,6 +20,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Expenses | `/finance/expenses` | Expense logger (utilities / purchasing / salary / maintenance / marketing) |
 | P&L Report | `/finance/reports` | **Date range picker** (custom from/to, or "This month" / "Last 30 days" presets), a daily chart split into **Room / Food / Expenses** with independent show/hide toggles, channel mix (Banquet vs Backfilled "Historical Entries" kept separate), and a dynamic expense-category breakdown |
 | Daily Summary | `/finance/daily-summary` | One day, fully broken down: room sales (checkouts that day), item-wise POS sales, expenses, and a **net cash balance**. Date picker + prev/next day, **PDF export** |
+| Cash Book | `/finance/cash-book` | **Running, day-to-day cash-in-hand balance** — carries forward automatically from cash-paid bookings/POS sales/expenses, plus manual **cash movements** (bank deposits, owner withdrawals, float top-ups) that aren't revenue or a business expense. Date range picker, daily in/out chart with a running-balance line |
 
 ## Database automation (the "brain" lives in Postgres)
 
@@ -77,6 +78,13 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 
 - Every bill has a **business date** — defaults to the day it was opened, but is editable right on the Billing screen ("Counts toward: [date]"). Settle a banquet function the morning after and it still posts to last night's date in the Daily Summary and P&L report, instead of defaulting to "today."
 - The POS Menu panel has a small **quantity box** next to the search bar — set it once (e.g. 5) and the next tap on any item adds that many at once, then resets back to 1.
+
+## Cash Book — day-to-day cash-in-hand
+
+- Bookings, POS bills, and expenses now carry a **payment method** (cash / card / bank transfer) — set on the Billing screen before settling, on the booking Check-out dialog, and on the expense logger. Room-service orders don't ask for one (the guest's checkout payment covers it — asking twice would double count).
+- The Cash Book only counts **cash-tagged** transactions — card and bank-transfer sales/expenses don't touch the physical drawer, so they're correctly excluded from cash-in-hand.
+- A separate **cash movements** ledger (admin/manager only — this is sensitive) covers things that are real cash-drawer events but aren't revenue or a P&L expense: **Bank Deposit**, **Bank Withdrawal**, **Owner Withdrawal**, **Float Top-up**, or a custom category.
+- The balance **carries forward day to day** automatically — no manual "opening balance" entry needed after the first day; the system nets everything before your selected range into one opening figure.
 
 ## Expense categories & P&L filtering
 
@@ -143,7 +151,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run migrations **001 → 010** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 011** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 
@@ -159,6 +167,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 | `/pos/billing` | ✅ | ✅ | — | ✅ | — |
 | `/pos/menu` | ✅ | ✅ | — | — | — |
 | `/pos/tables` | ✅ | ✅ | — | — | — |
+| `/finance/cash-book` | ✅ | ✅ | — | — | — |
 | `/backfill` | ✅ | ✅ | — | — | — |
 | `/inventory` | ✅ | ✅ | — | — | ✅ |
 | `/inventory/recipes` | ✅ | ✅ | — | — | — |
