@@ -18,6 +18,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   CalendarRange,
+  FileDown,
   Loader2,
   Plus,
   Trash2,
@@ -38,8 +39,9 @@ import {
 } from "@/components/ui/table";
 import { StatCard } from "@/components/stat-card";
 import { formatLKR } from "@/lib/utils";
+import { generateCashBookPdf, openPdfBlob } from "@/lib/report-pdf";
 import type { CashMovement } from "@/lib/types";
-import type { CashDayRow } from "./page";
+import type { CashDayRow, CashLedgerEntry } from "./page";
 import { createCashMovement, deleteCashMovement } from "./actions";
 
 const CATEGORY_PRESETS = [
@@ -131,19 +133,24 @@ function DateRangePicker({ fromDate, toDate }: { fromDate: string; toDate: strin
 export function CashBookView({
   fromDate,
   toDate,
+  hotelName,
   openingBalance,
   closingBalance,
   days,
   movements,
+  ledger,
 }: {
   fromDate: string;
   toDate: string;
+  hotelName: string;
   openingBalance: number;
   closingBalance: number;
   days: CashDayRow[];
   movements: CashMovement[];
+  ledger: CashLedgerEntry[];
 }) {
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const totalIn = days.reduce((s, d) => s + d.cashIn, 0);
@@ -156,12 +163,39 @@ export function CashBookView({
     });
   }
 
+  async function exportPdf() {
+    setExporting(true);
+    try {
+      const blob = await generateCashBookPdf({
+        hotelName,
+        fromDate,
+        toDate,
+        openingBalance,
+        closingBalance,
+        totalIn,
+        totalOut,
+        ledger,
+      });
+      openPdfBlob(blob);
+    } finally {
+      setExporting(false);
+    }
+  }
+
   return (
     <div className="space-y-6">
       {feedback && <p className="rounded-md bg-muted px-3 py-2 text-xs">{feedback}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
         <DateRangePicker fromDate={fromDate} toDate={toDate} />
+        <Button variant="outline" onClick={exportPdf} disabled={exporting}>
+          {exporting ? (
+            <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+          ) : (
+            <FileDown className="mr-2 h-4 w-4" />
+          )}
+          Export PDF
+        </Button>
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">

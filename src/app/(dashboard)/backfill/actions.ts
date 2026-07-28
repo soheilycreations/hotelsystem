@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
+import type { PaymentMethod } from "@/lib/types";
 import { addCustomOrderItem, openOrder, setOrderBusinessDate, settleOrder } from "../pos/actions";
 
 interface ActionResult {
@@ -47,6 +48,7 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
     const checkOut = String(formData.get("check_out_date") ?? "");
     const amount = Number(formData.get("amount") ?? 0);
     const planLabel = String(formData.get("plan_label") ?? "").trim();
+    const paymentMethod = String(formData.get("payment_method") ?? "cash");
 
     if (!roomId) return { ok: false, error: "Pick a room." };
     if (!guestName) return { ok: false, error: "Guest name is required." };
@@ -79,6 +81,7 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
       rate_plan_id: null,
       rate_plan_name: planLabel || "Historical entry",
       status: "checked_out",
+      payment_method: paymentMethod,
       created_by: profile.id,
     });
     if (error) return { ok: false, error: error.message };
@@ -95,6 +98,7 @@ export interface HistoricalSaleInput {
   description: string;
   amount: number;
   serviceChargeable: boolean;
+  paymentMethod: PaymentMethod;
 }
 
 /**
@@ -136,7 +140,7 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
     const dated = await setOrderBusinessDate(opened.orderId, input.date);
     if (!dated.ok) return dated;
 
-    const settled = await settleOrder(opened.orderId);
+    const settled = await settleOrder(opened.orderId, input.paymentMethod);
     if (!settled.ok) return settled;
 
     revalidateBackfill();

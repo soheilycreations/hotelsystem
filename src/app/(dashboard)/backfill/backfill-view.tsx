@@ -103,6 +103,14 @@ function HistoricalBookingForm({ rooms }: { rooms: Room[] }) {
               <Input id="hb-plan" name="plan_label" placeholder="e.g. AC — Full Night" />
             </div>
           </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="hb-payment">Paid by</Label>
+            <Select id="hb-payment" name="payment_method" defaultValue="cash">
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+            </Select>
+          </div>
           {message ? (
             <p className={`text-sm ${message.ok ? "text-emerald-500" : "text-destructive"}`}>
               {message.text}
@@ -123,6 +131,7 @@ function HistoricalSaleForm() {
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [serviceChargeable, setServiceChargeable] = useState(true);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
@@ -134,6 +143,7 @@ function HistoricalSaleForm() {
         description,
         amount: Number(amount),
         serviceChargeable,
+        paymentMethod,
       });
       if (res.ok) {
         setDescription("");
@@ -181,6 +191,18 @@ function HistoricalSaleForm() {
             onChange={(e) => setAmount(e.target.value)}
             placeholder="0.00"
           />
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="hs-payment">Paid by</Label>
+          <Select
+            id="hs-payment"
+            value={paymentMethod}
+            onChange={(e) => setPaymentMethod(e.target.value as "cash" | "card" | "bank_transfer")}
+          >
+            <option value="cash">Cash</option>
+            <option value="card">Card</option>
+            <option value="bank_transfer">Bank Transfer</option>
+          </Select>
         </div>
         <label className="flex items-center gap-2 text-sm">
           <input

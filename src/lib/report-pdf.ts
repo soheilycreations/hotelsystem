@@ -236,6 +236,96 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   return doc.output("blob");
 }
 
+export interface CashBookLedgerEntry {
+  date: string;
+  description: string;
+  direction: "in" | "out";
+  amount: number;
+  runningBalance: number;
+}
+
+export interface CashBookData {
+  hotelName: string;
+  fromDate: string;
+  toDate: string;
+  openingBalance: number;
+  closingBalance: number;
+  totalIn: number;
+  totalOut: number;
+  ledger: CashBookLedgerEntry[];
+}
+
+export async function generateCashBookPdf(data: CashBookData): Promise<Blob> {
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
+  const W = A4[0];
+  const colRight = W - MARGIN;
+
+  const prettyDate = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+  l.title(data.hotelName);
+  l.subtitle(`Cash Book — ${prettyDate(data.fromDate)} to ${prettyDate(data.toDate)}`);
+  l.divider();
+
+  l.row(
+    [
+      { text: "Opening balance", x: MARGIN },
+      { text: fmt(data.openingBalance), x: colRight, align: "right" },
+    ],
+    10,
+    true
+  );
+  l.space(2);
+
+  l.sectionHeader("Ledger");
+  l.row(
+    [
+      { text: "Date", x: MARGIN },
+      { text: "Description", x: MARGIN + 28 },
+      { text: "In", x: MARGIN + 122, align: "right" },
+      { text: "Out", x: MARGIN + 150, align: "right" },
+      { text: "Balance", x: colRight, align: "right" },
+    ],
+    9,
+    true
+  );
+  if (data.ledger.length === 0) {
+    l.row([{ text: "No cash movements in this range.", x: MARGIN }], 9);
+  } else {
+    for (const e of data.ledger) {
+      l.row([
+        { text: new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
+        { text: e.description.slice(0, 46), x: MARGIN + 28 },
+        { text: e.direction === "in" ? fmt(e.amount) : "", x: MARGIN + 122, align: "right" },
+        { text: e.direction === "out" ? fmt(e.amount) : "", x: MARGIN + 150, align: "right" },
+        { text: fmt(e.runningBalance), x: colRight, align: "right" },
+      ]);
+    }
+  }
+
+  l.divider();
+  l.row([
+    { text: "Total cash in", x: MARGIN },
+    { text: fmt(data.totalIn), x: colRight, align: "right" },
+  ]);
+  l.row([
+    { text: "Total cash out", x: MARGIN },
+    { text: fmt(data.totalOut), x: colRight, align: "right" },
+  ]);
+  l.divider();
+  l.row(
+    [
+      { text: "CLOSING BALANCE", x: MARGIN },
+      { text: fmt(data.closingBalance), x: colRight, align: "right" },
+    ],
+    13,
+    true
+  );
+
+  return doc.output("blob");
+}
+
 export function openPdfBlob(blob: Blob): void {
   const url = URL.createObjectURL(blob);
   window.open(url, "_blank", "noopener");

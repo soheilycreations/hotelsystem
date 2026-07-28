@@ -20,7 +20,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Expenses | `/finance/expenses` | Expense logger (utilities / purchasing / salary / maintenance / marketing) |
 | P&L Report | `/finance/reports` | **Date range picker** (custom from/to, or "This month" / "Last 30 days" presets), a daily chart split into **Room / Food / Expenses** with independent show/hide toggles, channel mix (Banquet vs Backfilled "Historical Entries" kept separate), and a dynamic expense-category breakdown |
 | Daily Summary | `/finance/daily-summary` | One day, fully broken down: room sales (checkouts that day), item-wise POS sales, expenses, and a **net cash balance**. Date picker + prev/next day, **PDF export** |
-| Cash Book | `/finance/cash-book` | **Running, day-to-day cash-in-hand balance** — carries forward automatically from cash-paid bookings/POS sales/expenses, plus manual **cash movements** (bank deposits, owner withdrawals, float top-ups) that aren't revenue or a business expense. Date range picker, daily in/out chart with a running-balance line |
+| Cash Book | `/finance/cash-book` | **Running, day-to-day cash-in-hand balance** — carries forward automatically from cash-paid bookings/POS sales/expenses, plus manual **cash movements** (bank deposits, owner withdrawals, float top-ups). Date range picker, daily in/out chart with a running-balance line, and a **PDF ledger export** — every transaction, chronological, with a running balance column |
 
 ## Database automation (the "brain" lives in Postgres)
 
@@ -85,6 +85,8 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 - The Cash Book only counts **cash-tagged** transactions — card and bank-transfer sales/expenses don't touch the physical drawer, so they're correctly excluded from cash-in-hand.
 - A separate **cash movements** ledger (admin/manager only — this is sensitive) covers things that are real cash-drawer events but aren't revenue or a P&L expense: **Bank Deposit**, **Bank Withdrawal**, **Owner Withdrawal**, **Float Top-up**, or a custom category.
 - The balance **carries forward day to day** automatically — no manual "opening balance" entry needed after the first day; the system nets everything before your selected range into one opening figure.
+- **Export PDF** prints a proper ledger for the selected range: every individual cash-paid checkout, cash POS bill, cash expense, and manual movement, in date order, each with its own running balance — not just daily totals.
+- Backfill's historical booking and historical sale forms now also ask **"Paid by"** (defaults to Cash) — old paper-register entries you migrate in show up in the Cash Book and its PDF export too, exactly like live transactions.
 
 ## Expense categories & P&L filtering
 
