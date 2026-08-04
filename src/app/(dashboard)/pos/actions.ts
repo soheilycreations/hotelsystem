@@ -287,7 +287,8 @@ export async function setDeliveryStatus(
  */
 export async function settleOrder(
   orderId: string,
-  paymentMethod: PaymentMethod = "cash"
+  paymentMethod: PaymentMethod = "cash",
+  serviceChargeWaived = false
 ): Promise<ActionResult> {
   try {
     await assertRole(POS_ROLES);
@@ -303,10 +304,25 @@ export async function settleOrder(
     if (Number(order.total_amount) <= 0)
       return { ok: false, error: "Cannot settle an empty bill — add items first." };
 
-    const { error } = await supabase
-      .from("restaurant_orders")
-      .update({ order_status: "completed", payment_method: paymentMethod })
-      .eq("id", orderId);
+    // The DB recalc trigger only fires on order_items changes, not on
+    // restaurant_orders updates — so when the service charge is waived at
+    // settle time, recompute the totals here rather than relying on it.
+    let patch: Record<string, unknown> = {
+      order_status: "completed",
+      payment_method: paymentMethod,
+      service_charge_waived: serviceChargeWaived,
+    };
+
+    if (serviceChargeWaived) {
+      const { data: items } = await supabase
+        .from("order_items")
+        .select("line_total")
+        .eq("order_id", orderId);
+      const subtotal = (items ?? []).reduce((sum, i) => sum + Number(i.line_total), 0);
+      patch = { ...patch, subtotal, service_charge: 0, total_amount: subtotal };
+    }
+
+    const { error } = await supabase.from("restaurant_orders").update(patch).eq("id", orderId);
     if (error) return { ok: false, error: error.message };
 
     revalidatePath("/", "layout");

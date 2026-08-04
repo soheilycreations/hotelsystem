@@ -55,6 +55,7 @@ export function BillingDesk({
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [scWaived, setScWaived] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savingDate, setSavingDate] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -82,7 +83,7 @@ export function BillingDesk({
     }
     setConfirmSettleId(null);
     startTransition(async () => {
-      const res = await settleOrder(order.id, paymentMethod);
+      const res = await settleOrder(order.id, paymentMethod, scWaived);
       setFeedback(
         res.ok
           ? `Bill #${order.order_number} settled — stock deducted${
@@ -367,9 +368,25 @@ export function BillingDesk({
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>
                     <option value="bank_transfer">Bank Transfer</option>
+                    <option value="complimentary">Complimentary (no charge)</option>
                   </Select>
+                  {paymentMethod === "complimentary" && (
+                    <p className="text-xs text-amber-500">
+                      This bill won&apos;t count toward revenue anywhere — it&apos;s recorded as a
+                      hotel complimentary.
+                    </p>
+                  )}
                 </div>
               )}
+              <label className="flex items-center gap-2 text-xs text-muted-foreground">
+                <input
+                  type="checkbox"
+                  checked={scWaived}
+                  onChange={(e) => setScWaived(e.target.checked)}
+                  className="h-3.5 w-3.5 accent-current"
+                />
+                No service charge on this bill
+              </label>
               <Button
                 onClick={() => handleSettle(selected)}
                 disabled={pending || Number(selected.total_amount) <= 0}

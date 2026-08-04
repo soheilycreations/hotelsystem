@@ -73,6 +73,7 @@ export default async function OverviewPage() {
     supabase
       .from("restaurant_orders")
       .select("id, order_number, total_amount, order_status, channel_type, business_date, is_historical")
+      .or("payment_method.neq.complimentary,payment_method.is.null")
       .gte("business_date", sinceDate),
     supabase
       .from("expenses")
@@ -101,6 +102,7 @@ export default async function OverviewPage() {
       .from("bookings")
       .select("id, total_folio_amount, actual_check_out")
       .eq("status", "checked_out")
+      .or("payment_method.neq.complimentary,payment_method.is.null")
       .gte("actual_check_out", `${sinceDate}T00:00:00+05:30`),
   ]);
 

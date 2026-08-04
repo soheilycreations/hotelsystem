@@ -47,6 +47,7 @@ export default async function ReportsPage({
         .from("restaurant_orders")
         .select("total_amount, channel_type, business_date, is_historical")
         .eq("order_status", "completed")
+        .or("payment_method.neq.complimentary,payment_method.is.null")
         .gte("business_date", fromDate)
         .lte("business_date", toDate),
       supabase
@@ -63,6 +64,7 @@ export default async function ReportsPage({
         .from("bookings")
         .select("id, total_folio_amount, actual_check_out")
         .eq("status", "checked_out")
+        .or("payment_method.neq.complimentary,payment_method.is.null")
         .gte("actual_check_out", fromIso)
         .lt("actual_check_out", toIsoExclusive),
       supabase.from("expense_categories").select("*").order("sort_order"),

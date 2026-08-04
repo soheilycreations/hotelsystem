@@ -114,7 +114,12 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
     );
   }
   for (const c of payload.charges ?? []) l.row(c.description, fmt(c.amount));
-  for (const so of payload.serviceOrders) l.row(`Room service — bill #${so.orderNumber}`, fmt(so.amount));
+  for (const so of payload.serviceOrders) {
+    l.row(`Room service — bill #${so.orderNumber}`, fmt(so.amount));
+    for (const item of so.items ?? []) {
+      l.row(`  ${item.quantity} x ${item.name}`, "", 8);
+    }
+  }
   l.divider();
   l.row("TOTAL", fmt(payload.total), 12, true);
   l.divider();

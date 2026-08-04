@@ -266,6 +266,60 @@ export async function extendShortStay(
   }
 }
 
+/** Extend an overnight stay by extra nights — pushes checkout forward and tops up the folio at the plan's nightly rate. */
+export async function extendOvernightStay(
+  bookingId: string,
+  extraNights: number
+): Promise<ActionResult> {
+  try {
+    const profile = await assertPmsRole();
+    if (!Number.isInteger(extraNights) || extraNights < 1)
+      return { ok: false, error: "Extension must be at least 1 night." };
+
+    const supabase = await createClient();
+    const { data: b } = await supabase
+      .from("bookings")
+      .select("id, status, stay_type, check_out_date, rate_plan_price, guest_name")
+      .eq("id", bookingId)
+      .single();
+    if (!b) return { ok: false, error: "Booking not found." };
+    if (b.stay_type !== "overnight")
+      return { ok: false, error: "Only overnight stays can be extended by nights." };
+    if (b.status !== "checked_in")
+      return { ok: false, error: "Only in-house stays can be extended." };
+
+    const nightlyRate = Number(b.rate_plan_price ?? 0);
+    const topUp = Math.round(nightlyRate * extraNights * 100) / 100;
+    const newEnd = new Date(
+      new Date(b.check_out_date).getTime() + extraNights * 86_400_000
+    ).toISOString();
+
+    // Push the checkout date first…
+    const { error: e1 } = await supabase
+      .from("bookings")
+      .update({ check_out_date: newEnd })
+      .eq("id", bookingId);
+    if (e1) return { ok: false, error: e1.message };
+
+    // …then the charge — the booking_charges trigger tops up the folio.
+    if (topUp > 0) {
+      const { error: e2 } = await supabase.from("booking_charges").insert({
+        booking_id: bookingId,
+        description: `Extended stay +${extraNights} night${extraNights > 1 ? "s" : ""}`,
+        amount: topUp,
+        created_by: profile.id,
+      });
+      if (e2) return { ok: false, error: e2.message };
+    }
+
+    revalidatePath("/pms/reserve");
+    revalidatePath("/pms/rooms");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 /** Add a custom charge (overtime, minibar, laundry…) — the trigger updates the folio. */
 export async function addBookingCharge(
   bookingId: string,

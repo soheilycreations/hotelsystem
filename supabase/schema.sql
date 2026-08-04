@@ -22,7 +22,7 @@ create type table_status      as enum ('vacant', 'occupied', 'reserved', 'billed
 create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'delivery', 'banquet');
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
-create type payment_method    as enum ('cash', 'card', 'bank_transfer');
+create type payment_method    as enum ('cash', 'card', 'bank_transfer', 'complimentary');
 create type cash_direction    as enum ('in', 'out');
 create type inventory_unit    as enum ('grams', 'ml', 'units');
 create type log_severity      as enum ('info', 'warning', 'critical');
@@ -163,6 +163,7 @@ create table public.restaurant_orders (
   total_amount     numeric(14,2) not null default 0 check (total_amount >= 0),
   order_status     order_status not null default 'active',
   payment_method   payment_method, -- set at settle time
+  service_charge_waived boolean not null default false, -- per-bill SC override
   delivery_status  delivery_status,
   created_by       uuid references public.staff_profiles (id),
   created_at       timestamptz not null default now(),
@@ -473,6 +474,7 @@ declare
   v_sc_base  numeric(14,2);
   v_rate     numeric(5,2);
   v_sc       numeric(14,2);
+  v_waived   boolean;
 begin
   select coalesce(sum(oi.line_total), 0) into v_subtotal
   from public.order_items oi where oi.order_id = v_order_id;
@@ -485,7 +487,12 @@ begin
   select coalesce(hs.service_charge_rate, 0) into v_rate
   from public.hotel_settings hs where hs.id = 1;
 
-  v_sc := round(v_sc_base * coalesce(v_rate, 0) / 100.0, 2);
+  select o.service_charge_waived into v_waived
+  from public.restaurant_orders o where o.id = v_order_id;
+
+  v_sc := case when coalesce(v_waived, false) then 0
+               else round(v_sc_base * coalesce(v_rate, 0) / 100.0, 2)
+          end;
 
   update public.restaurant_orders o
   set subtotal       = v_subtotal,

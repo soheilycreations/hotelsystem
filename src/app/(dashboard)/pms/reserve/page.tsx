@@ -7,6 +7,12 @@ import { BookingList } from "./booking-list";
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bookings" };
 
+export interface ServiceOrderDetail {
+  orderNumber: number;
+  amount: number;
+  items: { name: string; quantity: number; lineTotal: number }[];
+}
+
 export default async function ReservePage() {
   const supabase = await createClient();
 
@@ -27,14 +33,16 @@ export default async function ReservePage() {
   const hotel = (hotelRes.data ?? null) as HotelSettings | null;
 
   // Completed room-service orders per in-house booking — needed to break the
-  // folio down on the printed room bill.
+  // folio down on the printed room bill, itemized (not just the order total).
   const bookingIds = bookings.map((b) => b.id);
-  const serviceOrdersByBooking: Record<string, { orderNumber: number; amount: number }[]> = {};
-  const pendingServiceByBooking: Record<string, { orderNumber: number; amount: number }[]> = {};
+  const serviceOrdersByBooking: Record<string, ServiceOrderDetail[]> = {};
+  const pendingServiceByBooking: Record<string, ServiceOrderDetail[]> = {};
   if (bookingIds.length > 0) {
     const { data: rsOrders } = await supabase
       .from("restaurant_orders")
-      .select("booking_id, order_number, total_amount, order_status")
+      .select(
+        "booking_id, order_number, total_amount, order_status, order_items(quantity, line_total, is_custom, custom_description, menu_items(name))"
+      )
       .eq("channel_type", "room_service")
       .in("order_status", ["completed", "active"])
       .in("booking_id", bookingIds);
@@ -45,6 +53,14 @@ export default async function ReservePage() {
       (bucket[o.booking_id] ??= []).push({
         orderNumber: o.order_number,
         amount: Number(o.total_amount),
+        items: (o.order_items ?? []).map((it) => {
+          const menuItem = it.menu_items as unknown as { name: string } | null;
+          return {
+            name: it.is_custom ? (it.custom_description as string | null) ?? "Item" : menuItem?.name ?? "Item",
+            quantity: Number(it.quantity),
+            lineTotal: Number(it.line_total),
+          };
+        }),
       });
     }
   }

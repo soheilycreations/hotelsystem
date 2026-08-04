@@ -9,7 +9,7 @@ export type StayType = "overnight" | "short_stay";
 export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" | "banquet";
-export type PaymentMethod = "cash" | "card" | "bank_transfer";
+export type PaymentMethod = "cash" | "card" | "bank_transfer" | "complimentary";
 export type CashDirection = "in" | "out";
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";
@@ -139,6 +139,7 @@ export interface RestaurantOrder {
   total_amount: number;
   order_status: OrderStatus;
   payment_method: PaymentMethod | null;
+  service_charge_waived: boolean;
   delivery_status: DeliveryStatus | null;
   created_by: string | null;
   created_at: string;
@@ -254,6 +255,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/pms/reserve": ["admin", "manager", "receptionist"],
   "/pms/settings": ["admin", "manager"],
   "/settings": ["admin", "manager"],
+  "/settings/users": ["admin"],
   "/backfill": ["admin", "manager"],
   "/pos/active": ["admin", "manager", "cashier", "kitchen_staff"],
   "/pos/billing": ["admin", "manager", "cashier"],

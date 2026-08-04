@@ -17,7 +17,7 @@ import type { Booking, HotelSettings, PaymentMethod } from "@/lib/types";
 import { formatDate, formatLKR } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
-import { addBookingCharge, extendShortStay, setBookingStatus } from "../actions";
+import { addBookingCharge, extendOvernightStay, extendShortStay, setBookingStatus } from "../actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -33,7 +33,7 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
-type ServiceOrder = { orderNumber: number; amount: number };
+import type { ServiceOrderDetail } from "./page";
 
 /** Live countdown for a time-block stay. Re-renders every 30s. */
 export function StayCountdown({ booking }: { booking: Booking }) {
@@ -83,8 +83,8 @@ export function BookingList({
   hotel = null,
 }: {
   bookings: Booking[];
-  serviceOrdersByBooking?: Record<string, ServiceOrder[]>;
-  pendingServiceByBooking?: Record<string, ServiceOrder[]>;
+  serviceOrdersByBooking?: Record<string, ServiceOrderDetail[]>;
+  pendingServiceByBooking?: Record<string, ServiceOrderDetail[]>;
   hotel?: HotelSettings | null;
 }) {
   const [error, setError] = useState<string | null>(null);
@@ -273,7 +273,7 @@ export function BookingList({
                   </>
                 ) : (
                   <>
-                    {b.stay_type === "short_stay" && (
+                    {(b.stay_type === "short_stay" || b.stay_type === "overnight") && (
                       <Button size="sm" variant="outline" onClick={() => setExtending(b)}>
                         <Clock /> Extend
                       </Button>
@@ -375,21 +375,27 @@ export function BookingList({
 }
 
 function ExtendDialog({ booking, onDone }: { booking: Booking; onDone: (msg: string) => void }) {
-  const [hours, setHours] = useState("1");
+  const isOvernight = booking.stay_type === "overnight";
+  const [amount, setAmount] = useState("1");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
-  const perHour =
-    booking.rate_plan_price && booking.duration_hours
-      ? Number(booking.rate_plan_price) / Number(booking.duration_hours)
-      : 0;
-  const topUp = Math.round(perHour * Number(hours || 0) * 100) / 100;
+  const unitRate = isOvernight
+    ? Number(booking.rate_plan_price ?? 0)
+    : booking.rate_plan_price && booking.duration_hours
+    ? Number(booking.rate_plan_price) / Number(booking.duration_hours)
+    : 0;
+  const topUp = Math.round(unitRate * Number(amount || 0) * 100) / 100;
 
   function submit() {
-    const h = Number(hours);
+    const n = Number(amount);
     startTransition(async () => {
-      const res = await extendShortStay(booking.id, h);
-      if (res.ok) onDone(`${booking.guest_name}'s stay extended by ${h}h (+${formatLKR(topUp)}).`);
+      const res = isOvernight
+        ? await extendOvernightStay(booking.id, n)
+        : await extendShortStay(booking.id, n);
+      const unit = isOvernight ? "night" : "h";
+      if (res.ok)
+        onDone(`${booking.guest_name}'s stay extended by ${n}${isOvernight ? ` ${unit}${n > 1 ? "s" : ""}` : unit} (+${formatLKR(topUp)}).`);
       else setError(res.error ?? "Could not extend.");
     });
   }
@@ -399,17 +405,17 @@ function ExtendDialog({ booking, onDone }: { booking: Booking; onDone: (msg: str
       <DialogHeader>
         <DialogTitle>Extend stay — {booking.guest_name}</DialogTitle>
         <DialogDescription>
-          Pushes the deadline and adds the extension to the folio at the plan&apos;s hourly
-          equivalent.
+          Pushes the checkout {isOvernight ? "date" : "deadline"} and adds the extension to the
+          folio at the plan&apos;s {isOvernight ? "nightly" : "hourly equivalent"} rate.
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 py-2">
         <div className="space-y-1.5">
-          <Label htmlFor="ext-hours">Extra hours</Label>
-          <Select id="ext-hours" value={hours} onChange={(e) => setHours(e.target.value)}>
-            {[1, 2, 3, 4, 6, 12].map((h) => (
-              <option key={h} value={h}>
-                +{h} hour{h > 1 ? "s" : ""}
+          <Label htmlFor="ext-amount">{isOvernight ? "Extra nights" : "Extra hours"}</Label>
+          <Select id="ext-amount" value={amount} onChange={(e) => setAmount(e.target.value)}>
+            {(isOvernight ? [1, 2, 3, 4, 5, 7] : [1, 2, 3, 4, 6, 12]).map((n) => (
+              <option key={n} value={n}>
+                +{n} {isOvernight ? `night${n > 1 ? "s" : ""}` : `hour${n > 1 ? "s" : ""}`}
               </option>
             ))}
           </Select>
@@ -526,8 +532,15 @@ function CheckoutDialog({
             <option value="cash">Cash</option>
             <option value="card">Card</option>
             <option value="bank_transfer">Bank Transfer</option>
+            <option value="complimentary">Complimentary (no charge)</option>
           </Select>
         </div>
+        {paymentMethod === "complimentary" && (
+          <p className="text-xs text-amber-500">
+            This stay won&apos;t count toward revenue anywhere — it&apos;s recorded as a hotel
+            complimentary.
+          </p>
+        )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
       <DialogFooter>

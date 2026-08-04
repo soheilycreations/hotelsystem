@@ -31,12 +31,14 @@ export default async function DailySummaryPage({
         .from("bookings")
         .select("id, guest_name, rate_plan_name, total_folio_amount, rooms(room_number)")
         .eq("status", "checked_out")
+        .or("payment_method.neq.complimentary,payment_method.is.null")
         .gte("actual_check_out", startIso)
         .lt("actual_check_out", endIso),
       supabase
         .from("restaurant_orders")
         .select("id, subtotal, service_charge, total_amount, order_items(quantity, line_total, is_custom, custom_description, menu_items(name))")
         .eq("order_status", "completed")
+        .or("payment_method.neq.complimentary,payment_method.is.null")
         .eq("business_date", date),
       supabase
         .from("expenses")

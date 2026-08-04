@@ -60,7 +60,7 @@ export interface FolioPayload {
   nights: number;
   roomCharge: number;
   charges?: { description: string; amount: number }[];
-  serviceOrders: { orderNumber: number; amount: number }[];
+  serviceOrders: { orderNumber: number; amount: number; items?: { name: string; quantity: number; lineTotal: number }[] }[];
   total: number;
   hotel?: HotelHeader;
 }
@@ -148,6 +148,9 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
   }
   for (const so of serviceOrders) {
     bytes.push(...row(`Room service #${so.orderNumber}`, money(so.amount)));
+    for (const item of so.items ?? []) {
+      bytes.push(...encode(`  ${item.quantity} x ${item.name}\n`));
+    }
   }
   bytes.push(...line());
 
