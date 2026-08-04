@@ -17,7 +17,7 @@ import type { Booking, HotelSettings, PaymentMethod } from "@/lib/types";
 import { formatDate, formatLKR } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
-import { addBookingCharge, extendOvernightStay, extendShortStay, setBookingStatus } from "../actions";
+import { addBookingCharge, extendOvernightStay, extendShortStay, setBookingStatus, shortenOvernightStay } from "../actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -91,6 +91,7 @@ export function BookingList({
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
   const [extending, setExtending] = useState<Booking | null>(null);
+  const [shortening, setShortening] = useState<Booking | null>(null);
   const [charging, setCharging] = useState<Booking | null>(null);
   const [checkingOut, setCheckingOut] = useState<Booking | null>(null);
   const [, startTransition] = useTransition();
@@ -278,6 +279,11 @@ export function BookingList({
                         <Clock /> Extend
                       </Button>
                     )}
+                    {b.stay_type === "overnight" && (
+                      <Button size="sm" variant="outline" onClick={() => setShortening(b)}>
+                        <Clock className="rotate-180" /> Shorten
+                      </Button>
+                    )}
                     <Button size="sm" variant="outline" onClick={() => setCharging(b)}>
                       <BadgePlus /> Charge
                     </Button>
@@ -339,6 +345,19 @@ export function BookingList({
             booking={extending}
             onDone={(msg) => {
               setExtending(null);
+              setNotice(msg);
+            }}
+          />
+        )}
+      </Dialog>
+
+      {/* Shorten stay dialog */}
+      <Dialog open={shortening !== null} onOpenChange={(open) => !open && setShortening(null)}>
+        {shortening && (
+          <ShortenDialog
+            booking={shortening}
+            onDone={(msg) => {
+              setShortening(null);
               setNotice(msg);
             }}
           />
@@ -430,6 +449,72 @@ function ExtendDialog({ booking, onDone }: { booking: Booking; onDone: (msg: str
         <Button onClick={submit} disabled={pending}>
           <Clock className="mr-2 h-4 w-4" />
           {pending ? "Extending…" : "Extend stay"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+function ShortenDialog({ booking, onDone }: { booking: Booking; onDone: (msg: string) => void }) {
+  const currentNights = Math.max(
+    1,
+    Math.round(
+      (new Date(booking.check_out_date).getTime() - new Date(booking.check_in_date).getTime()) /
+        86_400_000
+    )
+  );
+  const maxReducible = Math.max(1, currentNights - 1);
+  const [nights, setNights] = useState("1");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const nightlyRate = Number(booking.rate_plan_price ?? 0);
+  const reduction = Math.round(nightlyRate * Number(nights || 0) * 100) / 100;
+
+  function submit() {
+    const n = Number(nights);
+    startTransition(async () => {
+      const res = await shortenOvernightStay(booking.id, n);
+      if (res.ok)
+        onDone(`${booking.guest_name}'s stay shortened by ${n} night${n > 1 ? "s" : ""} (−${formatLKR(reduction)}).`);
+      else setError(res.error ?? "Could not shorten the stay.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Shorten stay — {booking.guest_name}</DialogTitle>
+        <DialogDescription>
+          For a guest leaving earlier than planned. Pulls the checkout date back and removes the
+          room charge for the nights not stayed — any extra charges (minibar, laundry, previous
+          extends) are left untouched.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="short-nights">Remove nights</Label>
+          <Select id="short-nights" value={nights} onChange={(e) => setNights(e.target.value)}>
+            {Array.from({ length: maxReducible }, (_, i) => i + 1).map((n) => (
+              <option key={n} value={n}>
+                −{n} night{n > 1 ? "s" : ""}
+              </option>
+            ))}
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Currently booked for {currentNights} night{currentNights > 1 ? "s" : ""}.
+          </p>
+        </div>
+        <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Folio reduction</span>
+          <span className="font-semibold tabular-nums text-red-500">−{formatLKR(reduction)}</span>
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+      <DialogFooter>
+        <Button onClick={submit} disabled={pending} variant="destructive">
+          <Clock className="mr-2 h-4 w-4 rotate-180" />
+          {pending ? "Shortening…" : "Shorten stay"}
         </Button>
       </DialogFooter>
     </DialogContent>

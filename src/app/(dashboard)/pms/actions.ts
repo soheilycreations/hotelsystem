@@ -320,6 +320,65 @@ export async function extendOvernightStay(
   }
 }
 
+/**
+ * Shortens an overnight stay by N nights — for a guest leaving earlier than
+ * planned (e.g. booked to the 8th, actually checking out today). Pulls the
+ * checkout date back and removes N nights' worth of room charge from the
+ * folio directly (not via booking_charges, which only allows positive
+ * amounts — that table is for add-on charges, not a reduction like this).
+ * Extra charges (minibar, laundry, previous extends) are left untouched.
+ */
+export async function shortenOvernightStay(
+  bookingId: string,
+  reduceNights: number
+): Promise<ActionResult> {
+  try {
+    await assertPmsRole();
+    if (!Number.isInteger(reduceNights) || reduceNights < 1)
+      return { ok: false, error: "Reduction must be at least 1 night." };
+
+    const supabase = await createClient();
+    const { data: b } = await supabase
+      .from("bookings")
+      .select("id, status, stay_type, check_in_date, check_out_date, rate_plan_price, total_folio_amount")
+      .eq("id", bookingId)
+      .single();
+    if (!b) return { ok: false, error: "Booking not found." };
+    if (b.stay_type !== "overnight")
+      return { ok: false, error: "Only overnight stays can be shortened by nights." };
+    if (b.status !== "checked_in")
+      return { ok: false, error: "Only in-house stays can be adjusted." };
+
+    const currentNights = Math.max(
+      1,
+      Math.round(
+        (new Date(b.check_out_date).getTime() - new Date(b.check_in_date).getTime()) / 86_400_000
+      )
+    );
+    if (reduceNights >= currentNights)
+      return { ok: false, error: `This stay only has ${currentNights} night(s) — can't remove that many.` };
+
+    const nightlyRate = Number(b.rate_plan_price ?? 0);
+    const reduction = Math.round(nightlyRate * reduceNights * 100) / 100;
+    const newCheckout = new Date(
+      new Date(b.check_out_date).getTime() - reduceNights * 86_400_000
+    ).toISOString();
+    const newFolio = Math.max(0, Number(b.total_folio_amount) - reduction);
+
+    const { error } = await supabase
+      .from("bookings")
+      .update({ check_out_date: newCheckout, total_folio_amount: newFolio })
+      .eq("id", bookingId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/pms/reserve");
+    revalidatePath("/pms/rooms");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 /** Add a custom charge (overtime, minibar, laundry…) — the trigger updates the folio. */
 export async function addBookingCharge(
   bookingId: string,
