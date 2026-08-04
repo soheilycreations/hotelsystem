@@ -11,7 +11,8 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Backfill Data | `/backfill` | Type in past bookings and POS sales from an old paper register, picking the real historical date — records land correctly in Daily Summary/P&L/activity feed without touching today's real room status |
 | Staff Accounts | `/settings/users` | **Admin only** — create staff logins, change roles, deactivate access, reset passwords. Temporary passwords are auto-generated and shown once |
 | Room Setup | `/pms/settings` | Rooms + categories (physical room types only) + **rate plans** — one room sells under any of its category's plans (AC / Non-AC per-night, hourly blocks) |
-| Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend** (+hours, folio tops up), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
+| Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend**/**Shorten** (nights or hours, folio adjusts), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
+| Calendar | `/pms/calendar` | Month view of **future functions** (event name, pax, description, time) alongside **upcoming room bookings** — click any day to add a function, it shows up instantly |
 | POS Terminal | `/pos/active` | 5 channels: dine-in (compact table strip), room service (charge to folio), takeaway, delivery (status pipeline), **Banquet** (function name + custom bill lines). A large, always-visible **Menu panel** (search + categories + qty box) works for whichever order is active. **Send KOT** (kitchen ticket for new items). Gear icon → Table Setup |
 | Table Setup | `/pos/tables` | Add/edit/**delete** restaurant tables (number, seats, zone) — instantly reflected on the POS terminal |
 | Billing | `/pos/billing` | Settle bills, void, mark table billed, KOT-sent indicator (warns before settling un-KOT'd bills), **ESC/POS thermal receipt printing (WebUSB)** |
@@ -178,7 +179,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run migrations **001 → 012** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql`, `migration-012-comp-sc-waiver.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 013** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql`, `migration-012-comp-sc-waiver.sql`, `migration-013-calendar.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 
@@ -188,6 +189,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 |---|---|---|---|---|---|
 | `/` (overview) | ✅ | ✅ | — | — | — |
 | `/pms/rooms`, `/pms/reserve` | ✅ | ✅ | ✅ | — | — |
+| `/pms/calendar` | ✅ | ✅ | ✅ | — | — |
 | `/pms/settings` | ✅ | ✅ | — | — | — |
 | `/settings` (hotel profile) | ✅ | ✅ | — | — | — |
 | `/settings/users` (staff accounts) | ✅ | — | — | — | — |

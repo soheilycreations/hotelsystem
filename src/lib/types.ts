@@ -214,6 +214,23 @@ export interface CashMovement {
   created_at: string;
 }
 
+export type EventStatus = "tentative" | "confirmed" | "cancelled";
+
+export interface EventBooking {
+  id: string;
+  event_name: string;
+  description: string | null;
+  pax: number | null;
+  event_date: string;
+  event_time: string | null;
+  contact_name: string | null;
+  contact_number: string | null;
+  status: EventStatus;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
 export interface SystemLog {
   id: string;
   event_type: string;
@@ -253,6 +270,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/": ["admin", "manager"],
   "/pms/rooms": ["admin", "manager", "receptionist"],
   "/pms/reserve": ["admin", "manager", "receptionist"],
+  "/pms/calendar": ["admin", "manager", "receptionist"],
   "/pms/settings": ["admin", "manager"],
   "/settings": ["admin", "manager"],
   "/settings/users": ["admin"],
