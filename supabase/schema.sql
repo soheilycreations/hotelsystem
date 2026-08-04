@@ -298,6 +298,22 @@ create table public.cash_movements (
   created_at  timestamptz not null default now()
 );
 
+-- 3.11c Event bookings — future functions/banquets shown on the Calendar
+create table public.event_bookings (
+  id             uuid primary key default gen_random_uuid(),
+  event_name     varchar(160) not null,
+  description    text,
+  pax            int check (pax is null or pax > 0),
+  event_date     date not null,
+  event_time     time,
+  contact_name   varchar(120),
+  contact_number varchar(40),
+  status         varchar(20) not null default 'confirmed', -- tentative | confirmed | cancelled
+  created_by     uuid references public.staff_profiles (id),
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+
 -- 3.12 System logs (low-stock alerts + audit hooks)
 create table public.system_logs (
   id         uuid primary key default gen_random_uuid(),
@@ -335,6 +351,7 @@ create index idx_recipe_inventory          on public.menu_recipe_ingredients (in
 create index idx_inventory_low_stock       on public.inventory_items (quantity_in_stock, reorder_level);
 create index idx_expenses_date             on public.expenses (date desc);
 create index idx_cash_movements_date       on public.cash_movements (date);
+create index idx_event_bookings_date       on public.event_bookings (event_date);
 create index idx_logs_event                on public.system_logs (event_type, created_at desc);
 
 -- updated_at triggers
@@ -343,6 +360,7 @@ create trigger trg_touch_room_types before update on public.room_types          
 create trigger trg_touch_rooms      before update on public.rooms               for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_bookings   before update on public.bookings            for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_hotel      before update on public.hotel_settings      for each row execute function public.tg_set_updated_at();
+create trigger trg_touch_events     before update on public.event_bookings      for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_rate_plans before update on public.room_rate_plans     for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_tables     before update on public.restaurant_tables   for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_menu       before update on public.menu_items          for each row execute function public.tg_set_updated_at();
@@ -523,6 +541,7 @@ alter table public.menu_recipe_ingredients enable row level security;
 alter table public.menu_categories         enable row level security;
 alter table public.expense_categories      enable row level security;
 alter table public.cash_movements          enable row level security;
+alter table public.event_bookings          enable row level security;
 alter table public.hotel_settings         enable row level security;
 alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
@@ -569,6 +588,8 @@ create policy "staff read expense categories" on public.expense_categories for s
 create policy "mgmt write expense categories" on public.expense_categories for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read cash movements" on public.cash_movements for select using (public.get_my_role() is not null);
 create policy "mgmt write cash movements" on public.cash_movements for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
+create policy "staff read event bookings" on public.event_bookings for select using (public.get_my_role() is not null);
+create policy "pms write event bookings"  on public.event_bookings for all    using (public.get_my_role() in ('admin','manager','receptionist')) with check (public.get_my_role() in ('admin','manager','receptionist'));
 create policy "staff read recipes"    on public.menu_recipe_ingredients for select using (public.get_my_role() is not null);
 create policy "mgmt write recipes"    on public.menu_recipe_ingredients for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read hotel"      on public.hotel_settings    for select using (public.get_my_role() is not null);
@@ -600,6 +621,7 @@ alter publication supabase_realtime add table public.order_items;
 alter publication supabase_realtime add table public.menu_categories;
 alter publication supabase_realtime add table public.expense_categories;
 alter publication supabase_realtime add table public.cash_movements;
+alter publication supabase_realtime add table public.event_bookings;
 alter publication supabase_realtime add table public.inventory_items;
 alter publication supabase_realtime add table public.system_logs;
 
