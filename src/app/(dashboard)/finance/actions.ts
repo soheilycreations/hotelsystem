@@ -35,6 +35,7 @@ export async function logExpense(formData: FormData): Promise<ActionResult> {
     const date = String(formData.get("date") ?? "");
     const description = String(formData.get("description") ?? "").trim();
     const paymentMethod = String(formData.get("payment_method") ?? "cash");
+    const division = String(formData.get("division") ?? "restaurant");
 
     if (!categoryId) return { ok: false, error: "Pick a valid expense category." };
     if (!Number.isFinite(amount) || amount <= 0)
@@ -42,6 +43,8 @@ export async function logExpense(formData: FormData): Promise<ActionResult> {
     if (!date) return { ok: false, error: "Pick the expense date." };
     if (!["cash", "card", "bank_transfer"].includes(paymentMethod))
       return { ok: false, error: "Pick a valid payment method." };
+    if (!["restaurant", "room"].includes(division))
+      return { ok: false, error: "Pick a valid allocation." };
 
     const { error } = await supabase.from("expenses").insert({
       category_id: categoryId,
@@ -49,6 +52,7 @@ export async function logExpense(formData: FormData): Promise<ActionResult> {
       date,
       description: description || null,
       payment_method: paymentMethod,
+      division,
       logged_by: profile.id,
     });
     if (error) return { ok: false, error: error.message };

@@ -171,6 +171,16 @@ export function ExpensesDesk({
               </div>
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="exp-division">Allocate to</Label>
+              <Select id="exp-division" name="division" defaultValue="restaurant">
+                <option value="restaurant">Restaurant</option>
+                <option value="room">Room</option>
+              </Select>
+              <p className="text-xs text-muted-foreground">
+                Decides which P&amp;L (Room or Restaurant) this expense counts against.
+              </p>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="exp-desc">Description</Label>
               <Textarea
                 id="exp-desc"
@@ -209,6 +219,7 @@ export function ExpensesDesk({
                 <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
                 <TableHead>Paid by</TableHead>
+                <TableHead>Division</TableHead>
                 <TableHead>Logged by</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="w-12" />
@@ -236,6 +247,11 @@ export function ExpensesDesk({
                       </p>
                     )}
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={e.division === "room" ? "info" : "secondary"} className="capitalize">
+                      {e.division}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {e.staff_profiles?.full_name ?? "—"}
                   </TableCell>
@@ -257,7 +273,7 @@ export function ExpensesDesk({
               ))}
               {expenses.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={8} className="py-10 text-center text-sm text-muted-foreground">
                     No expenses logged yet.
                   </TableCell>
                 </TableRow>

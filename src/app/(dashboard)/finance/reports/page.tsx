@@ -6,6 +6,7 @@ import { formatLKR } from "@/lib/utils";
 import type { ChannelType } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { ReportCharts } from "./report-charts";
+import { DivisionalPnl } from "./divisional-pnl";
 
 export const dynamic = "force-dynamic";
 
@@ -52,7 +53,7 @@ export default async function ReportsPage({
         .lte("business_date", toDate),
       supabase
         .from("expenses")
-        .select("amount, category_id, date, payment_method, expense_categories(name)")
+        .select("amount, category_id, date, payment_method, division, expense_categories(name)")
         .gte("date", fromDate)
         .lte("date", toDate),
       // Room revenue recognized on checkout (folio settled). actual_check_out
@@ -145,8 +146,11 @@ export default async function ReportsPage({
   // out of the hotel's revenue — they're still shown in the category
   // breakdown below, but excluded from Net Profit and the daily chart's
   // "expenses" bars so they don't understate the business's own profit.
+  // Room/Restaurant expenses are tracked separately for the divisional P&L.
   let totalExpenses = 0;
   let expensesAgainstRevenue = 0;
+  let roomExpenses = 0;
+  let restaurantExpenses = 0;
   for (const e of expenses ?? []) {
     const amount = Number(e.amount);
     totalExpenses += amount;
@@ -154,6 +158,8 @@ export default async function ReportsPage({
     expenseTotals[categoryName] = (expenseTotals[categoryName] ?? 0) + amount;
     if (e.payment_method === "bank_transfer") continue;
     expensesAgainstRevenue += amount;
+    if (e.division === "room") roomExpenses += amount;
+    else restaurantExpenses += amount;
     const point = series.get(String(e.date));
     if (point) point.expenses += amount;
   }
@@ -164,6 +170,8 @@ export default async function ReportsPage({
 
   const totalRevenue = posRevenue + roomRevenue;
   const netProfit = totalRevenue - expensesAgainstRevenue;
+  const roomBalance = roomRevenue - roomExpenses;
+  const restaurantBalance = posRevenue - restaurantExpenses;
 
   return (
     <div className="space-y-6">
@@ -200,6 +208,15 @@ export default async function ReportsPage({
         expenseTotals={expenseTotals}
         fromDate={fromDate}
         toDate={toDate}
+      />
+
+      <DivisionalPnl
+        roomRevenue={roomRevenue}
+        roomExpenses={roomExpenses}
+        roomBalance={roomBalance}
+        restaurantRevenue={posRevenue}
+        restaurantExpenses={restaurantExpenses}
+        restaurantBalance={restaurantBalance}
       />
     </div>
   );

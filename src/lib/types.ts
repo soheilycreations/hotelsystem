@@ -10,6 +10,7 @@ export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" | "banquet";
 export type PaymentMethod = "cash" | "card" | "bank_transfer" | "complimentary";
+export type ExpenseDivision = "restaurant" | "room";
 export type CashDirection = "in" | "out";
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";
@@ -198,6 +199,7 @@ export interface Expense {
   date: string;
   description: string | null;
   payment_method: PaymentMethod;
+  division: ExpenseDivision;
   logged_by: string | null;
   created_at: string;
   expense_categories?: ExpenseCategoryRow; // joined
