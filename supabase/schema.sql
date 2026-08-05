@@ -23,6 +23,7 @@ create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'd
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
 create type payment_method    as enum ('cash', 'card', 'bank_transfer', 'complimentary');
+create type expense_division  as enum ('restaurant', 'room');
 create type cash_direction    as enum ('in', 'out');
 create type inventory_unit    as enum ('grams', 'ml', 'units');
 create type log_severity      as enum ('info', 'warning', 'critical');
@@ -281,6 +282,7 @@ create table public.expenses (
   date        date not null default current_date,
   description text,
   payment_method payment_method not null default 'cash',
+  division    expense_division not null default 'restaurant', -- which P&L this expense counts against
   logged_by   uuid references public.staff_profiles (id),
   created_at  timestamptz not null default now()
 );
