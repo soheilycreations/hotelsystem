@@ -85,6 +85,7 @@ export interface DailySummaryData {
     roomNumber: string;
     planName: string | null;
     amount: number;
+    paymentMethod?: string;
   }[];
   roomRevenueTotal: number;
   itemSales: { name: string; qty: number; revenue: number }[];
@@ -93,6 +94,8 @@ export interface DailySummaryData {
   posTotal: number;
   expenses: { category: string; description: string | null; amount: number; paymentMethod?: string }[];
   expensesTotal: number;
+  roomExpenses: number;
+  restaurantExpenses: number;
 }
 
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
@@ -113,18 +116,28 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     l.row(
       [
         { text: "Guest", x: MARGIN },
-        { text: "Room", x: MARGIN + 60 },
-        { text: "Plan", x: MARGIN + 85 },
+        { text: "Room", x: MARGIN + 55 },
+        { text: "Plan", x: MARGIN + 75 },
+        { text: "Paid by", x: MARGIN + 135 },
         { text: "Amount", x: colRight, align: "right" },
       ],
       9,
       true
     );
     for (const r of data.roomSales) {
+      const paidLabel =
+        r.paymentMethod === "bank_transfer"
+          ? "Bank Transfer"
+          : r.paymentMethod === "card"
+          ? "Card"
+          : r.paymentMethod === "complimentary"
+          ? "Complimentary"
+          : "Cash";
       l.row([
         { text: r.guestName, x: MARGIN },
-        { text: r.roomNumber, x: MARGIN + 60 },
-        { text: r.planName ?? "—", x: MARGIN + 85 },
+        { text: r.roomNumber, x: MARGIN + 55 },
+        { text: r.planName ?? "—", x: MARGIN + 75 },
+        { text: paidLabel, x: MARGIN + 135 },
         { text: fmt(r.amount), x: colRight, align: "right" },
       ]);
     }
@@ -246,6 +259,41 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     true
   );
 
+  // Room vs Restaurant
+  const roomBalance = data.roomRevenueTotal - data.roomExpenses;
+  const restaurantBalance = data.posTotal - data.restaurantExpenses;
+
+  l.sectionHeader("Room vs Restaurant");
+  l.row(
+    [
+      { text: "", x: MARGIN },
+      { text: "Room", x: MARGIN + 90, align: "right" },
+      { text: "Restaurant", x: colRight, align: "right" },
+    ],
+    9,
+    true
+  );
+  l.row([
+    { text: "Revenue", x: MARGIN },
+    { text: fmt(data.roomRevenueTotal), x: MARGIN + 90, align: "right" },
+    { text: fmt(data.posTotal), x: colRight, align: "right" },
+  ]);
+  l.row([
+    { text: "Expenses", x: MARGIN },
+    { text: fmt(data.roomExpenses), x: MARGIN + 90, align: "right" },
+    { text: fmt(data.restaurantExpenses), x: colRight, align: "right" },
+  ]);
+  l.divider();
+  l.row(
+    [
+      { text: "Balance", x: MARGIN },
+      { text: fmt(roomBalance), x: MARGIN + 90, align: "right" },
+      { text: fmt(restaurantBalance), x: colRight, align: "right" },
+    ],
+    11,
+    true
+  );
+
   return doc.output("blob");
 }
 
@@ -266,6 +314,10 @@ export interface CashBookData {
   totalIn: number;
   totalOut: number;
   ledger: CashBookLedgerEntry[];
+  roomRevenue: number;
+  roomExpenses: number;
+  restaurantRevenue: number;
+  restaurantExpenses: number;
 }
 
 export async function generateCashBookPdf(data: CashBookData): Promise<Blob> {
@@ -333,6 +385,41 @@ export async function generateCashBookPdf(data: CashBookData): Promise<Blob> {
       { text: fmt(data.closingBalance), x: colRight, align: "right" },
     ],
     13,
+    true
+  );
+
+  // Room vs Restaurant (cash only, this range)
+  const roomBalance = data.roomRevenue - data.roomExpenses;
+  const restaurantBalance = data.restaurantRevenue - data.restaurantExpenses;
+
+  l.sectionHeader("Room vs Restaurant (cash, this range)");
+  l.row(
+    [
+      { text: "", x: MARGIN },
+      { text: "Room", x: MARGIN + 90, align: "right" },
+      { text: "Restaurant", x: colRight, align: "right" },
+    ],
+    9,
+    true
+  );
+  l.row([
+    { text: "Cash in", x: MARGIN },
+    { text: fmt(data.roomRevenue), x: MARGIN + 90, align: "right" },
+    { text: fmt(data.restaurantRevenue), x: colRight, align: "right" },
+  ]);
+  l.row([
+    { text: "Cash out", x: MARGIN },
+    { text: fmt(data.roomExpenses), x: MARGIN + 90, align: "right" },
+    { text: fmt(data.restaurantExpenses), x: colRight, align: "right" },
+  ]);
+  l.divider();
+  l.row(
+    [
+      { text: "Balance", x: MARGIN },
+      { text: fmt(roomBalance), x: MARGIN + 90, align: "right" },
+      { text: fmt(restaurantBalance), x: colRight, align: "right" },
+    ],
+    11,
     true
   );
 

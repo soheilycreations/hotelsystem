@@ -139,6 +139,10 @@ export function CashBookView({
   days,
   movements,
   ledger,
+  roomRevenue,
+  roomExpenses,
+  restaurantRevenue,
+  restaurantExpenses,
 }: {
   fromDate: string;
   toDate: string;
@@ -148,6 +152,10 @@ export function CashBookView({
   days: CashDayRow[];
   movements: CashMovement[];
   ledger: CashLedgerEntry[];
+  roomRevenue: number;
+  roomExpenses: number;
+  restaurantRevenue: number;
+  restaurantExpenses: number;
 }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
@@ -155,6 +163,8 @@ export function CashBookView({
 
   const totalIn = days.reduce((s, d) => s + d.cashIn, 0);
   const totalOut = days.reduce((s, d) => s + d.cashOut, 0);
+  const roomBalance = roomRevenue - roomExpenses;
+  const restaurantBalance = restaurantRevenue - restaurantExpenses;
 
   function handleDelete(id: string) {
     startTransition(async () => {
@@ -175,6 +185,10 @@ export function CashBookView({
         totalIn,
         totalOut,
         ledger,
+        roomRevenue,
+        roomExpenses,
+        restaurantRevenue,
+        restaurantExpenses,
       });
       openPdfBlob(blob);
     } finally {
@@ -318,6 +332,53 @@ export function CashBookView({
           </CardContent>
         </Card>
       </div>
+
+      {/* Room vs Restaurant (cash only, this range) */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Room vs Restaurant (cash, this range)</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-lg border p-3">
+            <p className="text-sm font-medium">Room</p>
+            <div className="mt-2 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Cash in</span>
+                <span className="tabular-nums">{formatLKR(roomRevenue)}</span>
+              </div>
+              <div className="flex items-center justify-between text-red-500">
+                <span>Cash out</span>
+                <span className="tabular-nums">−{formatLKR(roomExpenses)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-1.5 font-bold">
+                <span>Balance</span>
+                <span className={roomBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
+                  {formatLKR(roomBalance)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-sm font-medium">Restaurant</p>
+            <div className="mt-2 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Cash in</span>
+                <span className="tabular-nums">{formatLKR(restaurantRevenue)}</span>
+              </div>
+              <div className="flex items-center justify-between text-red-500">
+                <span>Cash out</span>
+                <span className="tabular-nums">−{formatLKR(restaurantExpenses)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-1.5 font-bold">
+                <span>Balance</span>
+                <span className={restaurantBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
+                  {formatLKR(restaurantBalance)}
+                </span>
+              </div>
+            </div>
+          </div>
+        </CardContent>
+      </Card>
     </div>
   );
 }

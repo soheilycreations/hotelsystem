@@ -287,7 +287,7 @@ export async function setDeliveryStatus(
  */
 export async function settleOrder(
   orderId: string,
-  paymentMethod: PaymentMethod = "cash",
+  paymentMethod?: PaymentMethod,
   serviceChargeWaived = false
 ): Promise<ActionResult> {
   try {
@@ -307,11 +307,17 @@ export async function settleOrder(
     // The DB recalc trigger only fires on order_items changes, not on
     // restaurant_orders updates — so when the service charge is waived at
     // settle time, recompute the totals here rather than relying on it.
+    //
+    // paymentMethod is only written when explicitly given. A room-service
+    // order charged straight to the guest's folio ("Charge to room folio")
+    // isn't actually paid yet — the real payment method is chosen later at
+    // checkout — so it's left null here rather than silently defaulting to
+    // "cash", which would mislabel it.
     let patch: Record<string, unknown> = {
       order_status: "completed",
-      payment_method: paymentMethod,
       service_charge_waived: serviceChargeWaived,
     };
+    if (paymentMethod) patch.payment_method = paymentMethod;
 
     if (serviceChargeWaived) {
       const { data: items } = await supabase

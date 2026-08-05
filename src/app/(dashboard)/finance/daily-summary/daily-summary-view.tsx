@@ -42,6 +42,7 @@ interface RoomSaleRow {
   roomNumber: string;
   planName: string | null;
   amount: number;
+  paymentMethod: PaymentMethod;
 }
 interface ItemSaleRow {
   name: string;
@@ -67,6 +68,8 @@ export function DailySummaryView({
   expenses,
   expensesTotal,
   expensesAgainstRevenue,
+  roomExpenses,
+  restaurantExpenses,
 }: {
   date: string;
   hotel: HotelSettings | null;
@@ -79,6 +82,8 @@ export function DailySummaryView({
   expenses: ExpenseRow[];
   expensesTotal: number;
   expensesAgainstRevenue: number;
+  roomExpenses: number;
+  restaurantExpenses: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -87,6 +92,8 @@ export function DailySummaryView({
   const totalRevenue = roomRevenueTotal + posTotal;
   const netCash = totalRevenue - expensesAgainstRevenue;
   const bankTransferTotal = expensesTotal - expensesAgainstRevenue;
+  const roomBalance = roomRevenueTotal - roomExpenses;
+  const restaurantBalance = posTotal - restaurantExpenses;
 
   function toDateKey(d: Date): string {
     // Build YYYY-MM-DD from LOCAL date parts — toISOString() would convert to
@@ -123,6 +130,8 @@ export function DailySummaryView({
         posTotal,
         expenses,
         expensesTotal,
+        roomExpenses,
+        restaurantExpenses,
       });
       openPdfBlob(blob);
     } finally {
@@ -196,6 +205,7 @@ export function DailySummaryView({
                 <TableHead>Guest</TableHead>
                 <TableHead>Room</TableHead>
                 <TableHead>Plan</TableHead>
+                <TableHead>Paid by</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
@@ -207,12 +217,17 @@ export function DailySummaryView({
                   <TableCell className="text-sm text-muted-foreground">
                     {r.planName ?? "—"}
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={r.paymentMethod === "bank_transfer" ? "warning" : "secondary"}>
+                      {PAYMENT_LABEL[r.paymentMethod]}
+                    </Badge>
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{formatLKR(r.amount)}</TableCell>
                 </TableRow>
               ))}
               {roomSales.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={5} className="py-8 text-center text-sm text-muted-foreground">
                     No checkouts recorded for this date.
                   </TableCell>
                 </TableRow>
@@ -343,6 +358,53 @@ export function DailySummaryView({
             <span className={`tabular-nums ${netCash >= 0 ? "text-emerald-500" : "text-red-500"}`}>
               {formatLKR(netCash)}
             </span>
+          </div>
+        </CardContent>
+      </Card>
+
+      {/* Room vs Restaurant */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">Room vs Restaurant</CardTitle>
+        </CardHeader>
+        <CardContent className="grid gap-4 sm:grid-cols-2">
+          <div className="rounded-lg border p-3">
+            <p className="text-sm font-medium">Room</p>
+            <div className="mt-2 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Revenue</span>
+                <span className="tabular-nums">{formatLKR(roomRevenueTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-red-500">
+                <span>Expenses</span>
+                <span className="tabular-nums">−{formatLKR(roomExpenses)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-1.5 font-bold">
+                <span>Balance</span>
+                <span className={roomBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
+                  {formatLKR(roomBalance)}
+                </span>
+              </div>
+            </div>
+          </div>
+          <div className="rounded-lg border p-3">
+            <p className="text-sm font-medium">Restaurant</p>
+            <div className="mt-2 space-y-1.5 text-sm">
+              <div className="flex items-center justify-between">
+                <span className="text-muted-foreground">Revenue</span>
+                <span className="tabular-nums">{formatLKR(posTotal)}</span>
+              </div>
+              <div className="flex items-center justify-between text-red-500">
+                <span>Expenses</span>
+                <span className="tabular-nums">−{formatLKR(restaurantExpenses)}</span>
+              </div>
+              <div className="flex items-center justify-between border-t pt-1.5 font-bold">
+                <span>Balance</span>
+                <span className={restaurantBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
+                  {formatLKR(restaurantBalance)}
+                </span>
+              </div>
+            </div>
           </div>
         </CardContent>
       </Card>

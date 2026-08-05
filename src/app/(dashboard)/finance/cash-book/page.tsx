@@ -53,7 +53,7 @@ export default async function CashBookPage({
     await Promise.all([
       supabase
         .from("bookings")
-        .select("guest_name, total_folio_amount, actual_check_out, rooms(room_number)")
+        .select("id, guest_name, total_folio_amount, actual_check_out, rooms(room_number)")
         .eq("status", "checked_out")
         .eq("payment_method", "cash")
         .lt("actual_check_out", toIsoExclusive),
@@ -66,7 +66,7 @@ export default async function CashBookPage({
         .lte("business_date", toDate),
       supabase
         .from("expenses")
-        .select("amount, date, description, expense_categories(name)")
+        .select("amount, date, description, division, expense_categories(name)")
         .eq("payment_method", "cash")
         .lte("date", toDate),
       supabase
@@ -79,6 +79,7 @@ export default async function CashBookPage({
     ]);
 
   type CheckoutRow = {
+    id: string;
     guest_name: string;
     total_folio_amount: number;
     actual_check_out: string | null;
@@ -94,6 +95,7 @@ export default async function CashBookPage({
     amount: number;
     date: string;
     description: string | null;
+    division: string;
     expense_categories: { name: string } | { name: string }[] | null;
   };
 
@@ -188,6 +190,58 @@ export default async function CashBookPage({
     .filter((m) => m.date >= fromDate && m.date <= toDate)
     .sort((a, b) => (a.date < b.date ? 1 : a.date > b.date ? -1 : 0));
 
+  // Room vs Restaurant — cash only, scoped to the selected date range. Room
+  // service is charged to the folio (no payment method of its own), so its
+  // "cash-ness" comes from how the guest paid the whole folio at checkout —
+  // it's pulled out of Room and counted under Restaurant here, same
+  // de-duplication rule used on the P&L Report and Daily Summary.
+  const checkoutsInRange = (checkouts ?? []).filter((b) => {
+    if (!b.actual_check_out) return false;
+    const key = colomboDateKey(new Date(b.actual_check_out).getTime());
+    return key >= fromDate && key <= toDate;
+  }) as CheckoutRow[];
+
+  const roomServiceByBooking = new Map<string, number>();
+  if (checkoutsInRange.length > 0) {
+    const { data: rsOrders } = await supabase
+      .from("restaurant_orders")
+      .select("booking_id, total_amount")
+      .eq("order_status", "completed")
+      .eq("channel_type", "room_service")
+      .in(
+        "booking_id",
+        checkoutsInRange.map((b) => b.id)
+      );
+    for (const o of rsOrders ?? []) {
+      if (!o.booking_id) continue;
+      roomServiceByBooking.set(o.booking_id, (roomServiceByBooking.get(o.booking_id) ?? 0) + Number(o.total_amount));
+    }
+  }
+
+  let roomCashRevenue = 0;
+  let roomServiceCashRevenue = 0;
+  for (const b of checkoutsInRange) {
+    const rs = roomServiceByBooking.get(b.id) ?? 0;
+    roomCashRevenue += Math.max(0, Number(b.total_folio_amount) - rs);
+    roomServiceCashRevenue += rs;
+  }
+
+  const ordersInRange = (orders ?? []).filter(
+    (o) => String(o.business_date).slice(0, 10) >= fromDate && String(o.business_date).slice(0, 10) <= toDate
+  ) as OrderRow[];
+  const restaurantCashRevenue =
+    ordersInRange.reduce((sum, o) => sum + Number(o.total_amount), 0) + roomServiceCashRevenue;
+
+  const expensesInRange = (expenses ?? []).filter(
+    (e) => String(e.date).slice(0, 10) >= fromDate && String(e.date).slice(0, 10) <= toDate
+  ) as ExpenseRow[];
+  const roomCashExpenses = expensesInRange
+    .filter((e) => e.division === "room")
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+  const restaurantCashExpenses = expensesInRange
+    .filter((e) => e.division !== "room")
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+
   return (
     <div className="space-y-6">
       <LiveRefresher tables={["cash_movements", "bookings", "restaurant_orders", "expenses"]} />
@@ -207,6 +261,10 @@ export default async function CashBookPage({
         days={days}
         movements={movementsInRange}
         ledger={ledger}
+        roomRevenue={roomCashRevenue}
+        roomExpenses={roomCashExpenses}
+        restaurantRevenue={restaurantCashRevenue}
+        restaurantExpenses={restaurantCashExpenses}
       />
     </div>
   );

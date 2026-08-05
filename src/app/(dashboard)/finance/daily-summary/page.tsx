@@ -29,7 +29,7 @@ export default async function DailySummaryPage({
       supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),
       supabase
         .from("bookings")
-        .select("id, guest_name, rate_plan_name, total_folio_amount, rooms(room_number)")
+        .select("id, guest_name, rate_plan_name, total_folio_amount, payment_method, rooms(room_number)")
         .eq("status", "checked_out")
         .or("payment_method.neq.complimentary,payment_method.is.null")
         .gte("actual_check_out", startIso)
@@ -42,7 +42,7 @@ export default async function DailySummaryPage({
         .eq("business_date", date),
       supabase
         .from("expenses")
-        .select("category_id, description, amount, payment_method, expense_categories(name)")
+        .select("category_id, description, amount, payment_method, division, expense_categories(name)")
         .eq("date", date)
         .order("category_id"),
     ]);
@@ -76,6 +76,7 @@ export default async function DailySummaryPage({
       roomNumber: rooms?.room_number ?? "—",
       planName: b.rate_plan_name,
       amount,
+      paymentMethod: b.payment_method ?? "cash",
     };
   });
   const roomRevenueTotal = roomSales.reduce((sum, r) => sum + r.amount, 0);
@@ -106,10 +107,16 @@ export default async function DailySummaryPage({
   // Bank-transfer expenses are the owner's own direct funds, not money spent
   // out of the hotel's revenue — they're shown for the record (in the full
   // total below) but don't reduce the Net Cash Balance the way cash/card
-  // expenses do.
+  // expenses do. Room/Restaurant expenses are split out for the divisional
+  // balance, same rule as the P&L Report.
   const expensesTotal = (expenses ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
-  const expensesAgainstRevenue = (expenses ?? [])
-    .filter((e) => e.payment_method !== "bank_transfer")
+  const cashExpenses = (expenses ?? []).filter((e) => e.payment_method !== "bank_transfer");
+  const expensesAgainstRevenue = cashExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const roomExpenses = cashExpenses
+    .filter((e) => e.division === "room")
+    .reduce((sum, e) => sum + Number(e.amount), 0);
+  const restaurantExpenses = cashExpenses
+    .filter((e) => e.division !== "room")
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
   return (
@@ -130,6 +137,8 @@ export default async function DailySummaryPage({
       }))}
       expensesTotal={expensesTotal}
       expensesAgainstRevenue={expensesAgainstRevenue}
+      roomExpenses={roomExpenses}
+      restaurantExpenses={restaurantExpenses}
     />
   );
 }
