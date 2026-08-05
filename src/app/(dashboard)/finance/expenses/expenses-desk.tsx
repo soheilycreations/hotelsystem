@@ -28,7 +28,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatLKR } from "@/lib/utils";
-import type { ExpenseCategoryRow } from "@/lib/types";
+import type { ExpenseCategoryRow, PaymentMethod } from "@/lib/types";
 import type { ExpenseWithLogger } from "./page";
 import {
   createExpenseCategory,
@@ -39,6 +39,20 @@ import {
 } from "../actions";
 
 const BADGE_CYCLE = ["info", "warning", "success", "danger", "secondary"] as const;
+
+const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  card: "Card",
+  bank_transfer: "Bank Transfer",
+  complimentary: "Complimentary",
+};
+
+const PAYMENT_BADGE: Record<PaymentMethod, "success" | "info" | "warning" | "secondary"> = {
+  cash: "success",
+  card: "info",
+  bank_transfer: "warning",
+  complimentary: "secondary",
+};
 
 export function ExpensesDesk({
   expenses,
@@ -194,6 +208,7 @@ export function ExpensesDesk({
                 <TableHead>Date</TableHead>
                 <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>Paid by</TableHead>
                 <TableHead>Logged by</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
                 <TableHead className="w-12" />
@@ -210,6 +225,16 @@ export function ExpensesDesk({
                   </TableCell>
                   <TableCell className="max-w-[240px] truncate text-sm text-muted-foreground">
                     {e.description ?? "—"}
+                  </TableCell>
+                  <TableCell>
+                    <Badge variant={PAYMENT_BADGE[e.payment_method]}>
+                      {PAYMENT_LABEL[e.payment_method]}
+                    </Badge>
+                    {e.payment_method === "bank_transfer" && (
+                      <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                        Owner-funded — excluded from Net Profit
+                      </p>
+                    )}
                   </TableCell>
                   <TableCell className="text-sm text-muted-foreground">
                     {e.staff_profiles?.full_name ?? "—"}
@@ -232,7 +257,7 @@ export function ExpensesDesk({
               ))}
               {expenses.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={6} className="py-10 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={7} className="py-10 text-center text-sm text-muted-foreground">
                     No expenses logged yet.
                   </TableCell>
                 </TableRow>

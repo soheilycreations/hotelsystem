@@ -27,8 +27,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatLKR } from "@/lib/utils";
-import type { HotelSettings } from "@/lib/types";
+import type { HotelSettings, PaymentMethod } from "@/lib/types";
 import { generateDailySummaryPdf, openPdfBlob } from "@/lib/report-pdf";
+
+const PAYMENT_LABEL: Record<PaymentMethod, string> = {
+  cash: "Cash",
+  card: "Card",
+  bank_transfer: "Bank Transfer",
+  complimentary: "Complimentary",
+};
 
 interface RoomSaleRow {
   guestName: string;
@@ -45,6 +52,7 @@ interface ExpenseRow {
   category: string;
   description: string | null;
   amount: number;
+  paymentMethod: PaymentMethod;
 }
 
 export function DailySummaryView({
@@ -58,6 +66,7 @@ export function DailySummaryView({
   posTotal,
   expenses,
   expensesTotal,
+  expensesAgainstRevenue,
 }: {
   date: string;
   hotel: HotelSettings | null;
@@ -69,13 +78,15 @@ export function DailySummaryView({
   posTotal: number;
   expenses: ExpenseRow[];
   expensesTotal: number;
+  expensesAgainstRevenue: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [exporting, setExporting] = useState(false);
 
   const totalRevenue = roomRevenueTotal + posTotal;
-  const netCash = totalRevenue - expensesTotal;
+  const netCash = totalRevenue - expensesAgainstRevenue;
+  const bankTransferTotal = expensesTotal - expensesAgainstRevenue;
 
   function toDateKey(d: Date): string {
     // Build YYYY-MM-DD from LOCAL date parts — toISOString() would convert to
@@ -259,6 +270,7 @@ export function DailySummaryView({
               <TableRow>
                 <TableHead>Category</TableHead>
                 <TableHead>Description</TableHead>
+                <TableHead>Paid by</TableHead>
                 <TableHead className="text-right">Amount</TableHead>
               </TableRow>
             </TableHeader>
@@ -273,12 +285,22 @@ export function DailySummaryView({
                   <TableCell className="text-sm text-muted-foreground">
                     {e.description ?? "—"}
                   </TableCell>
+                  <TableCell>
+                    <Badge variant={e.paymentMethod === "bank_transfer" ? "warning" : "secondary"}>
+                      {PAYMENT_LABEL[e.paymentMethod]}
+                    </Badge>
+                    {e.paymentMethod === "bank_transfer" && (
+                      <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
+                        Owner-funded — excluded below
+                      </p>
+                    )}
+                  </TableCell>
                   <TableCell className="text-right tabular-nums">{formatLKR(e.amount)}</TableCell>
                 </TableRow>
               ))}
               {expenses.length === 0 && (
                 <TableRow>
-                  <TableCell colSpan={3} className="py-8 text-center text-sm text-muted-foreground">
+                  <TableCell colSpan={4} className="py-8 text-center text-sm text-muted-foreground">
                     No expenses logged for this date.
                   </TableCell>
                 </TableRow>
@@ -307,9 +329,15 @@ export function DailySummaryView({
             <span className="tabular-nums">{formatLKR(totalRevenue)}</span>
           </div>
           <div className="flex items-center justify-between text-sm text-red-500">
-            <span>Total expenses</span>
-            <span className="tabular-nums">−{formatLKR(expensesTotal)}</span>
+            <span>Expenses (against revenue)</span>
+            <span className="tabular-nums">−{formatLKR(expensesAgainstRevenue)}</span>
           </div>
+          {bankTransferTotal > 0 && (
+            <div className="flex items-center justify-between text-sm text-muted-foreground">
+              <span>Owner bank transfers (excluded)</span>
+              <span className="tabular-nums">{formatLKR(bankTransferTotal)}</span>
+            </div>
+          )}
           <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
             <span>Net cash balance</span>
             <span className={`tabular-nums ${netCash >= 0 ? "text-emerald-500" : "text-red-500"}`}>

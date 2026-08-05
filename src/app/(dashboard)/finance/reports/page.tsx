@@ -52,7 +52,7 @@ export default async function ReportsPage({
         .lte("business_date", toDate),
       supabase
         .from("expenses")
-        .select("amount, category_id, date, expense_categories(name)")
+        .select("amount, category_id, date, payment_method, expense_categories(name)")
         .gte("date", fromDate)
         .lte("date", toDate),
       // Room revenue recognized on checkout (folio settled). actual_check_out
@@ -141,21 +141,29 @@ export default async function ReportsPage({
   const expenseTotals: Record<string, number> = {};
   for (const c of categories ?? []) expenseTotals[c.name] = 0;
 
+  // Bank-transfer expenses are the owner's own direct funds, not money spent
+  // out of the hotel's revenue — they're still shown in the category
+  // breakdown below, but excluded from Net Profit and the daily chart's
+  // "expenses" bars so they don't understate the business's own profit.
   let totalExpenses = 0;
+  let expensesAgainstRevenue = 0;
   for (const e of expenses ?? []) {
     const amount = Number(e.amount);
     totalExpenses += amount;
     const categoryName = (e.expense_categories as { name?: string } | null)?.name ?? "Uncategorised";
     expenseTotals[categoryName] = (expenseTotals[categoryName] ?? 0) + amount;
+    if (e.payment_method === "bank_transfer") continue;
+    expensesAgainstRevenue += amount;
     const point = series.get(String(e.date));
     if (point) point.expenses += amount;
   }
+  const ownerFundedTotal = totalExpenses - expensesAgainstRevenue;
 
   const points = Array.from(series.values());
   for (const p of points) p.profit = p.room + p.food - p.expenses;
 
   const totalRevenue = posRevenue + roomRevenue;
-  const netProfit = totalRevenue - totalExpenses;
+  const netProfit = totalRevenue - expensesAgainstRevenue;
 
   return (
     <div className="space-y-6">
@@ -177,7 +185,11 @@ export default async function ReportsPage({
         <StatCard
           title="Net profit"
           value={formatLKR(netProfit)}
-          hint={`Expenses: ${formatLKR(totalExpenses)}`}
+          hint={
+            ownerFundedTotal > 0
+              ? `Expenses: ${formatLKR(expensesAgainstRevenue)} (+${formatLKR(ownerFundedTotal)} owner-funded, excluded)`
+              : `Expenses: ${formatLKR(expensesAgainstRevenue)}`
+          }
           icon={netProfit >= 0 ? TrendingUp : TrendingDown}
         />
       </div>

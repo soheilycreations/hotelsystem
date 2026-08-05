@@ -42,7 +42,7 @@ export default async function DailySummaryPage({
         .eq("business_date", date),
       supabase
         .from("expenses")
-        .select("category_id, description, amount, expense_categories(name)")
+        .select("category_id, description, amount, payment_method, expense_categories(name)")
         .eq("date", date)
         .order("category_id"),
     ]);
@@ -103,7 +103,14 @@ export default async function DailySummaryPage({
     .map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue }))
     .sort((a, b) => b.revenue - a.revenue);
 
+  // Bank-transfer expenses are the owner's own direct funds, not money spent
+  // out of the hotel's revenue — they're shown for the record (in the full
+  // total below) but don't reduce the Net Cash Balance the way cash/card
+  // expenses do.
   const expensesTotal = (expenses ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
+  const expensesAgainstRevenue = (expenses ?? [])
+    .filter((e) => e.payment_method !== "bank_transfer")
+    .reduce((sum, e) => sum + Number(e.amount), 0);
 
   return (
     <DailySummaryView
@@ -119,8 +126,10 @@ export default async function DailySummaryPage({
         category: (e.expense_categories as { name?: string } | null)?.name ?? "Uncategorised",
         description: e.description,
         amount: Number(e.amount),
+        paymentMethod: e.payment_method,
       }))}
       expensesTotal={expensesTotal}
+      expensesAgainstRevenue={expensesAgainstRevenue}
     />
   );
 }

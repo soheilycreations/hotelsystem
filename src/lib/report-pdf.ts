@@ -91,7 +91,7 @@ export interface DailySummaryData {
   posSubtotal: number;
   posServiceCharge: number;
   posTotal: number;
-  expenses: { category: string; description: string | null; amount: number }[];
+  expenses: { category: string; description: string | null; amount: number; paymentMethod?: string }[];
   expensesTotal: number;
 }
 
@@ -194,9 +194,10 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
       true
     );
     for (const e of data.expenses) {
+      const bankNote = e.paymentMethod === "bank_transfer" ? " (owner bank transfer)" : "";
       l.row([
         { text: e.category, x: MARGIN },
-        { text: (e.description ?? "—").slice(0, 45), x: MARGIN + 45 },
+        { text: `${(e.description ?? "—").slice(0, 40)}${bankNote}`.slice(0, 45), x: MARGIN + 45 },
         { text: fmt(e.amount), x: colRight, align: "right" },
       ]);
     }
@@ -204,25 +205,37 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   l.divider();
   l.row(
     [
-      { text: "Expenses total", x: MARGIN },
+      { text: "Expenses total (all)", x: MARGIN },
       { text: fmt(data.expensesTotal), x: colRight, align: "right" },
     ],
     10,
     true
   );
 
-  // Cash summary
+  // Cash summary — bank-transfer expenses are the owner's own direct funds,
+  // not money spent out of the hotel's revenue, so they're excluded here.
+  const expensesAgainstRevenue = data.expenses
+    .filter((e) => e.paymentMethod !== "bank_transfer")
+    .reduce((sum, e) => sum + e.amount, 0);
+  const bankTransferTotal = data.expensesTotal - expensesAgainstRevenue;
+
   l.sectionHeader("Cash Summary");
   const totalRevenue = data.roomRevenueTotal + data.posTotal;
-  const netCash = totalRevenue - data.expensesTotal;
+  const netCash = totalRevenue - expensesAgainstRevenue;
   l.row([
     { text: "Total revenue (room + POS)", x: MARGIN },
     { text: fmt(totalRevenue), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "Total expenses", x: MARGIN },
-    { text: fmt(data.expensesTotal), x: colRight, align: "right" },
+    { text: "Expenses (against revenue)", x: MARGIN },
+    { text: fmt(expensesAgainstRevenue), x: colRight, align: "right" },
   ]);
+  if (bankTransferTotal > 0) {
+    l.row([
+      { text: "Owner bank transfers (excluded)", x: MARGIN },
+      { text: fmt(bankTransferTotal), x: colRight, align: "right" },
+    ]);
+  }
   l.divider();
   l.row(
     [
