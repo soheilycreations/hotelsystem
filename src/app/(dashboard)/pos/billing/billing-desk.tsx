@@ -33,7 +33,7 @@ import {
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { formatDateTime, formatLKR } from "@/lib/utils";
-import type { ChannelType, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
+import type { ChannelType, CreditAccount, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
 import { cancelOrder, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }> = {
@@ -47,14 +47,17 @@ const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }
 export function BillingDesk({
   orders,
   hotel = null,
+  creditAccounts = [],
 }: {
   orders: RestaurantOrder[];
   hotel?: HotelSettings | null;
+  creditAccounts?: CreditAccount[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [creditAccountId, setCreditAccountId] = useState<string>("");
   const [scWaived, setScWaived] = useState(false);
   const [busy, setBusy] = useState(false);
   const [savingDate, setSavingDate] = useState(false);
@@ -72,6 +75,10 @@ export function BillingDesk({
   );
 
   function handleSettle(order: RestaurantOrder) {
+    if (paymentMethod === "credit" && !creditAccountId) {
+      setFeedback("Pick a credit account before settling.");
+      return;
+    }
     const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom);
     if (kotPending && confirmSettleId !== order.id) {
       // First click with unsent items — warn, but allow settling on the next click.
@@ -83,7 +90,12 @@ export function BillingDesk({
     }
     setConfirmSettleId(null);
     startTransition(async () => {
-      const res = await settleOrder(order.id, paymentMethod, scWaived);
+      const res = await settleOrder(
+        order.id,
+        paymentMethod,
+        scWaived,
+        paymentMethod === "credit" ? creditAccountId : undefined
+      );
       setFeedback(
         res.ok
           ? `Bill #${order.order_number} settled — stock deducted${
@@ -368,6 +380,7 @@ export function BillingDesk({
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>
                     <option value="bank_transfer">Bank Transfer</option>
+                    <option value="credit">Credit (settle to an account)</option>
                     <option value="complimentary">Complimentary (no charge)</option>
                   </Select>
                   {paymentMethod === "complimentary" && (
@@ -375,6 +388,29 @@ export function BillingDesk({
                       This bill won&apos;t count toward revenue anywhere — it&apos;s recorded as a
                       hotel complimentary.
                     </p>
+                  )}
+                  {paymentMethod === "credit" && (
+                    <div className="space-y-1.5">
+                      <Select
+                        value={creditAccountId}
+                        onChange={(e) => setCreditAccountId(e.target.value)}
+                      >
+                        <option value="">Select an account…</option>
+                        {creditAccounts.map((a) => (
+                          <option key={a.id} value={a.id}>
+                            {a.name}
+                          </option>
+                        ))}
+                      </Select>
+                      <p className="text-xs text-amber-500">
+                        Counts as revenue, but not cash-in-hand — collect this later from the
+                        account. No accounts yet?{" "}
+                        <a href="/finance/credit-accounts" className="underline">
+                          Add one here
+                        </a>
+                        .
+                      </p>
+                    </div>
                   )}
                 </div>
               )}
@@ -389,7 +425,11 @@ export function BillingDesk({
               </label>
               <Button
                 onClick={() => handleSettle(selected)}
-                disabled={pending || Number(selected.total_amount) <= 0}
+                disabled={
+                  pending ||
+                  Number(selected.total_amount) <= 0 ||
+                  (paymentMethod === "credit" && !creditAccountId)
+                }
                 variant={confirmSettleId === selected.id ? "destructive" : "default"}
               >
                 <Wallet className="mr-2 h-4 w-4" />

@@ -35,6 +35,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   card: "Card",
   bank_transfer: "Bank Transfer",
   complimentary: "Complimentary",
+  credit: "Credit",
 };
 
 interface RoomSaleRow {
@@ -70,6 +71,9 @@ export function DailySummaryView({
   expensesAgainstRevenue,
   roomExpenses,
   restaurantExpenses,
+  creditSales,
+  roomLedger,
+  restaurantLedger,
 }: {
   date: string;
   hotel: HotelSettings | null;
@@ -84,6 +88,9 @@ export function DailySummaryView({
   expensesAgainstRevenue: number;
   roomExpenses: number;
   restaurantExpenses: number;
+  creditSales: { source: string; accountName: string; amount: number }[];
+  roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
+  restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -132,6 +139,9 @@ export function DailySummaryView({
         expensesTotal,
         roomExpenses,
         restaurantExpenses,
+        roomLedger,
+        restaurantLedger,
+        creditSales,
       });
       openPdfBlob(blob);
     } finally {
@@ -179,6 +189,12 @@ export function DailySummaryView({
             Export PDF
           </Button>
         </div>
+      </div>
+
+      {/* Room & Restaurant Ledger — cash-only, carried forward day to day */}
+      <div className="grid gap-4 sm:grid-cols-2">
+        <LedgerCard title="Room" icon={BedDouble} ledger={roomLedger} />
+        <LedgerCard title="Restaurant" icon={UtensilsCrossed} ledger={restaurantLedger} />
       </div>
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
@@ -362,6 +378,32 @@ export function DailySummaryView({
         </CardContent>
       </Card>
 
+      {/* Credit sales */}
+      {creditSales.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Credit sales — still to collect</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {creditSales.map((c, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{c.accountName}</p>
+                  <p className="truncate text-xs text-muted-foreground">{c.source}</p>
+                </div>
+                <span className="shrink-0 tabular-nums font-medium">{formatLKR(c.amount)}</span>
+              </div>
+            ))}
+            <div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+              <span>Total on credit today</span>
+              <span className="tabular-nums">
+                {formatLKR(creditSales.reduce((s, c) => s + c.amount, 0))}
+              </span>
+            </div>
+          </CardContent>
+        </Card>
+      )}
+
       {/* Room vs Restaurant */}
       <Card>
         <CardHeader>
@@ -409,5 +451,46 @@ export function DailySummaryView({
         </CardContent>
       </Card>
     </div>
+  );
+}
+
+function LedgerCard({
+  title,
+  icon: Icon,
+  ledger,
+}: {
+  title: string;
+  icon: typeof BedDouble;
+  ledger: { opening: number; todayIn: number; todayOut: number; closing: number };
+}) {
+  return (
+    <Card>
+      <CardHeader>
+        <CardTitle className="flex items-center gap-2 text-base">
+          <Icon className="h-4 w-4" />
+          {title} — cash ledger
+        </CardTitle>
+      </CardHeader>
+      <CardContent className="space-y-1.5">
+        <div className="flex items-center justify-between text-sm">
+          <span className="text-muted-foreground">Inhand (yesterday's closing)</span>
+          <span className="tabular-nums">{formatLKR(ledger.opening)}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm text-emerald-500">
+          <span>+ Today's cash in</span>
+          <span className="tabular-nums">{formatLKR(ledger.todayIn)}</span>
+        </div>
+        <div className="flex items-center justify-between text-sm text-red-500">
+          <span>− Today's cash out</span>
+          <span className="tabular-nums">{formatLKR(ledger.todayOut)}</span>
+        </div>
+        <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
+          <span>Balance (carries to tomorrow)</span>
+          <span className={ledger.closing >= 0 ? "text-emerald-500" : "text-red-500"}>
+            {formatLKR(ledger.closing)}
+          </span>
+        </div>
+      </CardContent>
+    </Card>
   );
 }

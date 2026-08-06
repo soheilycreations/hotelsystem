@@ -288,7 +288,8 @@ export async function setDeliveryStatus(
 export async function settleOrder(
   orderId: string,
   paymentMethod?: PaymentMethod,
-  serviceChargeWaived = false
+  serviceChargeWaived = false,
+  creditAccountId?: string
 ): Promise<ActionResult> {
   try {
     await assertRole(POS_ROLES);
@@ -318,6 +319,10 @@ export async function settleOrder(
       service_charge_waived: serviceChargeWaived,
     };
     if (paymentMethod) patch.payment_method = paymentMethod;
+    if (paymentMethod === "credit") {
+      if (!creditAccountId) return { ok: false, error: "Pick a credit account." };
+      patch.credit_account_id = creditAccountId;
+    }
 
     if (serviceChargeWaived) {
       const { data: items } = await supabase

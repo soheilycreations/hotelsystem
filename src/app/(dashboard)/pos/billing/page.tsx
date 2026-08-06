@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { HotelSettings, RestaurantOrder } from "@/lib/types";
+import type { CreditAccount, HotelSettings, RestaurantOrder } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { BillingDesk } from "./billing-desk";
 
@@ -8,7 +8,7 @@ export const dynamic = "force-dynamic";
 export default async function BillingPage() {
   const supabase = await createClient();
 
-  const [{ data: orders }, { data: hotel }] = await Promise.all([
+  const [{ data: orders }, { data: hotel }, { data: creditAccounts }] = await Promise.all([
     supabase
       .from("restaurant_orders")
       .select(
@@ -17,6 +17,7 @@ export default async function BillingPage() {
       .eq("order_status", "active")
       .order("created_at", { ascending: true }),
     supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("credit_accounts").select("*").order("name"),
   ]);
 
   return (
@@ -28,7 +29,11 @@ export default async function BillingPage() {
           Settle open bills, print ESC/POS receipts, and post room-service charges to guest folios.
         </p>
       </div>
-      <BillingDesk orders={(orders as RestaurantOrder[] | null) ?? []} hotel={(hotel as HotelSettings | null) ?? null} />
+      <BillingDesk
+        orders={(orders as RestaurantOrder[] | null) ?? []}
+        hotel={(hotel as HotelSettings | null) ?? null}
+        creditAccounts={(creditAccounts as CreditAccount[] | null) ?? []}
+      />
     </div>
   );
 }

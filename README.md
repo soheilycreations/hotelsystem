@@ -23,6 +23,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | P&L Report | `/finance/reports` | **Date range picker** (custom from/to, or "This month" / "Last 30 days" presets), a daily chart split into **Room / Food / Expenses** with independent show/hide toggles, channel mix (Banquet vs Backfilled "Historical Entries" kept separate), and a dynamic expense-category breakdown |
 | Daily Summary | `/finance/daily-summary` | One day, fully broken down: room sales (checkouts that day), item-wise POS sales, expenses, and a **net cash balance**. Date picker + prev/next day, **PDF export** |
 | Cash Book | `/finance/cash-book` | **Running, day-to-day cash-in-hand balance** — carries forward automatically from cash-paid bookings/POS sales/expenses, plus manual **cash movements** (bank deposits, owner withdrawals, float top-ups). Date range picker, daily in/out chart with a running-balance line, and a **PDF ledger export** — every transaction, chronological, with a running balance column |
+| Credit Accounts | `/finance/credit-accounts` | Bills/bookings settled "on credit" against a named account — live-computed balance owed per account, repayment logging (cash repayments auto-post to the Cash Book) |
 
 ## Database automation (the "brain" lives in Postgres)
 
@@ -91,6 +92,32 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 - **Extend** now works for overnight bookings too, not just short stays — add extra nights, the checkout date pushes forward and the folio tops up at the plan's nightly rate, exactly like the short-stay hourly extend.
 - **Bank-transfer expenses show a "Paid by" badge everywhere** (Expenses list, Daily Summary) — and since these are the owner's own direct funds (not money out of the hotel's takings), they're **excluded from Net Profit / Net Cash Balance** in Daily Summary and P&L Report, while still being logged and visible for the record. A note ("Owner-funded — excluded") makes this explicit wherever it applies.
 - **Room vs Restaurant P&L split** — the expense form now has an **"Allocate to"** field (Restaurant or Room; defaults to Restaurant, matching how expenses were logged before this existed). The **P&L Report**, **Daily Summary**, and **Cash Book** all end with a **Room vs Restaurant** section (Cash Book's version is cash-only, matching its own scope) — two side-by-side balance cards (Revenue/Cash-in − Expenses/Cash-out) plus, on P&L, a comparison chart. Every PDF export (Daily Summary, Cash Book) prints this same section at the end, respecting whatever date/range is currently selected. Owner bank-transfer expenses are excluded everywhere this appears, same rule as the overall Net Profit.
+
+## Credit Accounts
+
+`/finance/credit-accounts` — settle a bill or room booking "on credit" against a named account instead of cash/card/bank, for regulars who pay later:
+
+- **"Credit"** is a payment method option on the Billing settle panel and the booking Check-out dialog — picking it requires choosing (or first creating) an account.
+- Counts as **real revenue** (P&L Report, Daily Summary) — the sale happened — but is **excluded from cash-in-hand** everywhere (Cash Book, Room/Restaurant Ledger), exactly like Card or Bank Transfer, since no money has actually changed hands yet.
+- Each account's page shows what it currently owes, computed live from every credit sale minus every repayment — no manually maintained balance to get out of sync.
+- **Record repayment** on an account logs it, and if it was received in cash, automatically also creates a Cash Book "in" movement — real money physically arrived, so the Cash Book reflects it immediately.
+- Daily Summary lists the day's **credit sales** (account name + source + amount) separately, so it's clear who still needs to pay and for what.
+
+## Room & Restaurant Ledger (Daily Summary)
+
+Modelled directly on the handwritten cash book — each side of the business carries its own running cash balance from day to day, shown at the top of Daily Summary (and printed in the PDF):
+
+```
+Inhand (yesterday's closing)  30,000
++ Today's cash in               5,000
+− Today's cash out                 -X
+──────────────────────────────
+Balance (carries to tomorrow)  35,000
+```
+
+- **Cash-only** — matches the Cash Book's own philosophy; card, bank transfer, credit, and complimentary transactions don't touch this figure, only real cash-in-hand.
+- **Two independent ledgers** — Room and Restaurant — computed the same way the Cash Book's divisional split works, just carried forward one day at a time instead of shown as a range.
+- The "Inhand" opening figure isn't stored anywhere — it's netted live from all cash history before the selected date, so there's nothing to manually roll over each night.
 - **Fixed:** "Charge to room folio" (settling a room-service order straight onto a guest's tab) no longer silently tags the order `payment_method: cash` — that field only means something once the guest actually pays, at checkout, so it's left blank until then instead of recording a payment that hasn't happened yet.
 - Daily Summary's **Room Sales table** (and its PDF export) now shows a **"Paid by"** column per checkout — a bank-transfer checkout was already excluded from the cash figures, but wasn't visibly flagged next to the guest's name; now it is, same as Expenses already were.
 - **Shorten** — the mirror of Extend, for a guest leaving earlier than planned (booked to the 8th, actually checking out today). Pull back the checkout date by N nights and the folio reduces by that many nights' room charge — any other charges (minibar, extends, laundry) stay untouched. Overnight bookings only.
@@ -183,7 +210,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run migrations **001 → 014** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql`, `migration-012-comp-sc-waiver.sql`, `migration-013-calendar.sql`, `migration-014-expense-division.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 015** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql`, `migration-012-comp-sc-waiver.sql`, `migration-013-calendar.sql`, `migration-014-expense-division.sql`, `migration-015-credit-accounts.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 
@@ -202,6 +229,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 | `/pos/menu` | ✅ | ✅ | — | — | — |
 | `/pos/tables` | ✅ | ✅ | — | — | — |
 | `/finance/cash-book` | ✅ | ✅ | — | — | — |
+| `/finance/credit-accounts` | ✅ | ✅ | ✅ | ✅ | — |
 | `/backfill` | ✅ | ✅ | — | — | — |
 | `/inventory` | ✅ | ✅ | — | — | ✅ |
 | `/inventory/recipes` | ✅ | ✅ | — | — | — |

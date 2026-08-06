@@ -96,6 +96,9 @@ export interface DailySummaryData {
   expensesTotal: number;
   roomExpenses: number;
   restaurantExpenses: number;
+  roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
+  restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
+  creditSales: { source: string; accountName: string; amount: number }[];
 }
 
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
@@ -293,6 +296,75 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     11,
     true
   );
+
+  // Room & Restaurant cash ledger — Inhand carried forward day to day
+  l.sectionHeader("Room & Restaurant Ledger (cash)");
+  l.row(
+    [
+      { text: "", x: MARGIN },
+      { text: "Room", x: MARGIN + 90, align: "right" },
+      { text: "Restaurant", x: colRight, align: "right" },
+    ],
+    9,
+    true
+  );
+  l.row([
+    { text: "Inhand (yesterday)", x: MARGIN },
+    { text: fmt(data.roomLedger.opening), x: MARGIN + 90, align: "right" },
+    { text: fmt(data.restaurantLedger.opening), x: colRight, align: "right" },
+  ]);
+  l.row([
+    { text: "+ Today's cash in", x: MARGIN },
+    { text: fmt(data.roomLedger.todayIn), x: MARGIN + 90, align: "right" },
+    { text: fmt(data.restaurantLedger.todayIn), x: colRight, align: "right" },
+  ]);
+  l.row([
+    { text: "- Today's cash out", x: MARGIN },
+    { text: fmt(data.roomLedger.todayOut), x: MARGIN + 90, align: "right" },
+    { text: fmt(data.restaurantLedger.todayOut), x: colRight, align: "right" },
+  ]);
+  l.divider();
+  l.row(
+    [
+      { text: "Balance (carries to tomorrow)", x: MARGIN },
+      { text: fmt(data.roomLedger.closing), x: MARGIN + 90, align: "right" },
+      { text: fmt(data.restaurantLedger.closing), x: colRight, align: "right" },
+    ],
+    11,
+    true
+  );
+
+  // Credit sales — still to collect
+  if (data.creditSales.length > 0) {
+    l.sectionHeader("Credit sales — still to collect");
+    l.row(
+      [
+        { text: "Account", x: MARGIN },
+        { text: "Source", x: MARGIN + 70 },
+        { text: "Amount", x: colRight, align: "right" },
+      ],
+      9,
+      true
+    );
+    let creditTotal = 0;
+    for (const c of data.creditSales) {
+      creditTotal += c.amount;
+      l.row([
+        { text: c.accountName.slice(0, 28), x: MARGIN },
+        { text: c.source.slice(0, 38), x: MARGIN + 70 },
+        { text: fmt(c.amount), x: colRight, align: "right" },
+      ]);
+    }
+    l.divider();
+    l.row(
+      [
+        { text: "Total on credit today", x: MARGIN },
+        { text: fmt(creditTotal), x: colRight, align: "right" },
+      ],
+      10,
+      true
+    );
+  }
 
   return doc.output("blob");
 }

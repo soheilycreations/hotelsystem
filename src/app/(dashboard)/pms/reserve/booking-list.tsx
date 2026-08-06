@@ -13,7 +13,7 @@ import {
   Timer,
   XCircle,
 } from "lucide-react";
-import type { Booking, HotelSettings, PaymentMethod } from "@/lib/types";
+import type { Booking, CreditAccount, HotelSettings, PaymentMethod } from "@/lib/types";
 import { formatDate, formatLKR } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
@@ -81,11 +81,13 @@ export function BookingList({
   serviceOrdersByBooking = {},
   pendingServiceByBooking = {},
   hotel = null,
+  creditAccounts = [],
 }: {
   bookings: Booking[];
   serviceOrdersByBooking?: Record<string, ServiceOrderDetail[]>;
   pendingServiceByBooking?: Record<string, ServiceOrderDetail[]>;
   hotel?: HotelSettings | null;
+  creditAccounts?: CreditAccount[];
 }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
@@ -382,6 +384,7 @@ export function BookingList({
         {checkingOut && (
           <CheckoutDialog
             booking={checkingOut}
+            creditAccounts={creditAccounts}
             onDone={(msg) => {
               setCheckingOut(null);
               setNotice(msg);
@@ -580,18 +583,30 @@ function ChargeDialog({ booking, onDone }: { booking: Booking; onDone: (msg: str
 
 function CheckoutDialog({
   booking,
+  creditAccounts,
   onDone,
 }: {
   booking: Booking;
+  creditAccounts: CreditAccount[];
   onDone: (msg: string) => void;
 }) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [creditAccountId, setCreditAccountId] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit() {
+    if (paymentMethod === "credit" && !creditAccountId) {
+      setError("Pick a credit account.");
+      return;
+    }
     startTransition(async () => {
-      const res = await setBookingStatus(booking.id, "checked_out", paymentMethod);
+      const res = await setBookingStatus(
+        booking.id,
+        "checked_out",
+        paymentMethod,
+        paymentMethod === "credit" ? creditAccountId : undefined
+      );
       if (res.ok) onDone(`${booking.guest_name} checked out — ${formatLKR(Number(booking.total_folio_amount))} (${paymentMethod.replace("_", " ")}).`);
       else setError(res.error ?? "Could not check out.");
     });
@@ -617,6 +632,7 @@ function CheckoutDialog({
             <option value="cash">Cash</option>
             <option value="card">Card</option>
             <option value="bank_transfer">Bank Transfer</option>
+            <option value="credit">Credit (settle to an account)</option>
             <option value="complimentary">Complimentary (no charge)</option>
           </Select>
         </div>
@@ -626,10 +642,35 @@ function CheckoutDialog({
             complimentary.
           </p>
         )}
+        {paymentMethod === "credit" && (
+          <div className="space-y-1.5">
+            <Label htmlFor="checkout-credit-account">Account</Label>
+            <Select
+              id="checkout-credit-account"
+              value={creditAccountId}
+              onChange={(e) => setCreditAccountId(e.target.value)}
+            >
+              <option value="">Select an account…</option>
+              {creditAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+            <p className="text-xs text-amber-500">
+              Counts as revenue, but not cash-in-hand — collect this later from the account. No
+              accounts yet?{" "}
+              <a href="/finance/credit-accounts" className="underline">
+                Add one here
+              </a>
+              .
+            </p>
+          </div>
+        )}
         {error && <p className="text-sm text-destructive">{error}</p>}
       </div>
       <DialogFooter>
-        <Button onClick={submit} disabled={pending}>
+        <Button onClick={submit} disabled={pending || (paymentMethod === "credit" && !creditAccountId)}>
           <DoorOpen className="mr-2 h-4 w-4" />
           {pending ? "Checking out…" : "Confirm check out"}
         </Button>

@@ -139,7 +139,8 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
 export async function setBookingStatus(
   bookingId: string,
   status: BookingStatus,
-  paymentMethod?: PaymentMethod
+  paymentMethod?: PaymentMethod,
+  creditAccountId?: string
 ): Promise<ActionResult> {
   try {
     await assertPmsRole();
@@ -195,6 +196,10 @@ export async function setBookingStatus(
     if (status === "checked_out") {
       patch.actual_check_out = new Date().toISOString();
       patch.payment_method = paymentMethod ?? "cash";
+      if (paymentMethod === "credit") {
+        if (!creditAccountId) return { ok: false, error: "Pick a credit account." };
+        patch.credit_account_id = creditAccountId;
+      }
     }
     const { error } = await supabase
       .from("bookings")

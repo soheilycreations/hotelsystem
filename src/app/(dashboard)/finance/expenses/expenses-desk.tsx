@@ -45,6 +45,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   card: "Card",
   bank_transfer: "Bank Transfer",
   complimentary: "Complimentary",
+  credit: "Credit",
 };
 
 const PAYMENT_BADGE: Record<PaymentMethod, "success" | "info" | "warning" | "secondary"> = {
@@ -52,6 +53,7 @@ const PAYMENT_BADGE: Record<PaymentMethod, "success" | "info" | "warning" | "sec
   card: "info",
   bank_transfer: "warning",
   complimentary: "secondary",
+  credit: "warning",
 };
 
 export function ExpensesDesk({

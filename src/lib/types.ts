@@ -9,8 +9,28 @@ export type StayType = "overnight" | "short_stay";
 export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" | "banquet";
-export type PaymentMethod = "cash" | "card" | "bank_transfer" | "complimentary";
+export type PaymentMethod = "cash" | "card" | "bank_transfer" | "complimentary" | "credit";
 export type ExpenseDivision = "restaurant" | "room";
+
+export interface CreditAccount {
+  id: string;
+  name: string;
+  notes: string | null;
+  created_by: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+export interface CreditRepayment {
+  id: string;
+  credit_account_id: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  date: string;
+  description: string | null;
+  logged_by: string | null;
+  created_at: string;
+}
 export type CashDirection = "in" | "out";
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";
@@ -64,6 +84,7 @@ export interface Booking {
   actual_check_out: string | null;
   status: BookingStatus;
   payment_method: PaymentMethod | null;
+  credit_account_id: string | null;
   created_by: string | null;
   created_at: string;
   updated_at: string;
@@ -140,6 +161,7 @@ export interface RestaurantOrder {
   total_amount: number;
   order_status: OrderStatus;
   payment_method: PaymentMethod | null;
+  credit_account_id: string | null;
   service_charge_waived: boolean;
   delivery_status: DeliveryStatus | null;
   created_by: string | null;
@@ -287,6 +309,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/finance/reports": ["admin", "manager"],
   "/finance/daily-summary": ["admin", "manager"],
   "/finance/cash-book": ["admin", "manager"],
+  "/finance/credit-accounts": ["admin", "manager", "receptionist", "cashier"],
 };
 
 export function canAccess(role: StaffRole | null, pathname: string): boolean {

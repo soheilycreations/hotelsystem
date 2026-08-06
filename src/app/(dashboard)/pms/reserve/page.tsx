@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Booking, HotelSettings, Room, RoomRatePlan } from "@/lib/types";
+import type { Booking, CreditAccount, HotelSettings, Room, RoomRatePlan } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { BookingForm } from "./booking-form";
 import { BookingList } from "./booking-list";
@@ -16,7 +16,7 @@ export interface ServiceOrderDetail {
 export default async function ReservePage() {
   const supabase = await createClient();
 
-  const [roomsRes, bookingsRes, plansRes, hotelRes] = await Promise.all([
+  const [roomsRes, bookingsRes, plansRes, hotelRes, creditRes] = await Promise.all([
     supabase.from("rooms").select("*, room_types(*)").order("room_number"),
     supabase
       .from("bookings")
@@ -25,11 +25,13 @@ export default async function ReservePage() {
       .order("check_in_date"),
     supabase.from("room_rate_plans").select("*").eq("is_active", true).order("name"),
     supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("credit_accounts").select("*").order("name"),
   ]);
 
   const rooms = (roomsRes.data ?? []) as Room[];
   const bookings = (bookingsRes.data ?? []) as Booking[];
   const ratePlans = (plansRes.data ?? []) as RoomRatePlan[];
+  const creditAccounts = (creditRes.data ?? []) as CreditAccount[];
   const hotel = (hotelRes.data ?? null) as HotelSettings | null;
 
   // Completed room-service orders per in-house booking — needed to break the
@@ -84,6 +86,7 @@ export default async function ReservePage() {
             serviceOrdersByBooking={serviceOrdersByBooking}
             pendingServiceByBooking={pendingServiceByBooking}
             hotel={hotel}
+            creditAccounts={creditAccounts}
           />
         </div>
       </div>
