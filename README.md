@@ -101,7 +101,9 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 - Counts as **real revenue** (P&L Report, Daily Summary) — the sale happened — but is **excluded from cash-in-hand** everywhere (Cash Book, Room/Restaurant Ledger), exactly like Card or Bank Transfer, since no money has actually changed hands yet.
 - Each account's page shows what it currently owes, computed live from every credit sale minus every repayment — no manually maintained balance to get out of sync.
 - **Record repayment** on an account logs it, and if it was received in cash, automatically also creates a Cash Book "in" movement — real money physically arrived, so the Cash Book reflects it immediately.
-- Daily Summary lists the day's **credit sales** (account name + source + amount) separately, so it's clear who still needs to pay and for what.
+- **Account detail page** (click any account) — a full bill-by-bill history: every credit sale, manual adjustment, and repayment, chronological, each with a running balance column.
+- **Manual adjustment** (admin only) — for old bills from before this system, or ones that can't be individually found and retagged, an admin can add a lump sum straight to what an account owes, with a note and a date, instead of hunting down each original bill.
+- Daily Summary lists each account's **running outstanding balance as of that date** — not just "credit sales added today." An account with a balance keeps showing up in the daily report every single day until it's fully repaid, exactly like the paper ledger. Today's newly-added credit sales are still shown as a sub-list for context.
 
 ## Room & Restaurant Ledger (Daily Summary)
 
@@ -210,7 +212,7 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Upgrading an existing database?** Run migrations **001 → 015** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql`, `migration-012-comp-sc-waiver.sql`, `migration-013-calendar.sql`, `migration-014-expense-division.sql`, `migration-015-credit-accounts.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
+> **Upgrading an existing database?** Run migrations **001 → 016** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql`, `migration-012-comp-sc-waiver.sql`, `migration-013-calendar.sql`, `migration-014-expense-division.sql`, `migration-015-credit-accounts.sql`, `migration-016-credit-adjustments.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
 

@@ -31,6 +31,16 @@ export interface CreditRepayment {
   logged_by: string | null;
   created_at: string;
 }
+
+export interface CreditAdjustment {
+  id: string;
+  credit_account_id: string;
+  amount: number;
+  date: string;
+  description: string | null;
+  created_by: string | null;
+  created_at: string;
+}
 export type CashDirection = "in" | "out";
 export type OrderStatus = "active" | "completed" | "cancelled";
 export type DeliveryStatus = "pending" | "cooking" | "dispatched" | "delivered";

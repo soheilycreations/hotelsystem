@@ -72,6 +72,7 @@ export function DailySummaryView({
   roomExpenses,
   restaurantExpenses,
   creditSales,
+  creditAccountBalances,
   roomLedger,
   restaurantLedger,
 }: {
@@ -89,6 +90,7 @@ export function DailySummaryView({
   roomExpenses: number;
   restaurantExpenses: number;
   creditSales: { source: string; accountName: string; amount: number }[];
+  creditAccountBalances: { accountName: string; balance: number }[];
   roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
 }) {
@@ -142,6 +144,7 @@ export function DailySummaryView({
         roomLedger,
         restaurantLedger,
         creditSales,
+        creditAccountBalances,
       });
       openPdfBlob(blob);
     } finally {
@@ -378,28 +381,46 @@ export function DailySummaryView({
         </CardContent>
       </Card>
 
-      {/* Credit sales */}
-      {creditSales.length > 0 && (
+      {/* Credit accounts */}
+      {creditAccountBalances.length > 0 && (
         <Card>
           <CardHeader>
-            <CardTitle className="text-base">Credit sales — still to collect</CardTitle>
+            <CardTitle className="text-base">Credit accounts — still owing</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Balance as of this date — stays here every day until fully repaid, not just the day
+              a bill was added.
+            </p>
           </CardHeader>
-          <CardContent className="space-y-2">
-            {creditSales.map((c, i) => (
-              <div key={i} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
-                <div className="min-w-0">
-                  <p className="truncate font-medium">{c.accountName}</p>
-                  <p className="truncate text-xs text-muted-foreground">{c.source}</p>
+          <CardContent className="space-y-3">
+            <div className="space-y-2">
+              {creditAccountBalances.map((a, i) => (
+                <div key={i} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                  <p className="truncate font-medium">{a.accountName}</p>
+                  <span className="shrink-0 tabular-nums font-medium text-amber-500">
+                    {formatLKR(a.balance)}
+                  </span>
                 </div>
-                <span className="shrink-0 tabular-nums font-medium">{formatLKR(c.amount)}</span>
+              ))}
+              <div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
+                <span>Total outstanding</span>
+                <span className="tabular-nums">
+                  {formatLKR(creditAccountBalances.reduce((s, a) => s + a.balance, 0))}
+                </span>
               </div>
-            ))}
-            <div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
-              <span>Total on credit today</span>
-              <span className="tabular-nums">
-                {formatLKR(creditSales.reduce((s, c) => s + c.amount, 0))}
-              </span>
             </div>
+            {creditSales.length > 0 && (
+              <div className="space-y-1.5 border-t pt-3">
+                <p className="text-xs font-medium text-muted-foreground">Added today</p>
+                {creditSales.map((c, i) => (
+                  <div key={i} className="flex items-center justify-between gap-2 text-xs">
+                    <span className="truncate text-muted-foreground">
+                      {c.accountName} — {c.source}
+                    </span>
+                    <span className="shrink-0 tabular-nums">{formatLKR(c.amount)}</span>
+                  </div>
+                ))}
+              </div>
+            )}
           </CardContent>
         </Card>
       )}

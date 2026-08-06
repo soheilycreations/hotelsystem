@@ -215,9 +215,12 @@ export default async function DailySummaryPage({
     .filter((e) => e.division !== "room")
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
-  // Credit sales — settled against a named account instead of cash/card/bank.
-  // Still counts as revenue above; listed separately here so it's clear what
-  // still needs collecting, and from whom.
+  // Credit accounts — settled against a named account instead of cash/card/
+  // bank. Still counts as revenue above (see the *Total revenue* stat). Two
+  // views: today's new credit activity (what got added today), and each
+  // account's running balance AS OF this date — the latter keeps showing up
+  // every day, even with no new activity, until the account is fully paid
+  // off, exactly like the paper ledger.
   const creditSales: { source: string; accountName: string; amount: number }[] = [];
   for (const b of checkouts ?? []) {
     if (b.payment_method !== "credit") continue;
@@ -241,6 +244,45 @@ export default async function DailySummaryPage({
     });
   }
 
+  const [
+    { data: allAccounts },
+    { data: allCreditBookings },
+    { data: allCreditOrders },
+    { data: allCreditAdjustments },
+    { data: allCreditRepayments },
+  ] = await Promise.all([
+    supabase.from("credit_accounts").select("id, name"),
+    supabase
+      .from("bookings")
+      .select("credit_account_id, total_folio_amount, actual_check_out")
+      .eq("payment_method", "credit")
+      .not("credit_account_id", "is", null)
+      .lt("actual_check_out", endIso),
+    supabase
+      .from("restaurant_orders")
+      .select("credit_account_id, total_amount, business_date")
+      .eq("payment_method", "credit")
+      .not("credit_account_id", "is", null)
+      .lte("business_date", date),
+    supabase.from("credit_adjustments").select("credit_account_id, amount, date").lte("date", date),
+    supabase.from("credit_repayments").select("credit_account_id, amount, date").lte("date", date),
+  ]);
+
+  const balanceByAccount = new Map<string, number>();
+  const bumpBalance = (id: string | null, delta: number) => {
+    if (!id) return;
+    balanceByAccount.set(id, (balanceByAccount.get(id) ?? 0) + delta);
+  };
+  for (const b of allCreditBookings ?? []) bumpBalance(b.credit_account_id, Number(b.total_folio_amount));
+  for (const o of allCreditOrders ?? []) bumpBalance(o.credit_account_id, Number(o.total_amount));
+  for (const a of allCreditAdjustments ?? []) bumpBalance(a.credit_account_id, Number(a.amount));
+  for (const r of allCreditRepayments ?? []) bumpBalance(r.credit_account_id, -Number(r.amount));
+
+  const creditAccountBalances = ((allAccounts ?? []) as { id: string; name: string }[])
+    .map((a) => ({ accountName: a.name, balance: balanceByAccount.get(a.id) ?? 0 }))
+    .filter((a) => a.balance > 0)
+    .sort((a, b) => b.balance - a.balance);
+
   return (
     <DailySummaryView
       date={date}
@@ -262,6 +304,7 @@ export default async function DailySummaryPage({
       roomExpenses={roomExpenses}
       restaurantExpenses={restaurantExpenses}
       creditSales={creditSales}
+      creditAccountBalances={creditAccountBalances}
       roomLedger={roomLedger}
       restaurantLedger={restaurantLedger}
     />

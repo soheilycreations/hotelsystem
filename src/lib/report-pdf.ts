@@ -99,6 +99,7 @@ export interface DailySummaryData {
   roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   creditSales: { source: string; accountName: string; amount: number }[];
+  creditAccountBalances: { accountName: string; balance: number }[];
 }
 
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
@@ -334,9 +335,39 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     true
   );
 
-  // Credit sales — still to collect
+  // Credit accounts — running balance, persists until settled
+  if (data.creditAccountBalances.length > 0) {
+    l.sectionHeader("Credit accounts — still owing");
+    l.row(
+      [
+        { text: "Account", x: MARGIN },
+        { text: "Balance", x: colRight, align: "right" },
+      ],
+      9,
+      true
+    );
+    let outstandingTotal = 0;
+    for (const a of data.creditAccountBalances) {
+      outstandingTotal += a.balance;
+      l.row([
+        { text: a.accountName.slice(0, 40), x: MARGIN },
+        { text: fmt(a.balance), x: colRight, align: "right" },
+      ]);
+    }
+    l.divider();
+    l.row(
+      [
+        { text: "Total outstanding", x: MARGIN },
+        { text: fmt(outstandingTotal), x: colRight, align: "right" },
+      ],
+      10,
+      true
+    );
+  }
+
+  // Credit sales added today
   if (data.creditSales.length > 0) {
-    l.sectionHeader("Credit sales — still to collect");
+    l.sectionHeader("Credit — added today");
     l.row(
       [
         { text: "Account", x: MARGIN },

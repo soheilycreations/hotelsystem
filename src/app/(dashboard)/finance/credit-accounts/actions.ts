@@ -21,8 +21,9 @@ async function assertCreditRole() {
 }
 
 function revalidateCredit(): void {
-  revalidatePath("/finance/credit-accounts");
+  revalidatePath("/finance/credit-accounts", "layout");
   revalidatePath("/finance/cash-book");
+  revalidatePath("/finance/daily-summary");
   revalidatePath("/pos/billing");
   revalidatePath("/pms/reserve");
 }
@@ -124,6 +125,46 @@ export async function recordCreditRepayment(formData: FormData): Promise<ActionR
     }
 
     revalidateCredit();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/**
+ * Manually adds to what an account owes — for old bills that can't be
+ * individually found and retagged. Admin only, since it changes a balance
+ * without a real bill behind it.
+ */
+export async function addCreditAdjustment(formData: FormData): Promise<ActionResult> {
+  try {
+    const profile = await getSessionProfile();
+    if (!profile || profile.role !== "admin") {
+      throw new Error("Only an admin can add a manual credit adjustment.");
+    }
+
+    const creditAccountId = String(formData.get("credit_account_id") ?? "");
+    const amount = Number(formData.get("amount") ?? 0);
+    const date = String(formData.get("date") ?? "");
+    const description = String(formData.get("description") ?? "").trim();
+
+    if (!creditAccountId) return { ok: false, error: "Pick an account." };
+    if (!Number.isFinite(amount) || amount <= 0)
+      return { ok: false, error: "Amount must be greater than zero." };
+    if (!date) return { ok: false, error: "Pick a date." };
+
+    const supabase = await createClient();
+    const { error } = await supabase.from("credit_adjustments").insert({
+      credit_account_id: creditAccountId,
+      amount,
+      date,
+      description: description || null,
+      created_by: profile.id,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    revalidateCredit();
+    revalidatePath(`/finance/credit-accounts/${creditAccountId}`);
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };

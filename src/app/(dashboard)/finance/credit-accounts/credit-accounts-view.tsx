@@ -1,6 +1,7 @@
 "use client";
 
 import { useState, useTransition } from "react";
+import Link from "next/link";
 import { CreditCard, Plus, Receipt, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -61,7 +62,9 @@ export function CreditAccountsView({ accounts }: { accounts: CreditAccountWithBa
             <CardContent className="space-y-2 p-4">
               <div className="flex items-start justify-between gap-2">
                 <div className="min-w-0">
-                  <p className="truncate font-medium">{a.name}</p>
+                  <Link href={`/finance/credit-accounts/${a.id}`} className="truncate font-medium hover:underline">
+                    {a.name}
+                  </Link>
                   {a.notes && <p className="truncate text-xs text-muted-foreground">{a.notes}</p>}
                 </div>
                 <Badge variant={a.balance > 0 ? "warning" : "success"}>

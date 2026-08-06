@@ -14,7 +14,7 @@ export interface CreditAccountWithBalance extends CreditAccount {
 export default async function CreditAccountsPage() {
   const supabase = await createClient();
 
-  const [{ data: accounts }, { data: bookings }, { data: orders }, { data: repayments }] =
+  const [{ data: accounts }, { data: bookings }, { data: orders }, { data: adjustments }, { data: repayments }] =
     await Promise.all([
       supabase.from("credit_accounts").select("*").order("name"),
       supabase
@@ -27,6 +27,7 @@ export default async function CreditAccountsPage() {
         .select("credit_account_id, total_amount, business_date")
         .eq("payment_method", "credit")
         .not("credit_account_id", "is", null),
+      supabase.from("credit_adjustments").select("credit_account_id, amount, date"),
       supabase
         .from("credit_repayments")
         .select("credit_account_id, amount, date")
@@ -50,6 +51,9 @@ export default async function CreditAccountsPage() {
   }
   for (const o of orders ?? []) {
     bump(o.credit_account_id, Number(o.total_amount), o.business_date);
+  }
+  for (const a of adjustments ?? []) {
+    bump(a.credit_account_id, Number(a.amount), a.date);
   }
   for (const r of repayments ?? []) {
     bump(r.credit_account_id, -Number(r.amount), r.date);
