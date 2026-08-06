@@ -341,6 +341,18 @@ create table public.credit_repayments (
   created_at        timestamptz not null default now()
 );
 
+-- 3.11f Credit adjustments — manual charge to an account (admin only), for
+-- old bills that can't be individually retagged.
+create table public.credit_adjustments (
+  id                uuid primary key default gen_random_uuid(),
+  credit_account_id uuid not null references public.credit_accounts (id) on delete restrict,
+  amount            numeric(14,2) not null check (amount > 0),
+  date              date not null default current_date,
+  description       text,
+  created_by        uuid references public.staff_profiles (id),
+  created_at        timestamptz not null default now()
+);
+
 -- 3.12 System logs (low-stock alerts + audit hooks)
 create table public.system_logs (
   id         uuid primary key default gen_random_uuid(),
@@ -384,6 +396,8 @@ create index idx_orders_credit_account     on public.restaurant_orders (credit_a
 create index idx_bookings_credit_account   on public.bookings (credit_account_id);
 create index idx_credit_repayments_account on public.credit_repayments (credit_account_id);
 create index idx_credit_repayments_date    on public.credit_repayments (date);
+create index idx_credit_adjustments_account on public.credit_adjustments (credit_account_id);
+create index idx_credit_adjustments_date    on public.credit_adjustments (date);
 create index idx_logs_event                on public.system_logs (event_type, created_at desc);
 
 -- updated_at triggers
@@ -577,6 +591,7 @@ alter table public.cash_movements          enable row level security;
 alter table public.event_bookings          enable row level security;
 alter table public.credit_accounts         enable row level security;
 alter table public.credit_repayments       enable row level security;
+alter table public.credit_adjustments      enable row level security;
 alter table public.hotel_settings         enable row level security;
 alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
@@ -629,6 +644,8 @@ create policy "staff read credit accounts" on public.credit_accounts for select 
 create policy "pms write credit accounts"  on public.credit_accounts for all    using (public.get_my_role() in ('admin','manager','receptionist','cashier')) with check (public.get_my_role() in ('admin','manager','receptionist','cashier'));
 create policy "staff read credit repayments" on public.credit_repayments for select using (public.get_my_role() is not null);
 create policy "mgmt write credit repayments" on public.credit_repayments for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
+create policy "staff read credit adjustments" on public.credit_adjustments for select using (public.get_my_role() is not null);
+create policy "admin write credit adjustments" on public.credit_adjustments for all    using (public.get_my_role() = 'admin') with check (public.get_my_role() = 'admin');
 create policy "staff read recipes"    on public.menu_recipe_ingredients for select using (public.get_my_role() is not null);
 create policy "mgmt write recipes"    on public.menu_recipe_ingredients for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read hotel"      on public.hotel_settings    for select using (public.get_my_role() is not null);
@@ -663,6 +680,7 @@ alter publication supabase_realtime add table public.cash_movements;
 alter publication supabase_realtime add table public.event_bookings;
 alter publication supabase_realtime add table public.credit_accounts;
 alter publication supabase_realtime add table public.credit_repayments;
+alter publication supabase_realtime add table public.credit_adjustments;
 alter publication supabase_realtime add table public.inventory_items;
 alter publication supabase_realtime add table public.system_logs;
 
