@@ -129,7 +129,7 @@ Balance (carries to tomorrow)  35,000
 ```
 
 - **Cash-only** — matches the Cash Book's own philosophy; card, bank transfer, credit, and complimentary transactions don't touch this figure, only real cash-in-hand.
-- **Two independent ledgers** — Room and Restaurant — computed the same way the Cash Book's divisional split works, just carried forward one day at a time instead of shown as a range.
+- **Two ledgers — Room and Restaurant.** Restaurant is this hotel's main cash pot: every cash movement that isn't a Room-tagged expense (float top-ups, bank deposits, owner withdrawals included) runs through it, same as the expense default. Room stays a clean, separate figure — only Room revenue and Room-tagged expenses touch it.
 - The "Inhand" opening figure isn't stored anywhere — it's netted live from all cash history before the selected date, so there's nothing to manually roll over each night.
 - **Fixed:** "Charge to room folio" (settling a room-service order straight onto a guest's tab) no longer silently tags the order `payment_method: cash` — that field only means something once the guest actually pays, at checkout, so it's left blank until then instead of recording a payment that hasn't happened yet.
 - Daily Summary's **Room Sales table** (and its PDF export) now shows a **"Paid by"** column per checkout — a bank-transfer checkout was already excluded from the cash figures, but wasn't visibly flagged next to the guest's name; now it is, same as Expenses already were.

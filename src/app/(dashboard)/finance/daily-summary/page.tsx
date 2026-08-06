@@ -56,7 +56,7 @@ export default async function DailySummaryPage({
   // and evaluated for this one day: Inhand (everything before today, netted
   // into one opening figure) + today's cash in − today's cash out = balance,
   // which becomes tomorrow's Inhand automatically.
-  const [{ data: allCashCheckouts }, { data: allCashOrders }, { data: allCashExpenses }] =
+  const [{ data: allCashCheckouts }, { data: allCashOrders }, { data: allCashExpenses }, { data: allCashMovements }] =
     await Promise.all([
       supabase
         .from("bookings")
@@ -76,6 +76,12 @@ export default async function DailySummaryPage({
         .select("amount, date, division")
         .eq("payment_method", "cash")
         .lte("date", date),
+      // Cash movements (float top-ups, bank deposits, owner withdrawals) —
+      // these aren't Room- or Restaurant-specific, so they're tracked as
+      // their own "Other" ledger below rather than forced into either side.
+      // Without this, real cash the Cash Book already counts (like a float
+      // top-up) would silently disappear from this page's numbers.
+      supabase.from("cash_movements").select("direction, amount, date").lte("date", date),
     ]);
 
   const allCheckoutIds = (allCashCheckouts ?? []).map((b) => b.id);
@@ -127,6 +133,21 @@ export default async function DailySummaryPage({
     } else if (expenseDate < date) {
       if (e.division === "room") roomOpening -= amount;
       else restaurantOpening -= amount;
+    }
+  }
+  // Float top-ups, bank deposits, owner withdrawals — this hotel runs
+  // everything through the Restaurant side as its one main cash pot (Room
+  // cash is kept separate, only moving between the two via a tagged
+  // expense), so these land in the Restaurant ledger, same as any other
+  // untagged cash movement.
+  for (const m of allCashMovements ?? []) {
+    const moveDate = String(m.date).slice(0, 10);
+    const amount = Number(m.amount);
+    if (moveDate === date) {
+      if (m.direction === "in") restaurantTodayIn += amount;
+      else restaurantTodayOut += amount;
+    } else if (moveDate < date) {
+      restaurantOpening += m.direction === "in" ? amount : -amount;
     }
   }
 
