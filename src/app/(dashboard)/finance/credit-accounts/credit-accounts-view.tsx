@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import Link from "next/link";
-import { CreditCard, Plus, Receipt, UserPlus } from "lucide-react";
+import { CreditCard, Plus, PlusCircle, Receipt, UserPlus } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -21,13 +21,20 @@ import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatLKR } from "@/lib/utils";
 import type { CreditAccountWithBalance } from "./page";
-import { createCreditAccount, recordCreditRepayment, updateCreditAccount } from "./actions";
+import { addCreditAdjustment, createCreditAccount, recordCreditRepayment, updateCreditAccount } from "./actions";
 
-export function CreditAccountsView({ accounts }: { accounts: CreditAccountWithBalance[] }) {
+export function CreditAccountsView({
+  accounts,
+  isAdmin,
+}: {
+  accounts: CreditAccountWithBalance[];
+  isAdmin: boolean;
+}) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [addOpen, setAddOpen] = useState(false);
   const [repayFor, setRepayFor] = useState<CreditAccountWithBalance | null>(null);
   const [editFor, setEditFor] = useState<CreditAccountWithBalance | null>(null);
+  const [adjustFor, setAdjustFor] = useState<CreditAccountWithBalance | null>(null);
 
   const totalOwed = accounts.reduce((s, a) => s + Math.max(0, a.balance), 0);
 
@@ -82,6 +89,12 @@ export function CreditAccountsView({ accounts }: { accounts: CreditAccountWithBa
                   <Receipt className="mr-1.5 h-3.5 w-3.5" />
                   Repayment
                 </Button>
+                {isAdmin && (
+                  <Button size="sm" variant="outline" onClick={() => setAdjustFor(a)}>
+                    <PlusCircle className="mr-1.5 h-3.5 w-3.5" />
+                    Adjust
+                  </Button>
+                )}
                 <Button size="sm" variant="ghost" onClick={() => setEditFor(a)}>
                   Edit
                 </Button>
@@ -118,6 +131,18 @@ export function CreditAccountsView({ accounts }: { accounts: CreditAccountWithBa
             account={editFor}
             onDone={(msg) => {
               setEditFor(null);
+              setFeedback(msg);
+            }}
+          />
+        )}
+      </Dialog>
+
+      <Dialog open={adjustFor !== null} onOpenChange={(open) => !open && setAdjustFor(null)}>
+        {adjustFor && (
+          <AdjustmentDialog
+            account={adjustFor}
+            onDone={(msg) => {
+              setAdjustFor(null);
               setFeedback(msg);
             }}
           />
@@ -233,6 +258,62 @@ function RepaymentDialog({
           <Button type="submit" disabled={pending}>
             <Receipt className="mr-2 h-4 w-4" />
             {pending ? "Saving…" : "Record repayment"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
+  );
+}
+
+function AdjustmentDialog({
+  account,
+  onDone,
+}: {
+  account: CreditAccountWithBalance;
+  onDone: (msg: string) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+  const today = new Date().toISOString().slice(0, 10);
+
+  function submit(formData: FormData) {
+    formData.set("credit_account_id", account.id);
+    startTransition(async () => {
+      const res = await addCreditAdjustment(formData);
+      if (res.ok) onDone(`Adjustment added to ${account.name}.`);
+      else setError(res.error ?? "Could not save.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Add manual adjustment — {account.name}</DialogTitle>
+        <DialogDescription>
+          For old bills that can't be individually found and retagged — adds straight to what
+          this account owes. Admin only.
+        </DialogDescription>
+      </DialogHeader>
+      <form action={submit} className="grid gap-4 py-2">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="adj-amount">Amount (LKR)</Label>
+            <Input id="adj-amount" name="amount" type="number" min="0" step="0.01" placeholder="0.00" required />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="adj-date">Date</Label>
+            <Input id="adj-date" name="date" type="date" defaultValue={today} required />
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="adj-desc">Description</Label>
+          <Input id="adj-desc" name="description" placeholder="e.g. Old bills before this system, June–July" />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button type="submit" disabled={pending}>
+            <PlusCircle className="mr-2 h-4 w-4" />
+            {pending ? "Saving…" : "Add adjustment"}
           </Button>
         </DialogFooter>
       </form>

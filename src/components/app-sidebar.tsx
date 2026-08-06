@@ -23,6 +23,7 @@ import {
   ScrollText,
   UtensilsCrossed,
   Users,
+  FileEdit,
   Wallet,
   X,
   type LucideIcon,
@@ -58,6 +59,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/finance/reports", label: "P&L Reports", icon: ScrollText, group: "Finance" },
   { href: "/settings", label: "Hotel Profile", icon: Building2, group: "Settings" },
   { href: "/settings/users", label: "Staff Accounts", icon: Users, group: "Settings" },
+  { href: "/settings/settled-records", label: "Settled Records", icon: FileEdit, group: "Settings" },
   { href: "/backfill", label: "Backfill Data", icon: History, group: "Settings" },
 ];
 

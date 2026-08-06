@@ -2,7 +2,7 @@
 
 import { useRef, useState, useTransition } from "react";
 import { BedDouble, CalendarClock, Loader2, ReceiptText } from "lucide-react";
-import type { Room } from "@/lib/types";
+import type { CreditAccount, Room } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -10,18 +10,19 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { createHistoricalBooking, createHistoricalSale } from "./actions";
 
-export function BackfillView({ rooms }: { rooms: Room[] }) {
+export function BackfillView({ rooms, creditAccounts }: { rooms: Room[]; creditAccounts: CreditAccount[] }) {
   return (
     <div className="grid gap-6 lg:grid-cols-2">
-      <HistoricalBookingForm rooms={rooms} />
-      <HistoricalSaleForm />
+      <HistoricalBookingForm rooms={rooms} creditAccounts={creditAccounts} />
+      <HistoricalSaleForm creditAccounts={creditAccounts} />
     </div>
   );
 }
 
-function HistoricalBookingForm({ rooms }: { rooms: Room[] }) {
+function HistoricalBookingForm({ rooms, creditAccounts }: { rooms: Room[]; creditAccounts: CreditAccount[] }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "bank_transfer" | "credit">("cash");
   const [pending, startTransition] = useTransition();
 
   function submit(formData: FormData) {
@@ -105,12 +106,31 @@ function HistoricalBookingForm({ rooms }: { rooms: Room[] }) {
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="hb-payment">Paid by</Label>
-            <Select id="hb-payment" name="payment_method" defaultValue="cash">
+            <Select
+              id="hb-payment"
+              name="payment_method"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
+            >
               <option value="cash">Cash</option>
               <option value="card">Card</option>
               <option value="bank_transfer">Bank Transfer</option>
+              <option value="credit">Credit (settle to an account)</option>
             </Select>
           </div>
+          {paymentMethod === "credit" && (
+            <div className="space-y-1.5">
+              <Label htmlFor="hb-credit-account">Credit account</Label>
+              <Select id="hb-credit-account" name="credit_account_id" defaultValue="">
+                <option value="">Select an account…</option>
+                {creditAccounts.map((a) => (
+                  <option key={a.id} value={a.id}>
+                    {a.name}
+                  </option>
+                ))}
+              </Select>
+            </div>
+          )}
           {message ? (
             <p className={`text-sm ${message.ok ? "text-emerald-500" : "text-destructive"}`}>
               {message.text}
@@ -126,16 +146,21 @@ function HistoricalBookingForm({ rooms }: { rooms: Room[] }) {
   );
 }
 
-function HistoricalSaleForm() {
+function HistoricalSaleForm({ creditAccounts }: { creditAccounts: CreditAccount[] }) {
   const [date, setDate] = useState("");
   const [description, setDescription] = useState("");
   const [amount, setAmount] = useState("");
   const [serviceChargeable, setServiceChargeable] = useState(true);
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "bank_transfer">("cash");
+  const [paymentMethod, setPaymentMethod] = useState<"cash" | "card" | "bank_transfer" | "credit">("cash");
+  const [creditAccountId, setCreditAccountId] = useState("");
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit() {
+    if (paymentMethod === "credit" && !creditAccountId) {
+      setMessage({ ok: false, text: "Pick a credit account." });
+      return;
+    }
     setMessage(null);
     startTransition(async () => {
       const res = await createHistoricalSale({
@@ -144,6 +169,7 @@ function HistoricalSaleForm() {
         amount: Number(amount),
         serviceChargeable,
         paymentMethod,
+        creditAccountId: paymentMethod === "credit" ? creditAccountId : undefined,
       });
       if (res.ok) {
         setDescription("");
@@ -197,13 +223,31 @@ function HistoricalSaleForm() {
           <Select
             id="hs-payment"
             value={paymentMethod}
-            onChange={(e) => setPaymentMethod(e.target.value as "cash" | "card" | "bank_transfer")}
+            onChange={(e) => setPaymentMethod(e.target.value as typeof paymentMethod)}
           >
             <option value="cash">Cash</option>
             <option value="card">Card</option>
             <option value="bank_transfer">Bank Transfer</option>
+            <option value="credit">Credit (settle to an account)</option>
           </Select>
         </div>
+        {paymentMethod === "credit" && (
+          <div className="space-y-1.5">
+            <Label htmlFor="hs-credit-account">Credit account</Label>
+            <Select
+              id="hs-credit-account"
+              value={creditAccountId}
+              onChange={(e) => setCreditAccountId(e.target.value)}
+            >
+              <option value="">Select an account…</option>
+              {creditAccounts.map((a) => (
+                <option key={a.id} value={a.id}>
+                  {a.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+        )}
         <label className="flex items-center gap-2 text-sm">
           <input
             type="checkbox"

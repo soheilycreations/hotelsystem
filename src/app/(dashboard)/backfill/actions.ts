@@ -49,6 +49,7 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
     const amount = Number(formData.get("amount") ?? 0);
     const planLabel = String(formData.get("plan_label") ?? "").trim();
     const paymentMethod = String(formData.get("payment_method") ?? "cash");
+    const creditAccountId = String(formData.get("credit_account_id") ?? "");
 
     if (!roomId) return { ok: false, error: "Pick a room." };
     if (!guestName) return { ok: false, error: "Guest name is required." };
@@ -57,6 +58,8 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
       return { ok: false, error: "Check-out can't be before check-in." };
     if (!Number.isFinite(amount) || amount <= 0)
       return { ok: false, error: "Amount must be greater than zero." };
+    if (paymentMethod === "credit" && !creditAccountId)
+      return { ok: false, error: "Pick a credit account." };
 
     // Noon avoids timezone-driven off-by-one-day surprises for a date-only
     // record. For a same-day guest (day-use / walk-in-walk-out), check-in and
@@ -82,6 +85,7 @@ export async function createHistoricalBooking(formData: FormData): Promise<Actio
       rate_plan_name: planLabel || "Historical entry",
       status: "checked_out",
       payment_method: paymentMethod,
+      credit_account_id: paymentMethod === "credit" ? creditAccountId : null,
       created_by: profile.id,
     });
     if (error) return { ok: false, error: error.message };
@@ -99,6 +103,7 @@ export interface HistoricalSaleInput {
   amount: number;
   serviceChargeable: boolean;
   paymentMethod: PaymentMethod;
+  creditAccountId?: string;
 }
 
 /**
@@ -116,6 +121,8 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
       return { ok: false, error: "Amount must be greater than zero." };
     if (!/^\d{4}-\d{2}-\d{2}$/.test(input.date))
       return { ok: false, error: "Pick a valid date." };
+    if (input.paymentMethod === "credit" && !input.creditAccountId)
+      return { ok: false, error: "Pick a credit account." };
 
     const opened = await openOrder({
       channel: "banquet",
@@ -140,7 +147,7 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
     const dated = await setOrderBusinessDate(opened.orderId, input.date);
     if (!dated.ok) return dated;
 
-    const settled = await settleOrder(opened.orderId, input.paymentMethod);
+    const settled = await settleOrder(opened.orderId, input.paymentMethod, false, input.creditAccountId);
     if (!settled.ok) return settled;
 
     revalidateBackfill();

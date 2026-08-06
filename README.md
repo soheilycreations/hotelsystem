@@ -10,6 +10,7 @@ A production-grade, realtime hotel management system built with **Next.js 15 (Ap
 | Room Grid | `/pms/rooms` | Zone-grouped, color-coded status board with in-house guest names and **live short-stay countdowns** (green → amber ≤30 min → red overtime). Gear icon → Room Setup |
 | Backfill Data | `/backfill` | Type in past bookings and POS sales from an old paper register, picking the real historical date — records land correctly in Daily Summary/P&L/activity feed without touching today's real room status |
 | Staff Accounts | `/settings/users` | **Admin only** — create staff logins, change roles, deactivate access, reset passwords. Temporary passwords are auto-generated and shown once |
+| Settled Records | `/settings/settled-records` | **Admin only** — reopen a settled bill or checked-out booking to fix payment method, rate, or amount, no SQL needed |
 | Room Setup | `/pms/settings` | Rooms + categories (physical room types only) + **rate plans** — one room sells under any of its category's plans (AC / Non-AC per-night, hourly blocks) |
 | Reservations | `/pms/reserve` | Bookings with rate-plan pricing (price snapshot per booking), short-stay countdowns, **Extend**/**Shorten** (nights or hours, folio adjusts), **Charge** (overtime/minibar custom amounts), and **Print bill** (plan + extras + room-service breakdown) |
 | Calendar | `/pms/calendar` | Month view of **future functions** (event name, pax, description, time) alongside **upcoming room bookings** — click any day to add a function, it shows up instantly |
@@ -104,6 +105,16 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 - **Account detail page** (click any account) — a full bill-by-bill history: every credit sale, manual adjustment, and repayment, chronological, each with a running balance column.
 - **Manual adjustment** (admin only) — for old bills from before this system, or ones that can't be individually found and retagged, an admin can add a lump sum straight to what an account owes, with a note and a date, instead of hunting down each original bill.
 - Daily Summary lists each account's **running outstanding balance as of that date** — not just "credit sales added today." An account with a balance keeps showing up in the daily report every single day until it's fully repaid, exactly like the paper ledger. Today's newly-added credit sales are still shown as a sub-list for context.
+- **Backfill** (historical bookings/sales) also supports settling to a credit account, same as live Billing/Checkout.
+
+## Settled Records (admin only)
+
+`/settings/settled-records` — reopen an already-settled bill or checked-out booking to fix a mistake, instead of writing SQL:
+
+- Two tabs — **POS Bills** and **Room Bookings** — with a date range picker (defaults to the last 7 days).
+- Edit a bill: payment method (including switching to/from **Credit**, with the account picker), subtotal, and service charge — the total recalculates live as you type.
+- Edit a booking: payment method (including Credit), the nightly rate (used for future Extends), and the **total folio amount** directly — the actual figure everything else reports from.
+- **Admin only**, both the route and the underlying actions — every other role gets redirected away, and the server actions independently re-check the role regardless of how they're called.
 
 ## Room & Restaurant Ledger (Daily Summary)
 
@@ -226,6 +237,7 @@ Enforced twice: **RLS policies in Postgres** (authoritative) + route guards in t
 | `/pms/settings` | ✅ | ✅ | — | — | — |
 | `/settings` (hotel profile) | ✅ | ✅ | — | — | — |
 | `/settings/users` (staff accounts) | ✅ | — | — | — | — |
+| `/settings/settled-records` | ✅ | — | — | — | — |
 | `/pos/active` | ✅ | ✅ | — | ✅ | ✅ (delivery status only) |
 | `/pos/billing` | ✅ | ✅ | — | ✅ | — |
 | `/pos/menu` | ✅ | ✅ | — | — | — |

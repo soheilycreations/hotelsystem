@@ -308,6 +308,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/pms/settings": ["admin", "manager"],
   "/settings": ["admin", "manager"],
   "/settings/users": ["admin"],
+  "/settings/settled-records": ["admin"],
   "/backfill": ["admin", "manager"],
   "/pos/active": ["admin", "manager", "cashier", "kitchen_staff"],
   "/pos/billing": ["admin", "manager", "cashier"],

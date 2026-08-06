@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { CreditAccount } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { CreditAccountsView } from "./credit-accounts-view";
@@ -13,6 +13,7 @@ export interface CreditAccountWithBalance extends CreditAccount {
 
 export default async function CreditAccountsPage() {
   const supabase = await createClient();
+  const profile = await getSessionProfile();
 
   const [{ data: accounts }, { data: bookings }, { data: orders }, { data: adjustments }, { data: repayments }] =
     await Promise.all([
@@ -77,7 +78,7 @@ export default async function CreditAccountsPage() {
           owes, and record repayments as they come in.
         </p>
       </div>
-      <CreditAccountsView accounts={accountsWithBalance} />
+      <CreditAccountsView accounts={accountsWithBalance} isAdmin={profile?.role === "admin"} />
     </div>
   );
 }

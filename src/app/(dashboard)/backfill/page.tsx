@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import type { Room } from "@/lib/types";
+import type { CreditAccount, Room } from "@/lib/types";
 import { BackfillView } from "./backfill-view";
 
 export const dynamic = "force-dynamic";
@@ -7,10 +7,10 @@ export const metadata = { title: "Backfill Historical Data" };
 
 export default async function BackfillPage() {
   const supabase = await createClient();
-  const { data: rooms } = await supabase
-    .from("rooms")
-    .select("*, room_types(*)")
-    .order("room_number");
+  const [{ data: rooms }, { data: creditAccounts }] = await Promise.all([
+    supabase.from("rooms").select("*, room_types(*)").order("room_number"),
+    supabase.from("credit_accounts").select("*").order("name"),
+  ]);
 
   return (
     <div className="space-y-6">
@@ -22,7 +22,10 @@ export default async function BackfillPage() {
           real room status is never touched by this.
         </p>
       </div>
-      <BackfillView rooms={(rooms as Room[] | null) ?? []} />
+      <BackfillView
+        rooms={(rooms as Room[] | null) ?? []}
+        creditAccounts={(creditAccounts as CreditAccount[] | null) ?? []}
+      />
     </div>
   );
 }
