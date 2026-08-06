@@ -22,7 +22,7 @@ create type table_status      as enum ('vacant', 'occupied', 'reserved', 'billed
 create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'delivery', 'banquet');
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
-create type payment_method    as enum ('cash', 'card', 'bank_transfer', 'complimentary');
+create type payment_method    as enum ('cash', 'card', 'bank_transfer', 'complimentary', 'credit');
 create type expense_division  as enum ('restaurant', 'room');
 create type cash_direction    as enum ('in', 'out');
 create type inventory_unit    as enum ('grams', 'ml', 'units');
@@ -50,6 +50,17 @@ create table public.staff_profiles (
   is_active   boolean      not null default true,
   created_at  timestamptz  not null default now(),
   updated_at  timestamptz  not null default now()
+);
+
+-- 3.1b Credit accounts — settle a bill "on credit" against a named account.
+-- Defined early since bookings/restaurant_orders reference it.
+create table public.credit_accounts (
+  id         uuid primary key default gen_random_uuid(),
+  name       varchar(160) not null,
+  notes      text,
+  created_by uuid references public.staff_profiles (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
 );
 
 -- 3.2 Room types
@@ -109,6 +120,7 @@ create table public.bookings (
   actual_check_out   timestamptz,
   status             booking_status not null default 'pending',
   payment_method     payment_method, -- set at checkout
+  credit_account_id  uuid references public.credit_accounts (id), -- set when payment_method = 'credit'
   created_by         uuid references public.staff_profiles (id),
   created_at         timestamptz not null default now(),
   updated_at         timestamptz not null default now(),
@@ -165,6 +177,7 @@ create table public.restaurant_orders (
   order_status     order_status not null default 'active',
   payment_method   payment_method, -- set at settle time
   service_charge_waived boolean not null default false, -- per-bill SC override
+  credit_account_id uuid references public.credit_accounts (id), -- set when payment_method = 'credit'
   delivery_status  delivery_status,
   created_by       uuid references public.staff_profiles (id),
   created_at       timestamptz not null default now(),
@@ -316,6 +329,18 @@ create table public.event_bookings (
   updated_at     timestamptz not null default now()
 );
 
+-- 3.11e Credit repayments — when an account pays back what it owes
+create table public.credit_repayments (
+  id                uuid primary key default gen_random_uuid(),
+  credit_account_id uuid not null references public.credit_accounts (id) on delete restrict,
+  amount            numeric(14,2) not null check (amount > 0),
+  payment_method    payment_method not null default 'cash',
+  date              date not null default current_date,
+  description       text,
+  logged_by         uuid references public.staff_profiles (id),
+  created_at        timestamptz not null default now()
+);
+
 -- 3.12 System logs (low-stock alerts + audit hooks)
 create table public.system_logs (
   id         uuid primary key default gen_random_uuid(),
@@ -354,6 +379,11 @@ create index idx_inventory_low_stock       on public.inventory_items (quantity_i
 create index idx_expenses_date             on public.expenses (date desc);
 create index idx_cash_movements_date       on public.cash_movements (date);
 create index idx_event_bookings_date       on public.event_bookings (event_date);
+create index idx_credit_accounts_name      on public.credit_accounts (name);
+create index idx_orders_credit_account     on public.restaurant_orders (credit_account_id);
+create index idx_bookings_credit_account   on public.bookings (credit_account_id);
+create index idx_credit_repayments_account on public.credit_repayments (credit_account_id);
+create index idx_credit_repayments_date    on public.credit_repayments (date);
 create index idx_logs_event                on public.system_logs (event_type, created_at desc);
 
 -- updated_at triggers
@@ -363,6 +393,7 @@ create trigger trg_touch_rooms      before update on public.rooms               
 create trigger trg_touch_bookings   before update on public.bookings            for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_hotel      before update on public.hotel_settings      for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_events     before update on public.event_bookings      for each row execute function public.tg_set_updated_at();
+create trigger trg_touch_credit_accounts before update on public.credit_accounts for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_rate_plans before update on public.room_rate_plans     for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_tables     before update on public.restaurant_tables   for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_menu       before update on public.menu_items          for each row execute function public.tg_set_updated_at();
@@ -544,6 +575,8 @@ alter table public.menu_categories         enable row level security;
 alter table public.expense_categories      enable row level security;
 alter table public.cash_movements          enable row level security;
 alter table public.event_bookings          enable row level security;
+alter table public.credit_accounts         enable row level security;
+alter table public.credit_repayments       enable row level security;
 alter table public.hotel_settings         enable row level security;
 alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
@@ -592,6 +625,10 @@ create policy "staff read cash movements" on public.cash_movements for select us
 create policy "mgmt write cash movements" on public.cash_movements for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read event bookings" on public.event_bookings for select using (public.get_my_role() is not null);
 create policy "pms write event bookings"  on public.event_bookings for all    using (public.get_my_role() in ('admin','manager','receptionist')) with check (public.get_my_role() in ('admin','manager','receptionist'));
+create policy "staff read credit accounts" on public.credit_accounts for select using (public.get_my_role() is not null);
+create policy "pms write credit accounts"  on public.credit_accounts for all    using (public.get_my_role() in ('admin','manager','receptionist','cashier')) with check (public.get_my_role() in ('admin','manager','receptionist','cashier'));
+create policy "staff read credit repayments" on public.credit_repayments for select using (public.get_my_role() is not null);
+create policy "mgmt write credit repayments" on public.credit_repayments for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read recipes"    on public.menu_recipe_ingredients for select using (public.get_my_role() is not null);
 create policy "mgmt write recipes"    on public.menu_recipe_ingredients for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read hotel"      on public.hotel_settings    for select using (public.get_my_role() is not null);
@@ -624,6 +661,8 @@ alter publication supabase_realtime add table public.menu_categories;
 alter publication supabase_realtime add table public.expense_categories;
 alter publication supabase_realtime add table public.cash_movements;
 alter publication supabase_realtime add table public.event_bookings;
+alter publication supabase_realtime add table public.credit_accounts;
+alter publication supabase_realtime add table public.credit_repayments;
 alter publication supabase_realtime add table public.inventory_items;
 alter publication supabase_realtime add table public.system_logs;
 
