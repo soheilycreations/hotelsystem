@@ -81,7 +81,7 @@ export default async function DailySummaryPage({
       // their own "Other" ledger below rather than forced into either side.
       // Without this, real cash the Cash Book already counts (like a float
       // top-up) would silently disappear from this page's numbers.
-      supabase.from("cash_movements").select("direction, amount, date").lte("date", date),
+      supabase.from("cash_movements").select("direction, category, description, amount, date").lte("date", date),
     ]);
 
   const allCheckoutIds = (allCashCheckouts ?? []).map((b) => b.id);
@@ -140,12 +140,19 @@ export default async function DailySummaryPage({
   // cash is kept separate, only moving between the two via a tagged
   // expense), so these land in the Restaurant ledger, same as any other
   // untagged cash movement.
+  const todayCashMovements: { direction: string; category: string; description: string | null; amount: number }[] = [];
   for (const m of allCashMovements ?? []) {
     const moveDate = String(m.date).slice(0, 10);
     const amount = Number(m.amount);
     if (moveDate === date) {
       if (m.direction === "in") restaurantTodayIn += amount;
       else restaurantTodayOut += amount;
+      todayCashMovements.push({
+        direction: m.direction,
+        category: m.category,
+        description: m.description,
+        amount,
+      });
     } else if (moveDate < date) {
       restaurantOpening += m.direction === "in" ? amount : -amount;
     }
@@ -327,6 +334,7 @@ export default async function DailySummaryPage({
       creditSales={creditSales}
       creditAccountBalances={creditAccountBalances}
       roomLedger={roomLedger}
+      todayCashMovements={todayCashMovements}
       restaurantLedger={restaurantLedger}
     />
   );

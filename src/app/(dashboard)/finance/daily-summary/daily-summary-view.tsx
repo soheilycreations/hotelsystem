@@ -75,6 +75,7 @@ export function DailySummaryView({
   creditAccountBalances,
   roomLedger,
   restaurantLedger,
+  todayCashMovements,
 }: {
   date: string;
   hotel: HotelSettings | null;
@@ -93,6 +94,7 @@ export function DailySummaryView({
   creditAccountBalances: { accountName: string; balance: number }[];
   roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
+  todayCashMovements: { direction: string; category: string; description: string | null; amount: number }[];
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -145,6 +147,7 @@ export function DailySummaryView({
         restaurantLedger,
         creditSales,
         creditAccountBalances,
+        todayCashMovements,
       });
       openPdfBlob(blob);
     } finally {
@@ -199,6 +202,36 @@ export function DailySummaryView({
         <LedgerCard title="Room" icon={BedDouble} ledger={roomLedger} />
         <LedgerCard title="Restaurant" icon={UtensilsCrossed} ledger={restaurantLedger} />
       </div>
+
+      {todayCashMovements.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Cash movements today</CardTitle>
+            <p className="text-xs text-muted-foreground">
+              Float top-ups, bank deposits, owner withdrawals — folded into the Restaurant
+              ledger&apos;s cash in/out above, listed individually here.
+            </p>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {todayCashMovements.map((m, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <div className="min-w-0">
+                  <p className="truncate font-medium">{m.category}</p>
+                  {m.description && <p className="truncate text-xs text-muted-foreground">{m.description}</p>}
+                </div>
+                <span
+                  className={`shrink-0 tabular-nums font-medium ${
+                    m.direction === "in" ? "text-emerald-500" : "text-red-500"
+                  }`}
+                >
+                  {m.direction === "in" ? "+" : "−"}
+                  {formatLKR(m.amount)}
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Room revenue" value={formatLKR(roomRevenueTotal)} hint={`${roomSales.length} checkout(s)`} icon={BedDouble} />

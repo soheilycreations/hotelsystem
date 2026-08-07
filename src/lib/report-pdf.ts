@@ -98,6 +98,7 @@ export interface DailySummaryData {
   restaurantExpenses: number;
   roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
+  todayCashMovements: { direction: string; category: string; description: string | null; amount: number }[];
   creditSales: { source: string; accountName: string; amount: number }[];
   creditAccountBalances: { accountName: string; balance: number }[];
 }
@@ -334,6 +335,20 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     11,
     true
   );
+
+  // Cash movements today — the individual float top-ups / deposits /
+  // withdrawals folded into the Restaurant ledger above
+  if (data.todayCashMovements.length > 0) {
+    l.sectionHeader("Cash movements today");
+    for (const m of data.todayCashMovements) {
+      const sign = m.direction === "in" ? "+" : "-";
+      l.row([
+        { text: m.category.slice(0, 30), x: MARGIN },
+        { text: (m.description ?? "").slice(0, 40), x: MARGIN + 70 },
+        { text: `${sign}${fmt(m.amount)}`, x: colRight, align: "right" },
+      ]);
+    }
+  }
 
   // Credit accounts — running balance, persists until settled
   if (data.creditAccountBalances.length > 0) {
