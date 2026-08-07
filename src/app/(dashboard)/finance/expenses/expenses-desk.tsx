@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useRef, useState, useTransition } from "react";
-import { BadgeDollarSign, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
+import { useRouter } from "next/navigation";
+import { BadgeDollarSign, CalendarRange, FileDown, Loader2, Pencil, Plus, Settings2, Trash2 } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,7 +29,8 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatLKR } from "@/lib/utils";
-import type { ExpenseCategoryRow, PaymentMethod } from "@/lib/types";
+import { generateExpensesReportPdf, openPdfBlob } from "@/lib/report-pdf";
+import type { ExpenseCategoryRow, HotelSettings, PaymentMethod } from "@/lib/types";
 import type { ExpenseWithLogger } from "./page";
 import {
   createExpenseCategory,
@@ -36,6 +38,7 @@ import {
   deleteExpenseCategory,
   logExpense,
   renameExpenseCategory,
+  updateExpense,
 } from "../actions";
 
 const BADGE_CYCLE = ["info", "warning", "success", "danger", "secondary"] as const;
@@ -59,13 +62,21 @@ const PAYMENT_BADGE: Record<PaymentMethod, "success" | "info" | "warning" | "sec
 export function ExpensesDesk({
   expenses,
   categories,
+  hotel,
+  fromDate,
+  toDate,
 }: {
   expenses: ExpenseWithLogger[];
   categories: ExpenseCategoryRow[];
+  hotel: HotelSettings | null;
+  fromDate: string;
+  toDate: string;
 }) {
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
+  const [editingExpense, setEditingExpense] = useState<ExpenseWithLogger | null>(null);
+  const [exporting, setExporting] = useState(false);
   const [pending, startTransition] = useTransition();
   const formRef = useRef<HTMLFormElement>(null);
 
@@ -75,15 +86,30 @@ export function ExpensesDesk({
     return map;
   }, [categories]);
 
-  const monthTotal = useMemo(() => {
-    const now = new Date();
-    return expenses
-      .filter((e) => {
-        const d = new Date(e.date);
-        return d.getMonth() === now.getMonth() && d.getFullYear() === now.getFullYear();
-      })
-      .reduce((sum, e) => sum + Number(e.amount), 0);
-  }, [expenses]);
+  const rangeTotal = useMemo(() => expenses.reduce((sum, e) => sum + Number(e.amount), 0), [expenses]);
+
+  async function exportPdf() {
+    setExporting(true);
+    try {
+      const blob = await generateExpensesReportPdf({
+        hotelName: hotel?.hotel_name ?? "Soheily PMS",
+        fromDate,
+        toDate,
+        entries: expenses.map((e) => ({
+          date: e.date,
+          category: e.expense_categories?.name ?? "Uncategorised",
+          description: e.description,
+          division: e.division,
+          paymentMethod: e.payment_method,
+          amount: Number(e.amount),
+          loggedBy: e.staff_profiles?.full_name ?? null,
+        })),
+      });
+      openPdfBlob(blob);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   function submit(formData: FormData) {
     setError(null);
@@ -207,11 +233,24 @@ export function ExpensesDesk({
 
       {/* Recent expenses */}
       <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Recent expenses</CardTitle>
-          <span className="text-sm text-muted-foreground">
-            This month: <span className="font-medium text-foreground">{formatLKR(monthTotal)}</span>
-          </span>
+        <CardHeader className="flex-col items-start gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+          <div>
+            <CardTitle className="text-base">Expenses</CardTitle>
+            <span className="text-sm text-muted-foreground">
+              This range: <span className="font-medium text-foreground">{formatLKR(rangeTotal)}</span>
+            </span>
+          </div>
+          <div className="flex flex-wrap items-center gap-2">
+            <DateRangePicker fromDate={fromDate} toDate={toDate} />
+            <Button size="sm" variant="outline" onClick={exportPdf} disabled={exporting}>
+              {exporting ? (
+                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
+              ) : (
+                <FileDown className="mr-2 h-4 w-4" />
+              )}
+              Export PDF
+            </Button>
+          </div>
         </CardHeader>
         <CardContent className="px-0">
           <Table>
@@ -261,15 +300,25 @@ export function ExpensesDesk({
                     {formatLKR(Number(e.amount))}
                   </TableCell>
                   <TableCell>
-                    <Button
-                      size="icon"
-                      variant="ghost"
-                      className="h-8 w-8 text-destructive hover:text-destructive"
-                      onClick={() => handleDelete(e.id)}
-                      disabled={pending}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                    <div className="flex justify-end gap-1">
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8"
+                        onClick={() => setEditingExpense(e)}
+                      >
+                        <Pencil className="h-3.5 w-3.5" />
+                      </Button>
+                      <Button
+                        size="icon"
+                        variant="ghost"
+                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        onClick={() => handleDelete(e.id)}
+                        disabled={pending}
+                      >
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    </div>
                   </TableCell>
                 </TableRow>
               ))}
@@ -284,7 +333,147 @@ export function ExpensesDesk({
           </Table>
         </CardContent>
       </Card>
+
+      <Dialog open={editingExpense !== null} onOpenChange={(open) => !open && setEditingExpense(null)}>
+        {editingExpense && (
+          <EditExpenseDialog
+            expense={editingExpense}
+            categories={categories}
+            onDone={(msg) => {
+              setEditingExpense(null);
+              setNotice(msg);
+            }}
+          />
+        )}
+      </Dialog>
     </div>
+  );
+}
+
+function DateRangePicker({ fromDate, toDate }: { fromDate: string; toDate: string }) {
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
+  const [from, setFrom] = useState(fromDate);
+  const [to, setTo] = useState(toDate);
+
+  function apply(nextFrom: string, nextTo: string) {
+    startTransition(() => router.push(`/finance/expenses?from=${nextFrom}&to=${nextTo}`));
+  }
+
+  return (
+    <div className="flex flex-wrap items-center gap-2">
+      <CalendarRange className="h-4 w-4 text-muted-foreground" />
+      <Input
+        type="date"
+        value={from}
+        onChange={(e) => setFrom(e.target.value)}
+        onBlur={() => apply(from, to)}
+        className="h-8 w-36 text-xs"
+        disabled={pending}
+      />
+      <span className="text-sm text-muted-foreground">to</span>
+      <Input
+        type="date"
+        value={to}
+        onChange={(e) => setTo(e.target.value)}
+        onBlur={() => apply(from, to)}
+        className="h-8 w-36 text-xs"
+        disabled={pending}
+      />
+      {pending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
+    </div>
+  );
+}
+
+function EditExpenseDialog({
+  expense,
+  categories,
+  onDone,
+}: {
+  expense: ExpenseWithLogger;
+  categories: ExpenseCategoryRow[];
+  onDone: (msg: string) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function submit(formData: FormData) {
+    startTransition(async () => {
+      const res = await updateExpense(expense.id, formData);
+      if (res.ok) onDone("Expense updated.");
+      else setError(res.error ?? "Could not save.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Edit expense</DialogTitle>
+        <DialogDescription>
+          Change the category, allocation, amount, or how it was paid.
+        </DialogDescription>
+      </DialogHeader>
+      <form action={submit} className="grid gap-4 py-2">
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ee-category">Category</Label>
+            <Select id="ee-category" name="category_id" defaultValue={expense.category_id}>
+              {categories.map((c) => (
+                <option key={c.id} value={c.id}>
+                  {c.name}
+                </option>
+              ))}
+            </Select>
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ee-date">Date</Label>
+            <Input id="ee-date" name="date" type="date" defaultValue={expense.date} required />
+          </div>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="ee-amount">Amount (LKR)</Label>
+            <Input
+              id="ee-amount"
+              name="amount"
+              type="number"
+              min="0"
+              step="0.01"
+              defaultValue={expense.amount}
+              required
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="ee-payment">Paid by</Label>
+            <Select id="ee-payment" name="payment_method" defaultValue={expense.payment_method}>
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ee-division">Allocate to</Label>
+          <Select id="ee-division" name="division" defaultValue={expense.division}>
+            <option value="restaurant">Restaurant</option>
+            <option value="room">Room</option>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Decides which P&amp;L (Room or Restaurant) this expense counts against.
+          </p>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="ee-desc">Description</Label>
+          <Textarea id="ee-desc" name="description" rows={2} defaultValue={expense.description ?? ""} />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+        <DialogFooter>
+          <Button type="submit" disabled={pending}>
+            {pending ? "Saving…" : "Save changes"}
+          </Button>
+        </DialogFooter>
+      </form>
+    </DialogContent>
   );
 }
 

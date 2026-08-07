@@ -114,6 +114,8 @@ Billing uses raw **ESC/POS over WebUSB** — works in Chrome/Edge with 80mm Epso
 - Two tabs — **POS Bills** and **Room Bookings** — with a date range picker (defaults to the last 7 days).
 - Edit a bill: payment method (including switching to/from **Credit**, with the account picker), subtotal, and service charge — the total recalculates live as you type.
 - Edit a booking: payment method (including Credit), the nightly rate (used for future Extends), and the **total folio amount** directly — the actual figure everything else reports from.
+- Edit a bill: also shows the **actual line items** on that bill — search the menu to add one (same as the POS terminal), add a custom line, edit any item's quantity, or remove one. The database automatically recalculates the subtotal, service charge, and total the moment items change, exactly like a live order. The subtotal/service charge fields further down still exist for a quick manual override without touching items.
+- Edit a booking: also shows the **charges** on it (Extends, custom charges) — add, edit, or remove one, and the folio total adjusts automatically to match, the same way it does on a live in-house booking.
 - **Admin only**, both the route and the underlying actions — every other role gets redirected away, and the server actions independently re-check the role regardless of how they're called.
 
 ## Room & Restaurant Ledger (Daily Summary)
@@ -160,6 +162,9 @@ This needs no database migration — `staff_profiles` already had everything req
 - Backfill's historical booking and historical sale forms now also ask **"Paid by"** (defaults to Cash) — old paper-register entries you migrate in show up in the Cash Book and its PDF export too, exactly like live transactions.
 
 ## Expense categories & P&L filtering
+
+- Expenses now has a **date range picker** and an **Export PDF** button — a full-detail expense report for any range, itemized with date/category/description/division/payment method, plus totals by category and by division.
+- Any expense row has an **Edit** button (alongside Delete) — change the category, allocation (Room/Restaurant), amount, date, description, or payment method after the fact, no SQL needed.
 
 - The booking form now records the guest's **NIC / Passport number** alongside their name and contact — shown on the room grid's in-house guest popup, the bookings list, and printed/PDF room bills.
 

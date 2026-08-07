@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BedDouble, CalendarRange, Loader2, Pencil, UtensilsCrossed } from "lucide-react";
+import { BedDouble, CalendarRange, Loader2, Pencil, Plus, Trash2, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -27,8 +27,18 @@ import {
 } from "@/components/ui/table";
 import { formatDate, formatLKR } from "@/lib/utils";
 import type { CreditAccount, PaymentMethod } from "@/lib/types";
-import type { SettledBookingRow, SettledOrderRow } from "./page";
-import { updateSettledBooking, updateSettledOrder } from "./actions";
+import type { SettledBookingRow, SettledOrderRow, MenuItemOption } from "./page";
+import {
+  addSettledBookingCharge,
+  addSettledOrderItem,
+  addSettledOrderItemFromMenu,
+  deleteSettledBookingCharge,
+  deleteSettledOrderItem,
+  updateSettledBooking,
+  updateSettledBookingCharge,
+  updateSettledOrder,
+  updateSettledOrderItemQuantity,
+} from "./actions";
 
 const PAYMENT_LABEL: Record<string, string> = {
   cash: "Cash",
@@ -79,12 +89,14 @@ export function SettledRecordsView({
   orders,
   bookings,
   creditAccounts,
+  menuItems,
 }: {
   fromDate: string;
   toDate: string;
   orders: SettledOrderRow[];
   bookings: SettledBookingRow[];
   creditAccounts: CreditAccount[];
+  menuItems: MenuItemOption[];
 }) {
   const [tab, setTab] = useState<"bills" | "bookings">("bills");
   const [editingOrder, setEditingOrder] = useState<SettledOrderRow | null>(null);
@@ -204,6 +216,7 @@ export function SettledRecordsView({
           <EditOrderDialog
             order={editingOrder}
             creditAccounts={creditAccounts}
+            menuItems={menuItems}
             onDone={(msg) => {
               setEditingOrder(null);
               setFeedback(msg);
@@ -231,10 +244,12 @@ export function SettledRecordsView({
 function EditOrderDialog({
   order,
   creditAccounts,
+  menuItems,
   onDone,
 }: {
   order: SettledOrderRow;
   creditAccounts: CreditAccount[];
+  menuItems: MenuItemOption[];
   onDone: (msg: string) => void;
 }) {
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>((order.payment_method as PaymentMethod) ?? "cash");
@@ -243,6 +258,15 @@ function EditOrderDialog({
   const [serviceCharge, setServiceCharge] = useState(String(order.service_charge));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [itemPending, startItemTransition] = useTransition();
+  const [newItemDesc, setNewItemDesc] = useState("");
+  const [newItemAmount, setNewItemAmount] = useState("");
+  const [newItemSc, setNewItemSc] = useState(true);
+  const [menuQuery, setMenuQuery] = useState("");
+
+  const filteredMenuItems = menuQuery.trim()
+    ? menuItems.filter((m) => m.name.toLowerCase().includes(menuQuery.trim().toLowerCase())).slice(0, 6)
+    : [];
 
   const total = (Number(subtotal) || 0) + (Number(serviceCharge) || 0);
 
@@ -264,6 +288,54 @@ function EditOrderDialog({
     });
   }
 
+  function changeQuantity(itemId: string, quantity: number) {
+    if (quantity < 1) return;
+    startItemTransition(async () => {
+      const res = await updateSettledOrderItemQuantity(itemId, quantity);
+      if (res.ok) onDone(`Bill #${order.order_number} item updated — reopen to see the new total.`);
+      else setError(res.error ?? "Could not update the item.");
+    });
+  }
+
+  function removeItem(itemId: string) {
+    startItemTransition(async () => {
+      const res = await deleteSettledOrderItem(itemId);
+      if (res.ok) onDone(`Bill #${order.order_number} item removed — reopen to see the new total.`);
+      else setError(res.error ?? "Could not remove the item.");
+    });
+  }
+
+  function addMenuItem(menuItemId: string) {
+    startItemTransition(async () => {
+      const res = await addSettledOrderItemFromMenu({ orderId: order.id, menuItemId, quantity: 1 });
+      if (res.ok) {
+        setMenuQuery("");
+        onDone(`Bill #${order.order_number} item added — reopen to see the new total.`);
+      } else {
+        setError(res.error ?? "Could not add the item.");
+      }
+    });
+  }
+
+  function addItem() {
+    if (!newItemDesc.trim() || !newItemAmount) return;
+    startItemTransition(async () => {
+      const res = await addSettledOrderItem({
+        orderId: order.id,
+        description: newItemDesc,
+        amount: Number(newItemAmount),
+        serviceChargeable: newItemSc,
+      });
+      if (res.ok) {
+        setNewItemDesc("");
+        setNewItemAmount("");
+        onDone(`Bill #${order.order_number} item added — reopen to see the new total.`);
+      } else {
+        setError(res.error ?? "Could not add the item.");
+      }
+    });
+  }
+
   return (
     <DialogContent>
       <DialogHeader>
@@ -273,6 +345,105 @@ function EditOrderDialog({
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Items on this bill</Label>
+          <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-md border p-2">
+            {order.items.map((it) => (
+              <div key={it.id} className="flex items-center gap-2 text-sm">
+                <span className="min-w-0 flex-1 truncate">
+                  {it.is_custom ? it.custom_description : it.menu_item_name ?? "Item"}
+                  {!it.service_chargeable && (
+                    <span className="ml-1 text-[10px] text-muted-foreground">(no SC)</span>
+                  )}
+                </span>
+                <Input
+                  type="number"
+                  min="1"
+                  value={it.quantity}
+                  onChange={(e) => changeQuantity(it.id, Number(e.target.value) || 1)}
+                  disabled={itemPending}
+                  className="h-7 w-14 text-center text-xs"
+                />
+                <span className="w-20 shrink-0 text-right tabular-nums text-xs">{formatLKR(it.line_total)}</span>
+                <Button
+                  size="icon"
+                  variant="ghost"
+                  className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                  onClick={() => removeItem(it.id)}
+                  disabled={itemPending}
+                >
+                  <Trash2 className="h-3.5 w-3.5" />
+                </Button>
+              </div>
+            ))}
+            {order.items.length === 0 && (
+              <p className="py-2 text-center text-xs text-muted-foreground">No items on this bill.</p>
+            )}
+          </div>
+
+          <div className="relative space-y-1">
+            <Input
+              value={menuQuery}
+              onChange={(e) => setMenuQuery(e.target.value)}
+              placeholder="Search menu items to add…"
+              className="h-8 text-xs"
+              disabled={itemPending}
+            />
+            {filteredMenuItems.length > 0 && (
+              <div className="max-h-40 overflow-y-auto rounded-md border">
+                {filteredMenuItems.map((m) => (
+                  <button
+                    key={m.id}
+                    type="button"
+                    onClick={() => addMenuItem(m.id)}
+                    disabled={itemPending}
+                    className="flex w-full items-center justify-between px-2 py-1.5 text-left text-xs hover:bg-accent"
+                  >
+                    <span className="truncate">{m.name}</span>
+                    <span className="shrink-0 tabular-nums text-muted-foreground">{formatLKR(m.selling_price)}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+          </div>
+          <p className="text-center text-[10px] text-muted-foreground">— or add a custom line —</p>
+          <div className="flex items-end gap-2">
+            <div className="flex-1 space-y-1">
+              <Input
+                value={newItemDesc}
+                onChange={(e) => setNewItemDesc(e.target.value)}
+                placeholder="Add item — description"
+                className="h-8 text-xs"
+              />
+            </div>
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={newItemAmount}
+              onChange={(e) => setNewItemAmount(e.target.value)}
+              placeholder="Amount"
+              className="h-8 w-24 text-xs"
+            />
+            <Button size="sm" variant="outline" onClick={addItem} disabled={itemPending || !newItemDesc.trim() || !newItemAmount}>
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <label className="flex items-center gap-1.5 text-xs text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={newItemSc}
+              onChange={(e) => setNewItemSc(e.target.checked)}
+              className="h-3 w-3 accent-current"
+            />
+            New item applies service charge
+          </label>
+          <p className="text-xs text-amber-500">
+            Changing items updates the totals automatically — reopen this dialog after adding or
+            removing one to see the refreshed subtotal below.
+          </p>
+        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="eo-payment">Paid by</Label>
           <Select id="eo-payment" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
@@ -338,6 +509,62 @@ function EditBookingDialog({
   const [totalFolioAmount, setTotalFolioAmount] = useState(String(booking.total_folio_amount));
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [chargePending, startChargeTransition] = useTransition();
+  const [editingChargeId, setEditingChargeId] = useState<string | null>(null);
+  const [editChargeDesc, setEditChargeDesc] = useState("");
+  const [editChargeAmount, setEditChargeAmount] = useState("");
+  const [newChargeDesc, setNewChargeDesc] = useState("");
+  const [newChargeAmount, setNewChargeAmount] = useState("");
+
+  function startEditCharge(chargeId: string, description: string, amount: number) {
+    setEditingChargeId(chargeId);
+    setEditChargeDesc(description);
+    setEditChargeAmount(String(amount));
+  }
+
+  function saveChargeEdit() {
+    if (!editingChargeId || !editChargeDesc.trim() || !editChargeAmount) return;
+    startChargeTransition(async () => {
+      const res = await updateSettledBookingCharge({
+        chargeId: editingChargeId,
+        bookingId: booking.id,
+        description: editChargeDesc,
+        amount: Number(editChargeAmount),
+      });
+      if (res.ok) {
+        setEditingChargeId(null);
+        onDone(`${booking.guest_name}'s charge updated — reopen to see the new total.`);
+      } else {
+        setError(res.error ?? "Could not update the charge.");
+      }
+    });
+  }
+
+  function removeCharge(chargeId: string) {
+    startChargeTransition(async () => {
+      const res = await deleteSettledBookingCharge(chargeId);
+      if (res.ok) onDone(`${booking.guest_name}'s charge removed — reopen to see the new total.`);
+      else setError(res.error ?? "Could not remove the charge.");
+    });
+  }
+
+  function addCharge() {
+    if (!newChargeDesc.trim() || !newChargeAmount) return;
+    startChargeTransition(async () => {
+      const res = await addSettledBookingCharge({
+        bookingId: booking.id,
+        description: newChargeDesc,
+        amount: Number(newChargeAmount),
+      });
+      if (res.ok) {
+        setNewChargeDesc("");
+        setNewChargeAmount("");
+        onDone(`${booking.guest_name}'s charge added — reopen to see the new total.`);
+      } else {
+        setError(res.error ?? "Could not add the charge.");
+      }
+    });
+  }
 
   function submit() {
     if (paymentMethod === "credit" && !creditAccountId) {
@@ -366,6 +593,105 @@ function EditBookingDialog({
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label className="text-xs text-muted-foreground">Charges on this booking</Label>
+          <p className="text-[10px] text-muted-foreground">
+            Extends, minibar, custom charges — not the base room rate itself.
+          </p>
+          <div className="max-h-52 space-y-1.5 overflow-y-auto rounded-md border p-2">
+            {booking.charges.map((c) =>
+              editingChargeId === c.id ? (
+                <div key={c.id} className="flex items-center gap-2 text-sm">
+                  <Input
+                    value={editChargeDesc}
+                    onChange={(e) => setEditChargeDesc(e.target.value)}
+                    className="h-7 flex-1 text-xs"
+                    disabled={chargePending}
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={editChargeAmount}
+                    onChange={(e) => setEditChargeAmount(e.target.value)}
+                    className="h-7 w-20 text-xs"
+                    disabled={chargePending}
+                  />
+                  <Button size="sm" className="h-7 px-2 text-xs" onClick={saveChargeEdit} disabled={chargePending}>
+                    Save
+                  </Button>
+                  <Button
+                    size="sm"
+                    variant="ghost"
+                    className="h-7 px-2 text-xs"
+                    onClick={() => setEditingChargeId(null)}
+                    disabled={chargePending}
+                  >
+                    Cancel
+                  </Button>
+                </div>
+              ) : (
+                <div key={c.id} className="flex items-center gap-2 text-sm">
+                  <span className="min-w-0 flex-1 truncate">{c.description}</span>
+                  <span className="w-20 shrink-0 text-right tabular-nums text-xs">{formatLKR(c.amount)}</span>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0"
+                    onClick={() => startEditCharge(c.id, c.description, c.amount)}
+                    disabled={chargePending}
+                  >
+                    <Pencil className="h-3.5 w-3.5" />
+                  </Button>
+                  <Button
+                    size="icon"
+                    variant="ghost"
+                    className="h-7 w-7 shrink-0 text-destructive hover:text-destructive"
+                    onClick={() => removeCharge(c.id)}
+                    disabled={chargePending}
+                  >
+                    <Trash2 className="h-3.5 w-3.5" />
+                  </Button>
+                </div>
+              )
+            )}
+            {booking.charges.length === 0 && (
+              <p className="py-2 text-center text-xs text-muted-foreground">No extra charges on this booking.</p>
+            )}
+          </div>
+          <div className="flex items-end gap-2">
+            <Input
+              value={newChargeDesc}
+              onChange={(e) => setNewChargeDesc(e.target.value)}
+              placeholder="Add charge — description"
+              className="h-8 flex-1 text-xs"
+              disabled={chargePending}
+            />
+            <Input
+              type="number"
+              min="0"
+              step="0.01"
+              value={newChargeAmount}
+              onChange={(e) => setNewChargeAmount(e.target.value)}
+              placeholder="Amount"
+              className="h-8 w-24 text-xs"
+              disabled={chargePending}
+            />
+            <Button
+              size="sm"
+              variant="outline"
+              onClick={addCharge}
+              disabled={chargePending || !newChargeDesc.trim() || !newChargeAmount}
+            >
+              <Plus className="h-3.5 w-3.5" />
+            </Button>
+          </div>
+          <p className="text-xs text-amber-500">
+            Adding, editing, or removing a charge updates the folio automatically — reopen this
+            dialog to see the refreshed total below.
+          </p>
+        </div>
+
         <div className="space-y-1.5">
           <Label htmlFor="eb-payment">Paid by</Label>
           <Select id="eb-payment" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>

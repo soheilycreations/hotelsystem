@@ -64,6 +64,47 @@ export async function logExpense(formData: FormData): Promise<ActionResult> {
   }
 }
 
+export async function updateExpense(expenseId: string, formData: FormData): Promise<ActionResult> {
+  try {
+    await assertFinanceRole();
+    const supabase = await createClient();
+
+    const categoryId = String(formData.get("category_id") ?? "");
+    const amount = Number(formData.get("amount") ?? 0);
+    const date = String(formData.get("date") ?? "");
+    const description = String(formData.get("description") ?? "").trim();
+    const paymentMethod = String(formData.get("payment_method") ?? "cash");
+    const division = String(formData.get("division") ?? "restaurant");
+
+    if (!categoryId) return { ok: false, error: "Pick a valid expense category." };
+    if (!Number.isFinite(amount) || amount <= 0)
+      return { ok: false, error: "Amount must be greater than zero." };
+    if (!date) return { ok: false, error: "Pick the expense date." };
+    if (!["cash", "card", "bank_transfer"].includes(paymentMethod))
+      return { ok: false, error: "Pick a valid payment method." };
+    if (!["restaurant", "room"].includes(division))
+      return { ok: false, error: "Pick a valid allocation." };
+
+    const { error } = await supabase
+      .from("expenses")
+      .update({
+        category_id: categoryId,
+        amount,
+        date,
+        description: description || null,
+        payment_method: paymentMethod,
+        division,
+      })
+      .eq("id", expenseId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidateFinance();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 export async function deleteExpense(expenseId: string): Promise<ActionResult> {
   try {
     await assertFinanceRole();

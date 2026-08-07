@@ -549,3 +549,108 @@ export function openPdfBlob(blob: Blob): void {
   window.open(url, "_blank", "noopener");
   setTimeout(() => URL.revokeObjectURL(url), 60_000);
 }
+
+export interface ExpensesReportEntry {
+  date: string;
+  category: string;
+  description: string | null;
+  division: string;
+  paymentMethod: string;
+  amount: number;
+  loggedBy: string | null;
+}
+
+export interface ExpensesReportData {
+  hotelName: string;
+  fromDate: string;
+  toDate: string;
+  entries: ExpensesReportEntry[];
+}
+
+const DIVISION_LABEL: Record<string, string> = { room: "Room", restaurant: "Restaurant" };
+const PAYMENT_LABEL_PDF: Record<string, string> = {
+  cash: "Cash",
+  card: "Card",
+  bank_transfer: "Bank Transfer",
+  complimentary: "Complimentary",
+  credit: "Credit",
+};
+
+export async function generateExpensesReportPdf(data: ExpensesReportData): Promise<Blob> {
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
+  const W = A4[0];
+  const colRight = W - MARGIN;
+
+  const pretty = (d: string) =>
+    new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+
+  l.title(data.hotelName);
+  l.subtitle(`Expenses — ${pretty(data.fromDate)} to ${pretty(data.toDate)}`);
+  l.divider();
+
+  l.row(
+    [
+      { text: "Date", x: MARGIN },
+      { text: "Category", x: MARGIN + 20 },
+      { text: "Description", x: MARGIN + 55 },
+      { text: "Division", x: MARGIN + 122 },
+      { text: "Paid by", x: MARGIN + 148 },
+      { text: "Amount", x: colRight, align: "right" },
+    ],
+    9,
+    true
+  );
+
+  let total = 0;
+  const byCategory = new Map<string, number>();
+  const byDivision = new Map<string, number>();
+
+  for (const e of data.entries) {
+    total += e.amount;
+    byCategory.set(e.category, (byCategory.get(e.category) ?? 0) + e.amount);
+    const divisionLabel = DIVISION_LABEL[e.division] ?? e.division;
+    byDivision.set(divisionLabel, (byDivision.get(divisionLabel) ?? 0) + e.amount);
+
+    l.row([
+      { text: new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
+      { text: e.category.slice(0, 18), x: MARGIN + 20 },
+      { text: (e.description ?? "—").slice(0, 32), x: MARGIN + 55 },
+      { text: divisionLabel, x: MARGIN + 122 },
+      { text: PAYMENT_LABEL_PDF[e.paymentMethod] ?? e.paymentMethod, x: MARGIN + 148 },
+      { text: fmt(e.amount), x: colRight, align: "right" },
+    ]);
+  }
+
+  if (data.entries.length === 0) {
+    l.row([{ text: "No expenses logged in this range.", x: MARGIN }], 9);
+  }
+
+  l.divider();
+  l.row(
+    [
+      { text: `Total (${data.entries.length} entries)`, x: MARGIN },
+      { text: fmt(total), x: colRight, align: "right" },
+    ],
+    11,
+    true
+  );
+
+  l.sectionHeader("By category");
+  for (const [category, amount] of Array.from(byCategory.entries()).sort((a, b) => b[1] - a[1])) {
+    l.row([
+      { text: category, x: MARGIN },
+      { text: fmt(amount), x: colRight, align: "right" },
+    ]);
+  }
+
+  l.sectionHeader("By division");
+  for (const [division, amount] of Array.from(byDivision.entries())) {
+    l.row([
+      { text: division, x: MARGIN },
+      { text: fmt(amount), x: colRight, align: "right" },
+    ]);
+  }
+
+  return doc.output("blob");
+}
