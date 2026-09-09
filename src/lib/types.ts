@@ -184,6 +184,7 @@ export interface RestaurantOrder {
   total_amount: number;
   order_status: OrderStatus;
   payment_method: PaymentMethod | null;
+  settled_at: string | null;
   credit_account_id: string | null;
   service_charge_waived: boolean;
   delivery_status: DeliveryStatus | null;

@@ -180,6 +180,7 @@ create table public.restaurant_orders (
   total_amount     numeric(14,2) not null default 0 check (total_amount >= 0),
   order_status     order_status not null default 'active',
   payment_method   payment_method, -- set at settle time
+  settled_at       timestamptz, -- stamped only at settle time (updated_at touches on every edit)
   service_charge_waived boolean not null default false, -- per-bill SC override
   credit_account_id uuid references public.credit_accounts (id), -- set when payment_method = 'credit'
   delivery_status  delivery_status,

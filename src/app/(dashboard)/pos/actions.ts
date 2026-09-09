@@ -463,6 +463,7 @@ export async function settleOrder(
     // "cash", which would mislabel it.
     let patch: Record<string, unknown> = {
       order_status: "completed",
+      settled_at: new Date().toISOString(),
       service_charge_waived: serviceChargeWaived,
     };
     if (paymentMethod) patch.payment_method = paymentMethod;
