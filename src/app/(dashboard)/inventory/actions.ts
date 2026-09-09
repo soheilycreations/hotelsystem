@@ -225,7 +225,11 @@ export async function removeRecipeIngredient(recipeIngredientId: string): Promis
 }
 
 export interface PurchaseLineInput {
+  /** Set for an existing item; leave empty and set newItemName/newItemUnit
+   * instead to create the item as part of this same purchase. */
   inventoryItemId: string;
+  newItemName?: string;
+  newItemUnit?: InventoryUnit;
   quantity: number;
   unitPrice: number;
   /** How many of the item's storage unit (grams/ml/units) one purchased
@@ -250,7 +254,9 @@ export async function recordPurchase(
   try {
     await assertRole(RECIPE_ROLES);
 
-    const lines = items.filter((i) => i.inventoryItemId && i.quantity > 0 && i.unitPrice >= 0);
+    const lines = items.filter(
+      (i) => (i.inventoryItemId || (i.newItemName && i.newItemUnit)) && i.quantity > 0 && i.unitPrice >= 0
+    );
     if (lines.length === 0) return { ok: false, error: "Add at least one item with a quantity." };
     if (lines.some((l) => !Number.isFinite(l.packSize) || l.packSize <= 0))
       return { ok: false, error: "Pack size must be greater than zero." };
@@ -260,7 +266,9 @@ export async function recordPurchase(
       p_supplier_name: supplierName.trim() || null,
       p_notes: notes.trim() || null,
       p_items: lines.map((l) => ({
-        inventory_item_id: l.inventoryItemId,
+        inventory_item_id: l.inventoryItemId || null,
+        new_item_name: l.inventoryItemId ? null : l.newItemName?.trim() || null,
+        new_item_unit: l.inventoryItemId ? null : l.newItemUnit ?? null,
         quantity: l.quantity,
         unit_price: l.unitPrice,
         pack_size: l.packSize,

@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { Loader2, Plus, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { Loader2, Plus, ShoppingCart, Trash2, Truck, X } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -30,9 +30,27 @@ const UNIT_PRESETS: Record<InventoryUnit, { label: string; factor: number }[]> =
   ],
 };
 
+/** Label for the "set your own conversion" option — phrased in the term a
+ * hotel actually buys that unit in, not the word "custom". */
+const CUSTOM_UNIT_LABEL: Record<InventoryUnit, string> = {
+  grams: "Packet / Box…",
+  ml: "Bottle…",
+  units: "Packet / Box…",
+};
+const CUSTOM_UNIT_NOUN: Record<InventoryUnit, string> = {
+  grams: "packet",
+  ml: "bottle",
+  units: "packet",
+};
+
+const NEW_ITEM_VALUE = "__new__";
+
 interface DraftLine {
   key: number;
   inventoryItemId: string;
+  isNewItem: boolean;
+  newItemName: string;
+  newItemUnit: InventoryUnit;
   quantity: string;
   unitPrice: string;
   packSize: string; // how many of the item's storage unit one purchased unit equals
@@ -41,7 +59,17 @@ interface DraftLine {
 
 let nextKey = 1;
 function emptyLine(defaultItemId: string): DraftLine {
-  return { key: nextKey++, inventoryItemId: defaultItemId, quantity: "", unitPrice: "", packSize: "1", customPack: false };
+  return {
+    key: nextKey++,
+    inventoryItemId: defaultItemId,
+    isNewItem: false,
+    newItemName: "",
+    newItemUnit: "grams",
+    quantity: "",
+    unitPrice: "",
+    packSize: "1",
+    customPack: false,
+  };
 }
 
 export function PurchasingDesk({
@@ -86,27 +114,32 @@ export function PurchasingDesk({
   function submit() {
     setError(null);
     setFeedback(null);
-    const parsed: PurchaseLineInput[] = lines
-      .filter((l) => l.inventoryItemId && l.quantity.trim() !== "")
-      .map((l) => ({
-        inventoryItemId: l.inventoryItemId,
-        quantity: Number(l.quantity),
-        unitPrice: Number(l.unitPrice) || 0,
-        packSize: Number(l.packSize) || 1,
-      }));
 
-    if (parsed.length === 0) {
+    const candidates = lines.filter(
+      (l) => (l.isNewItem ? l.newItemName.trim() !== "" : l.inventoryItemId !== "") && l.quantity.trim() !== ""
+    );
+
+    if (candidates.length === 0) {
       setError("Add at least one item with a quantity.");
       return;
     }
-    if (parsed.some((l) => !Number.isFinite(l.quantity) || l.quantity <= 0)) {
+    if (candidates.some((l) => !Number.isFinite(Number(l.quantity)) || Number(l.quantity) <= 0)) {
       setError("Every line needs a quantity greater than zero.");
       return;
     }
-    if (parsed.some((l) => l.packSize <= 0)) {
+    if (candidates.some((l) => !Number.isFinite(Number(l.packSize)) || Number(l.packSize) <= 0)) {
       setError("Pack size must be greater than zero.");
       return;
     }
+
+    const parsed: PurchaseLineInput[] = candidates.map((l) => ({
+      inventoryItemId: l.isNewItem ? "" : l.inventoryItemId,
+      newItemName: l.isNewItem ? l.newItemName.trim() : undefined,
+      newItemUnit: l.isNewItem ? l.newItemUnit : undefined,
+      quantity: Number(l.quantity),
+      unitPrice: Number(l.unitPrice) || 0,
+      packSize: Number(l.packSize) || 1,
+    }));
 
     startTransition(async () => {
       const res = await recordPurchase(supplierName, notes, paymentMethod, parsed);
@@ -155,38 +188,77 @@ export function PurchasingDesk({
               const price = Number(line.unitPrice) || 0;
               const packSize = Number(line.packSize) || 0;
               const lineTotal = qty * price;
-              const item = itemById.get(line.inventoryItemId);
-              const presets = item ? UNIT_PRESETS[item.unit] : [];
+              const existingItem = itemById.get(line.inventoryItemId);
+              const unit = line.isNewItem ? line.newItemUnit : existingItem?.unit;
+              const presets = unit ? UNIT_PRESETS[unit] : [];
 
               return (
                 <div key={line.key} className="space-y-2 rounded-md border p-2.5">
                   <div className="flex items-center gap-2">
-                    <div className="flex-1">
-                      <Select
-                        value={line.inventoryItemId}
-                        onChange={(e) => updateLine(line.key, { inventoryItemId: e.target.value, packSize: "1", customPack: false })}
+                    {line.isNewItem ? (
+                      <>
+                        <Input
+                          value={line.newItemName}
+                          onChange={(e) => updateLine(line.key, { newItemName: e.target.value })}
+                          placeholder="New item name…"
+                          className="flex-1"
+                          autoFocus
+                        />
+                        <Select
+                          value={line.newItemUnit}
+                          onChange={(e) => updateLine(line.key, { newItemUnit: e.target.value as InventoryUnit, packSize: "1", customPack: false })}
+                          className="w-28"
+                        >
+                          <option value="grams">grams</option>
+                          <option value="ml">ml</option>
+                          <option value="units">units</option>
+                        </Select>
+                        <Button
+                          variant="ghost"
+                          size="icon"
+                          aria-label="Cancel new item"
+                          onClick={() => updateLine(line.key, { isNewItem: false, newItemName: "" })}
+                        >
+                          <X className="h-4 w-4" />
+                        </Button>
+                      </>
+                    ) : (
+                      <div className="flex-1">
+                        <Select
+                          value={line.inventoryItemId}
+                          onChange={(e) => {
+                            if (e.target.value === NEW_ITEM_VALUE) {
+                              updateLine(line.key, { isNewItem: true, inventoryItemId: "", packSize: "1", customPack: false });
+                            } else {
+                              updateLine(line.key, { inventoryItemId: e.target.value, packSize: "1", customPack: false });
+                            }
+                          }}
+                        >
+                          <option value="">Select item…</option>
+                          {inventoryItems.map((i) => (
+                            <option key={i.id} value={i.id}>
+                              {i.name} — tracked in {i.unit}
+                            </option>
+                          ))}
+                          <option value={NEW_ITEM_VALUE}>+ Add new item…</option>
+                        </Select>
+                      </div>
+                    )}
+                    {!line.isNewItem && (
+                      <Button
+                        variant="ghost"
+                        size="icon"
+                        aria-label="Remove line"
+                        disabled={lines.length === 1}
+                        onClick={() => removeLine(line.key)}
                       >
-                        <option value="">Select item…</option>
-                        {inventoryItems.map((i) => (
-                          <option key={i.id} value={i.id}>
-                            {i.name} — tracked in {i.unit}
-                          </option>
-                        ))}
-                      </Select>
-                    </div>
-                    <Button
-                      variant="ghost"
-                      size="icon"
-                      aria-label="Remove line"
-                      disabled={lines.length === 1}
-                      onClick={() => removeLine(line.key)}
-                    >
-                      <Trash2 className="h-4 w-4" />
-                    </Button>
+                        <Trash2 className="h-4 w-4" />
+                      </Button>
+                    )}
                   </div>
 
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
-                    {item && (
+                    {unit && (
                       <Select
                         value={line.customPack ? "custom" : line.packSize}
                         onChange={(e) => {
@@ -203,12 +275,12 @@ export function PurchasingDesk({
                             Buy in {p.label}
                           </option>
                         ))}
-                        <option value="custom">Buy in… (custom)</option>
+                        <option value="custom">Buy in {unit ? CUSTOM_UNIT_LABEL[unit] : "…"}</option>
                       </Select>
                     )}
-                    {item && line.customPack && (
+                    {unit && line.customPack && (
                       <span className="flex items-center gap-1">
-                        1 unit =
+                        1 {CUSTOM_UNIT_NOUN[unit]} =
                         <Input
                           type="number"
                           min="0.0001"
@@ -218,7 +290,7 @@ export function PurchasingDesk({
                           className="h-8 w-20"
                           autoFocus
                         />
-                        {item.unit}
+                        {unit}
                       </span>
                     )}
                     <Input
@@ -242,10 +314,16 @@ export function PurchasingDesk({
                     <span className="ml-auto text-right font-medium tabular-nums text-foreground">{formatLKR(lineTotal)}</span>
                   </div>
 
-                  {item && qty > 0 && packSize > 0 && (
+                  {unit && qty > 0 && packSize > 0 && (
                     <p className="text-xs text-muted-foreground">
-                      Adds <span className="font-medium text-foreground">{(qty * packSize).toLocaleString()} {item.unit}</span> to{" "}
-                      {item.name}&apos;s stock (currently {Number(item.quantity_in_stock).toLocaleString()} {item.unit}).
+                      Adds <span className="font-medium text-foreground">{(qty * packSize).toLocaleString()} {unit}</span>{" "}
+                      {line.isNewItem ? (
+                        <>as opening stock for the new item &ldquo;{line.newItemName || "…"}&rdquo;.</>
+                      ) : (
+                        <>
+                          to {existingItem?.name}&apos;s stock (currently {Number(existingItem?.quantity_in_stock ?? 0).toLocaleString()} {unit}).
+                        </>
+                      )}
                     </p>
                   )}
                 </div>
@@ -275,8 +353,8 @@ export function PurchasingDesk({
             Record purchase
           </Button>
           <p className="text-xs text-muted-foreground">
-            Stock tops up for every item above and one matching expense (category &ldquo;Purchasing&rdquo;) posts
-            automatically for the total — both happen together, or neither does.
+            Stock tops up for every item above (new items are created on the spot) and one matching expense
+            (category &ldquo;Purchasing&rdquo;) posts automatically for the total — all together, or none of it does.
           </p>
         </CardContent>
       </Card>

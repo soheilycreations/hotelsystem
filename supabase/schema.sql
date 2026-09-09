@@ -565,7 +565,7 @@ for each row execute function public.tg_low_stock_alert();
 create or replace function public.rpc_record_purchase(
   p_supplier_name  text,
   p_notes          text,
-  p_items          jsonb, -- [{"inventory_item_id","quantity","unit_price","pack_size"}, ...]
+  p_items          jsonb, -- [{"inventory_item_id"?,"new_item_name"?,"new_item_unit"?,"quantity","unit_price","pack_size"}, ...]
   p_payment_method payment_method default 'cash'
 )
 returns uuid
@@ -580,6 +580,9 @@ declare
   v_expense_id        uuid;
   v_item              jsonb;
   v_pack_size         numeric;
+  v_inventory_item_id uuid;
+  v_new_name          text;
+  v_new_unit          text;
 begin
   v_role := public.get_my_role();
   if v_role is null or v_role not in ('admin', 'manager') then
@@ -614,10 +617,25 @@ begin
       v_pack_size := 1;
     end if;
 
+    v_inventory_item_id := nullif(v_item->>'inventory_item_id', '')::uuid;
+
+    if v_inventory_item_id is null then
+      v_new_name := nullif(trim(coalesce(v_item->>'new_item_name', '')), '');
+      v_new_unit := nullif(v_item->>'new_item_unit', '');
+      if v_new_name is null or v_new_unit is null then
+        raise exception 'Every line needs either an existing item or a name + unit for a new one.';
+      end if;
+
+      insert into public.inventory_items (name, unit, quantity_in_stock, unit_cost, reorder_level)
+      values (v_new_name, v_new_unit::inventory_unit, 0, 0, 0)
+      on conflict (name) do update set name = excluded.name
+      returning id into v_inventory_item_id;
+    end if;
+
     insert into public.purchase_items (purchase_id, inventory_item_id, quantity, unit_price, pack_size)
     values (
       v_purchase_id,
-      (v_item->>'inventory_item_id')::uuid,
+      v_inventory_item_id,
       (v_item->>'quantity')::numeric,
       (v_item->>'unit_price')::numeric,
       v_pack_size
@@ -630,7 +648,7 @@ begin
     update public.inventory_items
     set quantity_in_stock = quantity_in_stock + (v_item->>'quantity')::numeric * v_pack_size,
         unit_cost = (v_item->>'unit_price')::numeric / v_pack_size
-    where id = (v_item->>'inventory_item_id')::uuid;
+    where id = v_inventory_item_id;
   end loop;
 
   insert into public.expenses (category_id, amount, date, description, payment_method, division, logged_by)
