@@ -2,7 +2,7 @@ import Link from "next/link";
 import { Settings } from "lucide-react";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import { canAccess } from "@/lib/types";
-import type { Booking, MenuCategoryRow, MenuItem, RestaurantOrder, RestaurantTable } from "@/lib/types";
+import type { Booking, CreditAccount, HotelSettings, MenuCategoryRow, MenuItem, RestaurantOrder, RestaurantTable } from "@/lib/types";
 import { Button } from "@/components/ui/button";
 import { LiveRefresher } from "../../live-refresher";
 import { PosTerminal } from "./pos-terminal";
@@ -16,7 +16,7 @@ export default async function PosActivePage() {
   const canManageTables = profile ? canAccess(profile.role, "/pos/tables") : false;
   const canVoid = profile?.role === "admin";
 
-  const [tablesRes, categoriesRes, menuRes, ordersRes, guestsRes] = await Promise.all([
+  const [tablesRes, categoriesRes, menuRes, ordersRes, guestsRes, hotelRes, creditAccountsRes] = await Promise.all([
     supabase.from("restaurant_tables").select("*").order("table_number"),
     supabase.from("menu_categories").select("*").order("sort_order"),
     supabase
@@ -36,6 +36,8 @@ export default async function PosActivePage() {
       .select("id, guest_name, rooms(room_number)")
       .eq("status", "checked_in")
       .order("guest_name"),
+    supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),
+    supabase.from("credit_accounts").select("*").order("name"),
   ]);
 
   return (
@@ -63,6 +65,8 @@ export default async function PosActivePage() {
         orders={(ordersRes.data ?? []) as RestaurantOrder[]}
         guests={(guestsRes.data ?? []) as unknown as Pick<Booking, "id" | "guest_name" | "rooms">[]}
         canVoid={canVoid}
+        hotel={(hotelRes.data as HotelSettings | null) ?? null}
+        creditAccounts={(creditAccountsRes.data as CreditAccount[] | null) ?? []}
       />
     </div>
   );
