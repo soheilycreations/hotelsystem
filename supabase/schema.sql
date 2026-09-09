@@ -157,6 +157,7 @@ create table public.menu_items (
   service_chargeable boolean not null default true, -- false for items that should never attract service charge
   is_available  boolean not null default true,
   image_url     text, -- public URL in the 'menu-images' storage bucket, see section 11
+  station       kitchen_station, -- null = use the category's station; set = override it for this item
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );

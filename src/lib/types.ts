@@ -152,10 +152,20 @@ export interface MenuItem {
   service_chargeable: boolean;
   is_available: boolean;
   image_url: string | null;
+  station: KitchenStation | null; // null = inherit the category's station
   created_at: string;
   updated_at: string;
   menu_categories?: MenuCategoryRow; // joined
   menu_recipe_ingredients?: Pick<MenuRecipeIngredient, "id">[]; // joined (recipe presence check)
+}
+
+/** The station a menu item's KOT/BOT actually prints to — its own override
+ * if set, otherwise its category's station, otherwise kitchen. */
+export function itemStation(item: {
+  station?: KitchenStation | null;
+  menu_categories?: Pick<MenuCategoryRow, "station"> | null;
+}): KitchenStation {
+  return item.station ?? item.menu_categories?.station ?? "kitchen";
 }
 
 export interface RestaurantOrder {

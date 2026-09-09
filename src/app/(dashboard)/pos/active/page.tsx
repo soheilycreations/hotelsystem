@@ -27,7 +27,7 @@ export default async function PosActivePage() {
     supabase
       .from("restaurant_orders")
       .select(
-        "*, restaurant_tables(table_number), bookings(guest_name, rooms(room_number)), order_items(*, menu_items(name, menu_categories(station), menu_recipe_ingredients(id)))"
+        "*, restaurant_tables(table_number), bookings(guest_name, rooms(room_number)), order_items(*, menu_items(name, station, menu_categories(station), menu_recipe_ingredients(id)))"
       )
       .eq("order_status", "active")
       .order("created_at", { ascending: false }),

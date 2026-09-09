@@ -32,6 +32,7 @@ import type {
   RestaurantTable,
   TableStatus,
 } from "@/lib/types";
+import { itemStation } from "@/lib/types";
 import { cn, formatLKR } from "@/lib/utils";
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import {
@@ -409,14 +410,14 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                       <img src={m.image_url} alt="" className="h-full w-full object-cover" />
                     ) : (
                       <div className="flex h-full w-full items-center justify-center">
-                        {m.menu_categories?.station === "bar" ? (
+                        {itemStation(m) === "bar" ? (
                           <Beer className="h-6 w-6 text-muted-foreground/40" />
                         ) : (
                           <ChefHat className="h-6 w-6 text-muted-foreground/40" />
                         )}
                       </div>
                     )}
-                    {m.menu_categories?.station === "bar" && (
+                    {itemStation(m) === "bar" && (
                       <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/90 shadow-sm">
                         <Beer className="h-3 w-3 text-primary" />
                       </span>
@@ -597,12 +598,13 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                 </div>
 
                 {/* KOT / BOT — send new items to the kitchen or bar, split by
-                    each item's category station so drinks fire to the bar
-                    printer and food fires to the kitchen printer. */}
+                    each item's station (its own override, else its
+                    category's) so drinks fire to the bar printer and food
+                    fires to the kitchen printer. */}
                 {(() => {
                   const nonCustom = (selectedOrder.order_items ?? []).filter((i) => !i.is_custom);
                   const isBar = (i: (typeof nonCustom)[number]) =>
-                    i.menu_items?.menu_categories?.station === "bar";
+                    i.menu_items ? itemStation(i.menu_items) === "bar" : false;
                   const kitchenItems = nonCustom.filter((i) => !isBar(i));
                   const barItems = nonCustom.filter(isBar);
                   const pendingKitchen = kitchenItems.filter((i) => !i.kot_printed_at);

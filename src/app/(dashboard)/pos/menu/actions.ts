@@ -33,6 +33,7 @@ function parseMenuForm(formData: FormData):
       otherCost: number;
       serviceChargeable: boolean;
       imageUrl: string | null;
+      station: "kitchen" | "bar" | null;
     }
   | { ok: false; error: string } {
   const name = String(formData.get("name") ?? "").trim();
@@ -41,6 +42,8 @@ function parseMenuForm(formData: FormData):
   const otherCost = Number(formData.get("other_cost") ?? 0);
   const serviceChargeable = formData.get("service_chargeable") === "on";
   const imageUrl = String(formData.get("image_url") ?? "").trim() || null;
+  const stationRaw = String(formData.get("station") ?? "");
+  const station = stationRaw === "kitchen" || stationRaw === "bar" ? stationRaw : null;
 
   if (!name) return { ok: false, error: "Item name is required." };
   if (!categoryId) return { ok: false, error: "Pick a category." };
@@ -48,7 +51,7 @@ function parseMenuForm(formData: FormData):
     return { ok: false, error: "Selling price must be greater than zero." };
   if (!Number.isFinite(otherCost) || otherCost < 0)
     return { ok: false, error: "Other costs can't be negative." };
-  return { ok: true, name, categoryId, price, otherCost, serviceChargeable, imageUrl };
+  return { ok: true, name, categoryId, price, otherCost, serviceChargeable, imageUrl, station };
 }
 
 export async function createMenuItem(formData: FormData): Promise<ActionResult> {
@@ -65,6 +68,7 @@ export async function createMenuItem(formData: FormData): Promise<ActionResult> 
       other_cost: parsed.otherCost,
       service_chargeable: parsed.serviceChargeable,
       image_url: parsed.imageUrl,
+      station: parsed.station,
       is_available: true,
     });
     if (error) return { ok: false, error: error.message };
@@ -97,6 +101,7 @@ export async function updateMenuItem(
         other_cost: parsed.otherCost,
         service_chargeable: parsed.serviceChargeable,
         image_url: parsed.imageUrl,
+        station: parsed.station,
       })
       .eq("id", menuItemId);
     if (error) return { ok: false, error: error.message };
