@@ -1,0 +1,251 @@
+"use client";
+
+import { useMemo, useState, useTransition } from "react";
+import { Loader2, Plus, ShoppingCart, Trash2, Truck } from "lucide-react";
+import { Badge } from "@/components/ui/badge";
+import { Button } from "@/components/ui/button";
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Select } from "@/components/ui/select";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { formatDate, formatLKR } from "@/lib/utils";
+import type { InventoryItem, PaymentMethod, Purchase } from "@/lib/types";
+import { recordPurchase, type PurchaseLineInput } from "../actions";
+
+interface DraftLine {
+  key: number;
+  inventoryItemId: string;
+  quantity: string;
+  unitPrice: string;
+}
+
+let nextKey = 1;
+function emptyLine(defaultItemId: string): DraftLine {
+  return { key: nextKey++, inventoryItemId: defaultItemId, quantity: "", unitPrice: "" };
+}
+
+export function PurchasingDesk({
+  inventoryItems,
+  recentPurchases,
+}: {
+  inventoryItems: InventoryItem[];
+  recentPurchases: Purchase[];
+}) {
+  const [supplierName, setSupplierName] = useState("");
+  const [notes, setNotes] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [lines, setLines] = useState<DraftLine[]>([emptyLine(inventoryItems[0]?.id ?? "")]);
+  const [feedback, setFeedback] = useState<string | null>(null);
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const itemById = useMemo(() => new Map(inventoryItems.map((i) => [i.id, i])), [inventoryItems]);
+
+  const total = useMemo(
+    () =>
+      lines.reduce((sum, l) => {
+        const qty = Number(l.quantity);
+        const price = Number(l.unitPrice);
+        return sum + (Number.isFinite(qty) && Number.isFinite(price) ? qty * price : 0);
+      }, 0),
+    [lines]
+  );
+
+  function updateLine(key: number, patch: Partial<DraftLine>) {
+    setLines((prev) => prev.map((l) => (l.key === key ? { ...l, ...patch } : l)));
+  }
+
+  function addLine() {
+    setLines((prev) => [...prev, emptyLine(inventoryItems[0]?.id ?? "")]);
+  }
+
+  function removeLine(key: number) {
+    setLines((prev) => (prev.length > 1 ? prev.filter((l) => l.key !== key) : prev));
+  }
+
+  function submit() {
+    setError(null);
+    setFeedback(null);
+    const parsed: PurchaseLineInput[] = lines
+      .filter((l) => l.inventoryItemId && l.quantity.trim() !== "")
+      .map((l) => ({ inventoryItemId: l.inventoryItemId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) || 0 }));
+
+    if (parsed.length === 0) {
+      setError("Add at least one item with a quantity.");
+      return;
+    }
+    if (parsed.some((l) => !Number.isFinite(l.quantity) || l.quantity <= 0)) {
+      setError("Every line needs a quantity greater than zero.");
+      return;
+    }
+
+    startTransition(async () => {
+      const res = await recordPurchase(supplierName, notes, paymentMethod, parsed);
+      if (!res.ok) {
+        setError(res.error ?? "Could not record the purchase.");
+        return;
+      }
+      setFeedback(`Purchase recorded — Rs ${total.toLocaleString("en-LK", { minimumFractionDigits: 2 })} added to stock and logged as an expense.`);
+      setSupplierName("");
+      setNotes("");
+      setLines([emptyLine(inventoryItems[0]?.id ?? "")]);
+    });
+  }
+
+  return (
+    <div className="grid gap-6 lg:grid-cols-[1fr_420px]">
+      {/* Bill entry */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="flex items-center gap-2 text-base">
+            <Truck className="h-4 w-4" />
+            New supplier bill
+          </CardTitle>
+        </CardHeader>
+        <CardContent className="space-y-4">
+          <div className="grid gap-3 sm:grid-cols-2">
+            <div className="space-y-1.5">
+              <Label htmlFor="p-supplier">Supplier (optional)</Label>
+              <Input id="p-supplier" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="e.g. Cargills Wholesale" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="p-payment">Paid by</Label>
+              <Select id="p-payment" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+                <option value="cash">Cash</option>
+                <option value="card">Card</option>
+                <option value="bank_transfer">Bank Transfer</option>
+                <option value="credit">Credit</option>
+              </Select>
+            </div>
+          </div>
+
+          <div className="space-y-2">
+            <Label>Items</Label>
+            {lines.map((line) => {
+              const lineTotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0);
+              return (
+                <div key={line.key} className="flex items-center gap-2">
+                  <div className="flex-1">
+                    <Select
+                      value={line.inventoryItemId}
+                      onChange={(e) => updateLine(line.key, { inventoryItemId: e.target.value })}
+                    >
+                      <option value="">Select item…</option>
+                      {inventoryItems.map((i) => (
+                        <option key={i.id} value={i.id}>
+                          {i.name} ({i.unit})
+                        </option>
+                      ))}
+                    </Select>
+                  </div>
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.001"
+                    value={line.quantity}
+                    onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
+                    placeholder="Qty"
+                    className="w-24"
+                  />
+                  <Input
+                    type="number"
+                    min="0"
+                    step="0.01"
+                    value={line.unitPrice}
+                    onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
+                    placeholder="Unit price"
+                    className="w-28"
+                  />
+                  <span className="w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
+                    {formatLKR(lineTotal)}
+                  </span>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    aria-label="Remove line"
+                    disabled={lines.length === 1}
+                    onClick={() => removeLine(line.key)}
+                  >
+                    <Trash2 className="h-4 w-4" />
+                  </Button>
+                </div>
+              );
+            })}
+            <Button variant="outline" size="sm" onClick={addLine}>
+              <Plus className="mr-1.5 h-3.5 w-3.5" />
+              Add another item
+            </Button>
+          </div>
+
+          <div className="space-y-1.5">
+            <Label htmlFor="p-notes">Notes (optional)</Label>
+            <Input id="p-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="Invoice #, delivery notes…" />
+          </div>
+
+          <div className="flex items-center justify-between border-t pt-3">
+            <span className="text-sm font-medium">Total</span>
+            <span className="text-lg font-bold tabular-nums">{formatLKR(total)}</span>
+          </div>
+
+          {error && <p className="text-sm text-destructive">{error}</p>}
+          {feedback && <p className="rounded-md bg-muted px-3 py-2 text-xs">{feedback}</p>}
+
+          <Button className="w-full" disabled={pending || total <= 0} onClick={submit}>
+            {pending ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <ShoppingCart className="mr-2 h-4 w-4" />}
+            Record purchase
+          </Button>
+          <p className="text-xs text-muted-foreground">
+            Stock tops up for every item above and one matching expense (category &ldquo;Purchasing&rdquo;) posts
+            automatically for the total — both happen together, or neither does.
+          </p>
+        </CardContent>
+      </Card>
+
+      {/* History */}
+      <Card className="h-fit">
+        <CardHeader>
+          <CardTitle className="text-base">Recent purchases</CardTitle>
+        </CardHeader>
+        <CardContent className="px-0">
+          {recentPurchases.length === 0 ? (
+            <p className="px-6 text-sm text-muted-foreground">No purchases recorded yet.</p>
+          ) : (
+            <Table>
+              <TableHeader>
+                <TableRow>
+                  <TableHead>Date</TableHead>
+                  <TableHead>Supplier</TableHead>
+                  <TableHead className="text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {recentPurchases.map((p) => (
+                  <TableRow key={p.id}>
+                    <TableCell className="text-sm text-muted-foreground">{formatDate(p.purchase_date)}</TableCell>
+                    <TableCell className="text-sm">
+                      <div>{p.supplier_name ?? "—"}</div>
+                      {p.purchase_items && p.purchase_items.length > 0 && (
+                        <div className="mt-1 flex flex-wrap gap-1">
+                          {p.purchase_items.slice(0, 3).map((pi) => (
+                            <Badge key={pi.id} variant="secondary" className="text-xs">
+                              {itemById.get(pi.inventory_item_id)?.name ?? pi.inventory_items?.name ?? "item"} ×{pi.quantity}
+                            </Badge>
+                          ))}
+                          {p.purchase_items.length > 3 && (
+                            <span className="text-xs text-muted-foreground">+{p.purchase_items.length - 3} more</span>
+                          )}
+                        </div>
+                      )}
+                    </TableCell>
+                    <TableCell className="text-right font-medium tabular-nums">{formatLKR(Number(p.total_amount))}</TableCell>
+                  </TableRow>
+                ))}
+              </TableBody>
+            </Table>
+          )}
+        </CardContent>
+      </Card>
+    </div>
+  );
+}

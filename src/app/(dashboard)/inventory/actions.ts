@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import type { InventoryUnit } from "@/lib/types";
+import type { InventoryUnit, PaymentMethod } from "@/lib/types";
 
 interface ActionResult {
   ok: boolean;
@@ -218,6 +218,55 @@ export async function removeRecipeIngredient(recipeIngredientId: string): Promis
     if (error) return { ok: false, error: error.message };
 
     revalidatePath("/inventory/recipes");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export interface PurchaseLineInput {
+  inventoryItemId: string;
+  quantity: number;
+  unitPrice: number;
+}
+
+/**
+ * Records a supplier bill in one shot: inserts the purchase + its line
+ * items, tops up each item's stock and unit_cost, and posts one matching
+ * "Purchasing" expense for the bill total — all inside rpc_record_purchase
+ * (a single Postgres transaction), so stock and the expense ledger can
+ * never drift apart from a half-applied purchase.
+ */
+export async function recordPurchase(
+  supplierName: string,
+  notes: string,
+  paymentMethod: PaymentMethod,
+  items: PurchaseLineInput[]
+): Promise<ActionResult> {
+  try {
+    await assertRole(RECIPE_ROLES);
+
+    const lines = items.filter((i) => i.inventoryItemId && i.quantity > 0 && i.unitPrice >= 0);
+    if (lines.length === 0) return { ok: false, error: "Add at least one item with a quantity." };
+
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("rpc_record_purchase", {
+      p_supplier_name: supplierName.trim() || null,
+      p_notes: notes.trim() || null,
+      p_items: lines.map((l) => ({
+        inventory_item_id: l.inventoryItemId,
+        quantity: l.quantity,
+        unit_price: l.unitPrice,
+      })),
+      p_payment_method: paymentMethod,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/purchases");
+    revalidatePath("/finance/expenses");
+    revalidatePath("/finance/reports");
+    revalidatePath("/finance/daily-summary");
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };

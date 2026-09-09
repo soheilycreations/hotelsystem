@@ -46,9 +46,6 @@ export default async function PosActivePage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">POS terminal</h1>
-          <p className="text-sm text-muted-foreground">
-            Dine-in, room service, takeaway and delivery — one screen, synced live across terminals.
-          </p>
         </div>
         {canManageTables ? (
           <Button asChild variant="outline" size="icon" title="Manage tables — numbers, capacity, add/remove">
