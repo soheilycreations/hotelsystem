@@ -13,34 +13,25 @@ import { formatDate, formatLKR } from "@/lib/utils";
 import type { InventoryItem, InventoryUnit, PaymentMethod, Purchase } from "@/lib/types";
 import { recordPurchase, type PurchaseLineInput } from "../actions";
 
-/** Quick-fill options for "how many of the item's own storage unit does one
- * purchased unit equal" — e.g. buying "kg" of something tracked in grams. */
+/** "Buy in" options per storage unit. The count option (factor 1) is what a
+ * hotel actually buys day to day — a packet, a bottle — with no conversion
+ * math to do; the bulk option (kg/L/dozen) is a fixed, universal factor
+ * that's applied automatically. There's no "type your own conversion"
+ * option — packet/bottle sizes vary too much to make that worth asking for
+ * on every bill, so those lines just add the count as-is. */
 const UNIT_PRESETS: Record<InventoryUnit, { label: string; factor: number }[]> = {
   grams: [
-    { label: "Grams (g)", factor: 1 },
+    { label: "Packet / Box", factor: 1 },
     { label: "Kilograms (kg)", factor: 1000 },
   ],
   ml: [
-    { label: "Millilitres (ml)", factor: 1 },
+    { label: "Bottle", factor: 1 },
     { label: "Litres (L)", factor: 1000 },
   ],
   units: [
     { label: "Units", factor: 1 },
     { label: "Dozen (12)", factor: 12 },
   ],
-};
-
-/** Label for the "set your own conversion" option — phrased in the term a
- * hotel actually buys that unit in, not the word "custom". */
-const CUSTOM_UNIT_LABEL: Record<InventoryUnit, string> = {
-  grams: "Packet / Box…",
-  ml: "Bottle…",
-  units: "Packet / Box…",
-};
-const CUSTOM_UNIT_NOUN: Record<InventoryUnit, string> = {
-  grams: "packet",
-  ml: "bottle",
-  units: "packet",
 };
 
 const NEW_ITEM_VALUE = "__new__";
@@ -54,7 +45,6 @@ interface DraftLine {
   quantity: string;
   unitPrice: string;
   packSize: string; // how many of the item's storage unit one purchased unit equals
-  customPack: boolean; // true once "custom" is picked from the presets dropdown
 }
 
 let nextKey = 1;
@@ -68,7 +58,6 @@ function emptyLine(defaultItemId: string): DraftLine {
     quantity: "",
     unitPrice: "",
     packSize: "1",
-    customPack: false,
   };
 }
 
@@ -206,7 +195,7 @@ export function PurchasingDesk({
                         />
                         <Select
                           value={line.newItemUnit}
-                          onChange={(e) => updateLine(line.key, { newItemUnit: e.target.value as InventoryUnit, packSize: "1", customPack: false })}
+                          onChange={(e) => updateLine(line.key, { newItemUnit: e.target.value as InventoryUnit, packSize: "1" })}
                           className="w-28"
                         >
                           <option value="grams">grams</option>
@@ -228,9 +217,9 @@ export function PurchasingDesk({
                           value={line.inventoryItemId}
                           onChange={(e) => {
                             if (e.target.value === NEW_ITEM_VALUE) {
-                              updateLine(line.key, { isNewItem: true, inventoryItemId: "", packSize: "1", customPack: false });
+                              updateLine(line.key, { isNewItem: true, inventoryItemId: "", packSize: "1" });
                             } else {
-                              updateLine(line.key, { inventoryItemId: e.target.value, packSize: "1", customPack: false });
+                              updateLine(line.key, { inventoryItemId: e.target.value, packSize: "1" });
                             }
                           }}
                         >
@@ -260,14 +249,8 @@ export function PurchasingDesk({
                   <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
                     {unit && (
                       <Select
-                        value={line.customPack ? "custom" : line.packSize}
-                        onChange={(e) => {
-                          if (e.target.value === "custom") {
-                            updateLine(line.key, { customPack: true });
-                          } else {
-                            updateLine(line.key, { packSize: e.target.value, customPack: false });
-                          }
-                        }}
+                        value={line.packSize}
+                        onChange={(e) => updateLine(line.key, { packSize: e.target.value })}
                         className="h-8 w-36 text-xs"
                       >
                         {presets.map((p) => (
@@ -275,23 +258,7 @@ export function PurchasingDesk({
                             Buy in {p.label}
                           </option>
                         ))}
-                        <option value="custom">Buy in {unit ? CUSTOM_UNIT_LABEL[unit] : "…"}</option>
                       </Select>
-                    )}
-                    {unit && line.customPack && (
-                      <span className="flex items-center gap-1">
-                        1 {CUSTOM_UNIT_NOUN[unit]} =
-                        <Input
-                          type="number"
-                          min="0.0001"
-                          step="any"
-                          value={line.packSize}
-                          onChange={(e) => updateLine(line.key, { packSize: e.target.value })}
-                          className="h-8 w-20"
-                          autoFocus
-                        />
-                        {unit}
-                      </span>
                     )}
                     <Input
                       type="number"
