@@ -4,6 +4,7 @@ import { useMemo, useState, useTransition } from "react";
 import {
   Armchair,
   BadgePlus,
+  Beer,
   Bike,
   Check,
   ChefHat,
@@ -52,6 +53,7 @@ interface PosTerminalProps {
   menu: MenuItem[];
   orders: RestaurantOrder[];
   guests: Pick<Booking, "id" | "guest_name" | "rooms">[];
+  canVoid: boolean;
 }
 
 const TABLE_STYLES: Record<TableStatus, string> = {
@@ -63,7 +65,7 @@ const TABLE_STYLES: Record<TableStatus, string> = {
 
 const DELIVERY_FLOW: DeliveryStatus[] = ["pending", "cooking", "dispatched", "delivered"];
 
-export function PosTerminal({ tables, categories, menu, orders, guests }: PosTerminalProps) {
+export function PosTerminal({ tables, categories, menu, orders, guests, canVoid }: PosTerminalProps) {
   const [channel, setChannel] = useState<ChannelType>("dine_in");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [guestId, setGuestId] = useState("");
@@ -302,6 +304,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                   variant={categoryId === c.id ? "default" : "outline"}
                   onClick={() => setCategoryId(c.id)}
                 >
+                  {c.station === "bar" ? <Beer className="mr-1 h-3.5 w-3.5" /> : <ChefHat className="mr-1 h-3.5 w-3.5" />}
                   {c.name}
                 </Button>
               ))}
@@ -321,9 +324,12 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                   run(() => addOrderItem(selectedOrder.id, m.id, qty));
                   setAddQty("1");
                 }}
-                className="rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
+                className="relative rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
               >
-                <p className="font-medium leading-snug">{m.name}</p>
+                {m.menu_categories?.station === "bar" ? (
+                  <Beer className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+                ) : null}
+                <p className="pr-4 font-medium leading-snug">{m.name}</p>
                 <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
                   {formatLKR(Number(m.selling_price))}
                   {menuQuery.trim() !== "" ? <span className="ml-1.5">· {m.menu_categories?.name}</span> : null}
@@ -472,32 +478,55 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                   </div>
                 </div>
 
-                {/* KOT — send new items to the kitchen */}
+                {/* KOT / BOT — send new items to the kitchen or bar, split by
+                    each item's category station so drinks fire to the bar
+                    printer and food fires to the kitchen printer. */}
                 {(() => {
-                  const pendingKot = (selectedOrder.order_items ?? []).filter(
-                    (i) => !i.kot_printed_at && !i.is_custom
-                  );
+                  const nonCustom = (selectedOrder.order_items ?? []).filter((i) => !i.is_custom);
+                  const isBar = (i: (typeof nonCustom)[number]) =>
+                    i.menu_items?.menu_categories?.station === "bar";
+                  const kitchenItems = nonCustom.filter((i) => !isBar(i));
+                  const barItems = nonCustom.filter(isBar);
+                  const pendingKitchen = kitchenItems.filter((i) => !i.kot_printed_at);
+                  const pendingBar = barItems.filter((i) => !i.kot_printed_at);
+
+                  const send = async (station: "kitchen" | "bar", items: typeof nonCustom) => {
+                    const sent = await printKot({ order: selectedOrder, items, station });
+                    if (sent) run(() => markKotPrinted(selectedOrder.id, items.map((i) => i.id)));
+                  };
+
                   return (
                     <div className="space-y-1.5">
-                      <Button
-                        variant="secondary"
-                        className="w-full"
-                        disabled={pending || printing || pendingKot.length === 0}
-                        onClick={async () => {
-                          const sent = await printKot({
-                            order: selectedOrder,
-                            items: pendingKot,
-                          });
-                          if (sent) run(() => markKotPrinted(selectedOrder.id));
-                        }}
-                      >
-                        <ChefHat className="mr-2 h-4 w-4" />
-                        {printing
-                          ? "Printing KOT…"
-                          : pendingKot.length > 0
-                          ? `Send KOT — ${pendingKot.length} new item${pendingKot.length > 1 ? "s" : ""}`
-                          : "All items sent to kitchen"}
-                      </Button>
+                      {kitchenItems.length > 0 && (
+                        <Button
+                          variant="secondary"
+                          className="w-full"
+                          disabled={pending || printing || pendingKitchen.length === 0}
+                          onClick={() => send("kitchen", pendingKitchen)}
+                        >
+                          <ChefHat className="mr-2 h-4 w-4" />
+                          {printing
+                            ? "Printing…"
+                            : pendingKitchen.length > 0
+                            ? `Send KOT — ${pendingKitchen.length} new item${pendingKitchen.length > 1 ? "s" : ""}`
+                            : "All food sent to kitchen"}
+                        </Button>
+                      )}
+                      {barItems.length > 0 && (
+                        <Button
+                          variant="secondary"
+                          className="w-full"
+                          disabled={pending || printing || pendingBar.length === 0}
+                          onClick={() => send("bar", pendingBar)}
+                        >
+                          <Beer className="mr-2 h-4 w-4" />
+                          {printing
+                            ? "Printing…"
+                            : pendingBar.length > 0
+                            ? `Send BOT — ${pendingBar.length} new item${pendingBar.length > 1 ? "s" : ""}`
+                            : "All drinks sent to bar"}
+                        </Button>
+                      )}
                       {printError ? (
                         <p className="text-xs text-destructive">{printError}</p>
                       ) : null}
@@ -622,18 +651,20 @@ export function PosTerminal({ tables, categories, menu, orders, guests }: PosTer
                   </Button>
                 )}
 
-                <Button
-                  variant="ghost"
-                  size="sm"
-                  className="text-destructive hover:text-destructive"
-                  disabled={pending}
-                  onClick={() => {
-                    run(() => cancelOrder(selectedOrder.id));
-                    setSelectedOrderId(null);
-                  }}
-                >
-                  <Minus /> Void this order
-                </Button>
+                {canVoid && (
+                  <Button
+                    variant="ghost"
+                    size="sm"
+                    className="text-destructive hover:text-destructive"
+                    disabled={pending}
+                    onClick={() => {
+                      run(() => cancelOrder(selectedOrder.id));
+                      setSelectedOrderId(null);
+                    }}
+                  >
+                    <Minus /> Void this order
+                  </Button>
+                )}
               </>
             )}
           </CardContent>

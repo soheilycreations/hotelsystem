@@ -166,27 +166,31 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
   return new Uint8Array(bytes);
 }
 
-/** Kitchen Order Ticket — only the pending items, no prices. */
+/** Kitchen (KOT) or bar (BOT) order ticket — only the pending items for that
+ * station, no prices. Caller pre-splits items by station before calling. */
 export interface KotPayload {
   order: RestaurantOrder;
-  items: OrderItem[]; // pass ONLY the lines not yet sent to the kitchen
+  items: OrderItem[]; // pass ONLY the lines not yet sent for this station
+  station?: "kitchen" | "bar"; // defaults to "kitchen"
   kotNumber?: number;
 }
 
-export function buildKotTicket({ order, items, kotNumber }: KotPayload): Uint8Array {
+export function buildKotTicket({ order, items, station = "kitchen", kotNumber }: KotPayload): Uint8Array {
   const bytes: number[] = [];
+  const heading = station === "bar" ? "*** BOT ***" : "*** KOT ***";
+  const ticketLabel = station === "bar" ? "BOT" : "KOT";
 
   bytes.push(ESC, 0x40); // initialize
   bytes.push(ESC, 0x61, 0x01); // center
   bytes.push(ESC, 0x21, 0x30); // double height + width
-  bytes.push(...encode("*** KOT ***\n"));
+  bytes.push(...encode(`${heading}\n`));
   bytes.push(ESC, 0x21, 0x00);
   bytes.push(...line("="));
 
   bytes.push(ESC, 0x61, 0x00); // left
   bytes.push(
     ...row(
-      `Order #${order.order_number}${kotNumber ? ` / KOT ${kotNumber}` : ""}`,
+      `Order #${order.order_number}${kotNumber ? ` / ${ticketLabel} ${kotNumber}` : ""}`,
       order.channel_type.replace("_", " ").toUpperCase()
     )
   );

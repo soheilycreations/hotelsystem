@@ -14,6 +14,7 @@ export default async function PosActivePage() {
   const supabase = await createClient();
   const profile = await getSessionProfile();
   const canManageTables = profile ? canAccess(profile.role, "/pos/tables") : false;
+  const canVoid = profile?.role === "admin";
 
   const [tablesRes, categoriesRes, menuRes, ordersRes, guestsRes] = await Promise.all([
     supabase.from("restaurant_tables").select("*").order("table_number"),
@@ -26,7 +27,7 @@ export default async function PosActivePage() {
     supabase
       .from("restaurant_orders")
       .select(
-        "*, restaurant_tables(table_number), bookings(guest_name, rooms(room_number)), order_items(*, menu_items(name, menu_recipe_ingredients(id)))"
+        "*, restaurant_tables(table_number), bookings(guest_name, rooms(room_number)), order_items(*, menu_items(name, menu_categories(station), menu_recipe_ingredients(id)))"
       )
       .eq("order_status", "active")
       .order("created_at", { ascending: false }),
@@ -61,6 +62,7 @@ export default async function PosActivePage() {
         menu={(menuRes.data ?? []) as MenuItem[]}
         orders={(ordersRes.data ?? []) as RestaurantOrder[]}
         guests={(guestsRes.data ?? []) as unknown as Pick<Booking, "id" | "guest_name" | "rooms">[]}
+        canVoid={canVoid}
       />
     </div>
   );

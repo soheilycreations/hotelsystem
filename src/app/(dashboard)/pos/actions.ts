@@ -12,6 +12,9 @@ interface ActionResult {
 
 const POS_ROLES = ["admin", "manager", "cashier"];
 const KITCHEN_ROLES = [...POS_ROLES, "kitchen_staff"];
+// Voiding reverses a KOT/BOT already sent to the kitchen/bar and can hide
+// mistakes if left open to everyone who can run the POS — admin only.
+const VOID_ROLES = ["admin"];
 
 async function assertRole(roles: string[]) {
   const profile = await getSessionProfile();
@@ -226,15 +229,22 @@ export async function removeOrderItem(orderItemId: string): Promise<ActionResult
   }
 }
 
-/** Stamp every pending line of an order as sent to the kitchen (call AFTER the KOT prints). */
-export async function markKotPrinted(orderId: string): Promise<ActionResult> {
+/**
+ * Stamp specific lines as sent (call AFTER the KOT/BOT actually prints).
+ * Takes explicit item ids rather than "every pending line in the order" so
+ * the kitchen ticket and the bar ticket can each be sent — and marked —
+ * independently of one another.
+ */
+export async function markKotPrinted(orderId: string, orderItemIds: string[]): Promise<ActionResult> {
   try {
     await assertRole(KITCHEN_ROLES);
+    if (orderItemIds.length === 0) return { ok: true };
     const supabase = await createClient();
     const { error } = await supabase
       .from("order_items")
       .update({ kot_printed_at: new Date().toISOString() })
       .eq("order_id", orderId)
+      .in("id", orderItemIds)
       .eq("is_custom", false)
       .is("kot_printed_at", null);
     if (error) return { ok: false, error: error.message };
@@ -345,7 +355,7 @@ export async function settleOrder(
 
 export async function cancelOrder(orderId: string): Promise<ActionResult> {
   try {
-    await assertRole(POS_ROLES);
+    await assertRole(VOID_ROLES);
     const supabase = await createClient();
 
     const { data: order } = await supabase
