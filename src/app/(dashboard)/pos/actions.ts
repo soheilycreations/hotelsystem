@@ -216,10 +216,21 @@ export async function addCustomOrderItem(input: CustomOrderItemInput): Promise<A
   }
 }
 
+const KOT_LOCKED_ERROR =
+  "Already sent to the kitchen/bar — this line can't be changed. Void the whole order if it was a mistake.";
+
 export async function removeOrderItem(orderItemId: string): Promise<ActionResult> {
   try {
     await assertRole(POS_ROLES);
     const supabase = await createClient();
+    const { data: item } = await supabase
+      .from("order_items")
+      .select("kot_printed_at")
+      .eq("id", orderItemId)
+      .single();
+    if (!item) return { ok: false, error: "Line not found." };
+    if (item.kot_printed_at) return { ok: false, error: KOT_LOCKED_ERROR };
+
     const { error } = await supabase.from("order_items").delete().eq("id", orderItemId);
     if (error) return { ok: false, error: error.message };
     revalidatePos();
@@ -252,17 +263,23 @@ export async function incrementOrderItem(orderItemId: string): Promise<ActionRes
   }
 }
 
-/** -1 to a line's quantity — removes the line once it hits zero. */
+/**
+ * -1 to a line's quantity — removes the line once it hits zero.
+ * Locked once the line has gone out on a KOT/BOT: the kitchen/bar already
+ * started on that quantity, so it can't quietly shrink or disappear —
+ * only a full order void (admin-only) can undo it at that point.
+ */
 export async function decrementOrderItem(orderItemId: string): Promise<ActionResult> {
   try {
     await assertRole(POS_ROLES);
     const supabase = await createClient();
     const { data: item } = await supabase
       .from("order_items")
-      .select("quantity")
+      .select("quantity, kot_printed_at")
       .eq("id", orderItemId)
       .single();
     if (!item) return { ok: false, error: "Line not found." };
+    if (item.kot_printed_at) return { ok: false, error: KOT_LOCKED_ERROR };
 
     if (item.quantity <= 1) {
       const { error } = await supabase.from("order_items").delete().eq("id", orderItemId);

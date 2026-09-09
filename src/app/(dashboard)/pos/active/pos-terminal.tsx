@@ -596,6 +596,13 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                         <div className="flex items-center gap-2">
                           {item.is_custom ? (
                             <span className="num text-xs text-muted-foreground">×{item.quantity}</span>
+                          ) : item.kot_printed_at ? (
+                            <span
+                              className="num w-4 text-center text-xs font-semibold text-muted-foreground"
+                              title="Sent to kitchen/bar — quantity locked"
+                            >
+                              ×{item.quantity}
+                            </span>
                           ) : (
                             <div className="flex items-center gap-1 rounded-md border">
                               <button
@@ -620,16 +627,20 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                             </div>
                           )}
                           <span className="w-16 text-right font-semibold tabular-nums">{formatLKR(Number(item.line_total))}</span>
-                          <Button
-                            variant="ghost"
-                            size="icon"
-                            className="h-7 w-7"
-                            aria-label="Remove line"
-                            disabled={pending}
-                            onClick={() => run(() => removeOrderItem(item.id))}
-                          >
-                            <Trash2 className="h-3.5 w-3.5" />
-                          </Button>
+                          {item.kot_printed_at ? (
+                            <span className="h-7 w-7" aria-hidden="true" />
+                          ) : (
+                            <Button
+                              variant="ghost"
+                              size="icon"
+                              className="h-7 w-7"
+                              aria-label="Remove line"
+                              disabled={pending}
+                              onClick={() => run(() => removeOrderItem(item.id))}
+                            >
+                              <Trash2 className="h-3.5 w-3.5" />
+                            </Button>
+                          )}
                         </div>
                       </div>
                     ))
