@@ -48,10 +48,12 @@ export function BillingDesk({
   orders,
   hotel = null,
   creditAccounts = [],
+  canVoid = false,
 }: {
   orders: RestaurantOrder[];
   hotel?: HotelSettings | null;
   creditAccounts?: CreditAccount[];
+  canVoid?: boolean;
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -485,15 +487,17 @@ export function BillingDesk({
                     Mark table as billed
                   </Button>
                 )}
-              <Button
-                variant="ghost"
-                className="text-destructive hover:text-destructive"
-                onClick={() => handleCancel(selected)}
-                disabled={pending}
-              >
-                <XCircle className="mr-2 h-4 w-4" />
-                Void bill
-              </Button>
+              {canVoid && (
+                <Button
+                  variant="ghost"
+                  className="text-destructive hover:text-destructive"
+                  onClick={() => handleCancel(selected)}
+                  disabled={pending}
+                >
+                  <XCircle className="mr-2 h-4 w-4" />
+                  Void bill
+                </Button>
+              )}
             </div>
 
             <p className="text-xs text-muted-foreground">

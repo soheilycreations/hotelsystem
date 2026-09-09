@@ -1,4 +1,4 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { CreditAccount, HotelSettings, RestaurantOrder } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { BillingDesk } from "./billing-desk";
@@ -7,6 +7,8 @@ export const dynamic = "force-dynamic";
 
 export default async function BillingPage() {
   const supabase = await createClient();
+  const profile = await getSessionProfile();
+  const canVoid = profile?.role === "admin";
 
   const [{ data: orders }, { data: hotel }, { data: creditAccounts }] = await Promise.all([
     supabase
@@ -33,6 +35,7 @@ export default async function BillingPage() {
         orders={(orders as RestaurantOrder[] | null) ?? []}
         hotel={(hotel as HotelSettings | null) ?? null}
         creditAccounts={(creditAccounts as CreditAccount[] | null) ?? []}
+        canVoid={canVoid}
       />
     </div>
   );

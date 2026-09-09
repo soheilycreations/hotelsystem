@@ -208,6 +208,26 @@ export async function renameMenuCategory(
   }
 }
 
+export async function setMenuCategoryStation(
+  categoryId: string,
+  station: "kitchen" | "bar"
+): Promise<ActionResult> {
+  try {
+    await assertMenuRole();
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("menu_categories")
+      .update({ station })
+      .eq("id", categoryId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidateMenu();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 export async function deleteMenuCategory(categoryId: string): Promise<ActionResult> {
   try {
     await assertMenuRole();

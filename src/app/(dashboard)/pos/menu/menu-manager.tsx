@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Pencil, Plus, Settings2, Trash2, UtensilsCrossed } from "lucide-react";
+import { AlertTriangle, Beer, ChefHat, Pencil, Plus, Settings2, Trash2, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -35,6 +35,7 @@ import {
   deleteMenuCategory,
   deleteMenuItem,
   renameMenuCategory,
+  setMenuCategoryStation,
   toggleMenuItemAvailability,
   updateMenuItem,
 } from "./actions";
@@ -160,7 +161,14 @@ export function MenuManager({
                 <TableRow key={item.id} className={item.is_available ? "" : "opacity-60"}>
                   <TableCell className="font-medium">{item.name}</TableCell>
                   <TableCell>
-                    <Badge variant="secondary">{item.menu_categories?.name ?? "—"}</Badge>
+                    <Badge variant="secondary" className="gap-1">
+                      {item.menu_categories?.station === "bar" ? (
+                        <Beer className="h-3 w-3" />
+                      ) : (
+                        <ChefHat className="h-3 w-3" />
+                      )}
+                      {item.menu_categories?.name ?? "—"}
+                    </Badge>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatLKR(Number(item.selling_price))}
@@ -417,6 +425,18 @@ function CategoriesDialog({
     });
   }
 
+  function toggleStation(c: MenuCategoryRow) {
+    const next = c.station === "bar" ? "kitchen" : "bar";
+    startTransition(async () => {
+      const res = await setMenuCategoryStation(c.id, next);
+      onFeedback(
+        res.ok
+          ? `${c.name} now prints to the ${next === "bar" ? "bar (BOT)" : "kitchen (KOT)"}.`
+          : res.error ?? "Could not change the station."
+      );
+    });
+  }
+
   return (
     <DialogContent>
       <DialogHeader>
@@ -449,6 +469,25 @@ function CategoriesDialog({
                 <span className="text-xs text-muted-foreground">
                   {itemCountByCategory[c.id] ?? 0} item(s)
                 </span>
+                <Button
+                  size="sm"
+                  variant="outline"
+                  disabled={pending}
+                  title="Toggle which printer this category's KOT/BOT goes to"
+                  onClick={() => toggleStation(c)}
+                >
+                  {c.station === "bar" ? (
+                    <>
+                      <Beer className="mr-1.5 h-3.5 w-3.5" />
+                      Bar
+                    </>
+                  ) : (
+                    <>
+                      <ChefHat className="mr-1.5 h-3.5 w-3.5" />
+                      Kitchen
+                    </>
+                  )}
+                </Button>
                 <Button
                   size="icon"
                   variant="ghost"

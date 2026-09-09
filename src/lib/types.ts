@@ -9,6 +9,7 @@ export type StayType = "overnight" | "short_stay";
 export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" | "banquet";
+export type KitchenStation = "kitchen" | "bar";
 export type PaymentMethod = "cash" | "card" | "bank_transfer" | "complimentary" | "credit";
 export type ExpenseDivision = "restaurant" | "room";
 
@@ -138,6 +139,7 @@ export interface MenuCategoryRow {
   id: string;
   name: string;
   sort_order: number;
+  station: KitchenStation;
   created_at: string;
 }
 
