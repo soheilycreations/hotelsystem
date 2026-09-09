@@ -1,17 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { colomboToday } from "@/lib/colombo-date";
-import type { HotelSettings, PaymentMethod } from "@/lib/types";
+import type { HotelSettings } from "@/lib/types";
 import { DailySummaryView } from "./daily-summary-view";
-
-const CHANNEL_LABEL: Record<string, string> = {
-  dine_in: "Dine-in",
-  room_service: "Room service",
-  takeaway: "Takeaway",
-  delivery: "Delivery",
-  banquet: "Banquet",
-};
-
-const PAYMENT_METHODS: PaymentMethod[] = ["cash", "card", "bank_transfer", "credit", "complimentary"];
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Daily Summary" };
@@ -34,7 +24,7 @@ export default async function DailySummaryPage({
 
   const supabase = await createClient();
 
-  const [{ data: hotel }, { data: checkouts }, { data: orders }, { data: billOrders }, { data: expenses }] =
+  const [{ data: hotel }, { data: checkouts }, { data: orders }, { data: expenses }] =
     await Promise.all([
       supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),
       supabase
@@ -54,17 +44,6 @@ export default async function DailySummaryPage({
         .eq("order_status", "completed")
         .or("payment_method.neq.complimentary,payment_method.is.null")
         .eq("business_date", date),
-      // Every settled bill for the day, complimentary included — this backs
-      // the bill-by-bill audit report, so nothing is filtered out here the
-      // way the revenue-facing `orders` query above filters complimentary.
-      supabase
-        .from("restaurant_orders")
-        .select(
-          "order_number, channel_type, created_at, settled_at, payment_method, total_amount, customer_phone, event_name, restaurant_tables(table_number), bookings(guest_name, rooms(room_number)), order_items(quantity)"
-        )
-        .eq("order_status", "completed")
-        .eq("business_date", date)
-        .order("order_number", { ascending: true }),
       supabase
         .from("expenses")
         .select("category_id, description, amount, payment_method, division, expense_categories(name)")
@@ -249,38 +228,6 @@ export default async function DailySummaryPage({
     .map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  // Bill-by-bill report — every settled bill for the day (complimentary
-  // included), so it can be reconciled against the till independently of
-  // the revenue stats above.
-  const billRows = (billOrders ?? []).map((o) => {
-    const table = o.restaurant_tables as unknown as { table_number: string } | null;
-    const booking = o.bookings as unknown as { guest_name: string; rooms: { room_number: string } | null } | null;
-    const reference = table
-      ? `Table ${table.table_number}`
-      : booking
-      ? `${booking.guest_name} · Rm ${booking.rooms?.room_number ?? "—"}`
-      : o.event_name
-      ? o.event_name
-      : o.customer_phone ?? "—";
-    const itemCount = (o.order_items ?? []).reduce((sum, it) => sum + Number(it.quantity), 0);
-    return {
-      orderNumber: o.order_number,
-      channel: CHANNEL_LABEL[o.channel_type] ?? o.channel_type,
-      reference,
-      openedAt: o.created_at,
-      settledAt: o.settled_at,
-      paymentMethod: o.payment_method as PaymentMethod | null,
-      itemCount,
-      amount: Number(o.total_amount),
-    };
-  });
-  const billItemCountTotal = billRows.reduce((sum, b) => sum + b.itemCount, 0);
-  const paymentTotals = PAYMENT_METHODS.map((method) => ({
-    method,
-    count: billRows.filter((b) => b.paymentMethod === method).length,
-    amount: billRows.filter((b) => b.paymentMethod === method).reduce((sum, b) => sum + b.amount, 0),
-  })).filter((p) => p.count > 0);
-
   // Bank-transfer expenses are the owner's own direct funds, not money spent
   // out of the hotel's revenue — they're shown for the record (in the full
   // total below) but don't reduce the Net Cash Balance the way cash/card
@@ -389,9 +336,6 @@ export default async function DailySummaryPage({
       roomLedger={roomLedger}
       todayCashMovements={todayCashMovements}
       restaurantLedger={restaurantLedger}
-      billRows={billRows}
-      paymentTotals={paymentTotals}
-      billItemCountTotal={billItemCountTotal}
     />
   );
 }
