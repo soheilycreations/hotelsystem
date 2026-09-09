@@ -230,45 +230,23 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     true
   );
 
-  // Cash summary — bank-transfer expenses are the owner's own direct funds,
-  // not money spent out of the hotel's revenue, so they're excluded here.
+  // Room and Restaurant are two separate cash pools — never combined into
+  // one blended revenue/balance figure. Bank-transfer expenses are the
+  // owner's own direct funds, not money spent out of the hotel's revenue,
+  // so they're excluded from both balances (noted below, not subtracted).
   const expensesAgainstRevenue = data.expenses
     .filter((e) => e.paymentMethod !== "bank_transfer")
     .reduce((sum, e) => sum + e.amount, 0);
   const bankTransferTotal = data.expensesTotal - expensesAgainstRevenue;
-
-  l.sectionHeader("Cash Summary");
-  const totalRevenue = data.roomRevenueTotal + data.posTotal;
-  const netCash = totalRevenue - expensesAgainstRevenue;
-  l.row([
-    { text: "Total revenue (room + POS)", x: MARGIN },
-    { text: fmt(totalRevenue), x: colRight, align: "right" },
-  ]);
-  l.row([
-    { text: "Expenses (against revenue)", x: MARGIN },
-    { text: fmt(expensesAgainstRevenue), x: colRight, align: "right" },
-  ]);
-  if (bankTransferTotal > 0) {
-    l.row([
-      { text: "Owner bank transfers (excluded)", x: MARGIN },
-      { text: fmt(bankTransferTotal), x: colRight, align: "right" },
-    ]);
-  }
-  l.divider();
-  l.row(
-    [
-      { text: "NET CASH BALANCE", x: MARGIN },
-      { text: fmt(netCash), x: colRight, align: "right" },
-    ],
-    13,
-    true
-  );
-
-  // Room vs Restaurant
   const roomBalance = data.roomRevenueTotal - data.roomExpenses;
   const restaurantBalance = data.posTotal - data.restaurantExpenses;
 
   l.sectionHeader("Room vs Restaurant");
+  if (bankTransferTotal > 0) {
+    l.row([
+      { text: `Owner bank transfers excluded from both balances: ${fmt(bankTransferTotal)}`, x: MARGIN },
+    ], 8);
+  }
   l.row(
     [
       { text: "", x: MARGIN },
