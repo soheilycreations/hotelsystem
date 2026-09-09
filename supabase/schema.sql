@@ -20,6 +20,7 @@ create type stay_type       as enum ('overnight', 'short_stay');
 create type rate_plan_kind  as enum ('per_night', 'block');
 create type table_status      as enum ('vacant', 'occupied', 'reserved', 'billed');
 create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'delivery', 'banquet');
+create type kitchen_station   as enum ('kitchen', 'bar'); -- which printer a menu category's KOT/BOT goes to
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
 create type payment_method    as enum ('cash', 'card', 'bank_transfer', 'complimentary', 'credit');
@@ -143,6 +144,7 @@ create table public.menu_categories (
   id         uuid primary key default gen_random_uuid(),
   name       varchar(60) not null unique,
   sort_order int not null default 0,
+  station    kitchen_station not null default 'kitchen',
   created_at timestamptz not null default now()
 );
 
@@ -736,8 +738,8 @@ insert into public.inventory_items (name, quantity_in_stock, unit, unit_cost, re
   ('Lime',                  120, 'units', 30.00,    30),
   ('Sugar',                6000, 'grams', 0.32,  1500);
 
-insert into public.menu_categories (name, sort_order) values
-  ('Appetizers', 1), ('Mains', 2), ('Drinks', 3), ('Desserts', 4);
+insert into public.menu_categories (name, sort_order, station) values
+  ('Appetizers', 1, 'kitchen'), ('Mains', 2, 'kitchen'), ('Drinks', 3, 'bar'), ('Desserts', 4, 'kitchen');
 
 insert into public.menu_items (name, category_id, selling_price)
 select v.name, mc.id, v.selling_price
