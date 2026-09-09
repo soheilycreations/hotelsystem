@@ -10,19 +10,38 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, formatLKR } from "@/lib/utils";
-import type { InventoryItem, PaymentMethod, Purchase } from "@/lib/types";
+import type { InventoryItem, InventoryUnit, PaymentMethod, Purchase } from "@/lib/types";
 import { recordPurchase, type PurchaseLineInput } from "../actions";
+
+/** Quick-fill options for "how many of the item's own storage unit does one
+ * purchased unit equal" — e.g. buying "kg" of something tracked in grams. */
+const UNIT_PRESETS: Record<InventoryUnit, { label: string; factor: number }[]> = {
+  grams: [
+    { label: "Grams (g)", factor: 1 },
+    { label: "Kilograms (kg)", factor: 1000 },
+  ],
+  ml: [
+    { label: "Millilitres (ml)", factor: 1 },
+    { label: "Litres (L)", factor: 1000 },
+  ],
+  units: [
+    { label: "Units", factor: 1 },
+    { label: "Dozen (12)", factor: 12 },
+  ],
+};
 
 interface DraftLine {
   key: number;
   inventoryItemId: string;
   quantity: string;
   unitPrice: string;
+  packSize: string; // how many of the item's storage unit one purchased unit equals
+  customPack: boolean; // true once "custom" is picked from the presets dropdown
 }
 
 let nextKey = 1;
 function emptyLine(defaultItemId: string): DraftLine {
-  return { key: nextKey++, inventoryItemId: defaultItemId, quantity: "", unitPrice: "" };
+  return { key: nextKey++, inventoryItemId: defaultItemId, quantity: "", unitPrice: "", packSize: "1", customPack: false };
 }
 
 export function PurchasingDesk({
@@ -69,7 +88,12 @@ export function PurchasingDesk({
     setFeedback(null);
     const parsed: PurchaseLineInput[] = lines
       .filter((l) => l.inventoryItemId && l.quantity.trim() !== "")
-      .map((l) => ({ inventoryItemId: l.inventoryItemId, quantity: Number(l.quantity), unitPrice: Number(l.unitPrice) || 0 }));
+      .map((l) => ({
+        inventoryItemId: l.inventoryItemId,
+        quantity: Number(l.quantity),
+        unitPrice: Number(l.unitPrice) || 0,
+        packSize: Number(l.packSize) || 1,
+      }));
 
     if (parsed.length === 0) {
       setError("Add at least one item with a quantity.");
@@ -77,6 +101,10 @@ export function PurchasingDesk({
     }
     if (parsed.some((l) => !Number.isFinite(l.quantity) || l.quantity <= 0)) {
       setError("Every line needs a quantity greater than zero.");
+      return;
+    }
+    if (parsed.some((l) => l.packSize <= 0)) {
+      setError("Pack size must be greater than zero.");
       return;
     }
 
@@ -120,55 +148,106 @@ export function PurchasingDesk({
             </div>
           </div>
 
-          <div className="space-y-2">
+          <div className="space-y-2.5">
             <Label>Items</Label>
             {lines.map((line) => {
-              const lineTotal = (Number(line.quantity) || 0) * (Number(line.unitPrice) || 0);
+              const qty = Number(line.quantity) || 0;
+              const price = Number(line.unitPrice) || 0;
+              const packSize = Number(line.packSize) || 0;
+              const lineTotal = qty * price;
+              const item = itemById.get(line.inventoryItemId);
+              const presets = item ? UNIT_PRESETS[item.unit] : [];
+
               return (
-                <div key={line.key} className="flex items-center gap-2">
-                  <div className="flex-1">
-                    <Select
-                      value={line.inventoryItemId}
-                      onChange={(e) => updateLine(line.key, { inventoryItemId: e.target.value })}
+                <div key={line.key} className="space-y-2 rounded-md border p-2.5">
+                  <div className="flex items-center gap-2">
+                    <div className="flex-1">
+                      <Select
+                        value={line.inventoryItemId}
+                        onChange={(e) => updateLine(line.key, { inventoryItemId: e.target.value, packSize: "1", customPack: false })}
+                      >
+                        <option value="">Select item…</option>
+                        {inventoryItems.map((i) => (
+                          <option key={i.id} value={i.id}>
+                            {i.name} — tracked in {i.unit}
+                          </option>
+                        ))}
+                      </Select>
+                    </div>
+                    <Button
+                      variant="ghost"
+                      size="icon"
+                      aria-label="Remove line"
+                      disabled={lines.length === 1}
+                      onClick={() => removeLine(line.key)}
                     >
-                      <option value="">Select item…</option>
-                      {inventoryItems.map((i) => (
-                        <option key={i.id} value={i.id}>
-                          {i.name} ({i.unit})
-                        </option>
-                      ))}
-                    </Select>
+                      <Trash2 className="h-4 w-4" />
+                    </Button>
                   </div>
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.001"
-                    value={line.quantity}
-                    onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
-                    placeholder="Qty"
-                    className="w-24"
-                  />
-                  <Input
-                    type="number"
-                    min="0"
-                    step="0.01"
-                    value={line.unitPrice}
-                    onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
-                    placeholder="Unit price"
-                    className="w-28"
-                  />
-                  <span className="w-24 shrink-0 text-right text-sm tabular-nums text-muted-foreground">
-                    {formatLKR(lineTotal)}
-                  </span>
-                  <Button
-                    variant="ghost"
-                    size="icon"
-                    aria-label="Remove line"
-                    disabled={lines.length === 1}
-                    onClick={() => removeLine(line.key)}
-                  >
-                    <Trash2 className="h-4 w-4" />
-                  </Button>
+
+                  <div className="flex flex-wrap items-center gap-2 text-xs text-muted-foreground">
+                    {item && (
+                      <Select
+                        value={line.customPack ? "custom" : line.packSize}
+                        onChange={(e) => {
+                          if (e.target.value === "custom") {
+                            updateLine(line.key, { customPack: true });
+                          } else {
+                            updateLine(line.key, { packSize: e.target.value, customPack: false });
+                          }
+                        }}
+                        className="h-8 w-36 text-xs"
+                      >
+                        {presets.map((p) => (
+                          <option key={p.factor} value={p.factor}>
+                            Buy in {p.label}
+                          </option>
+                        ))}
+                        <option value="custom">Buy in… (custom)</option>
+                      </Select>
+                    )}
+                    {item && line.customPack && (
+                      <span className="flex items-center gap-1">
+                        1 unit =
+                        <Input
+                          type="number"
+                          min="0.0001"
+                          step="any"
+                          value={line.packSize}
+                          onChange={(e) => updateLine(line.key, { packSize: e.target.value })}
+                          className="h-8 w-20"
+                          autoFocus
+                        />
+                        {item.unit}
+                      </span>
+                    )}
+                    <Input
+                      type="number"
+                      min="0"
+                      step="any"
+                      value={line.quantity}
+                      onChange={(e) => updateLine(line.key, { quantity: e.target.value })}
+                      placeholder="Qty"
+                      className="h-8 w-20"
+                    />
+                    <Input
+                      type="number"
+                      min="0"
+                      step="0.01"
+                      value={line.unitPrice}
+                      onChange={(e) => updateLine(line.key, { unitPrice: e.target.value })}
+                      placeholder="Price / unit"
+                      className="h-8 w-28"
+                    />
+                    <span className="ml-auto text-right font-medium tabular-nums text-foreground">{formatLKR(lineTotal)}</span>
+                  </div>
+
+                  {item && qty > 0 && packSize > 0 && (
+                    <p className="text-xs text-muted-foreground">
+                      Adds <span className="font-medium text-foreground">{(qty * packSize).toLocaleString()} {item.unit}</span> to{" "}
+                      {item.name}&apos;s stock (currently {Number(item.quantity_in_stock).toLocaleString()} {item.unit}).
+                    </p>
+                  )}
                 </div>
               );
             })}
@@ -230,6 +309,7 @@ export function PurchasingDesk({
                           {p.purchase_items.slice(0, 3).map((pi) => (
                             <Badge key={pi.id} variant="secondary" className="text-xs">
                               {itemById.get(pi.inventory_item_id)?.name ?? pi.inventory_items?.name ?? "item"} ×{pi.quantity}
+                              {Number(pi.pack_size) !== 1 ? ` (×${pi.pack_size})` : ""}
                             </Badge>
                           ))}
                           {p.purchase_items.length > 3 && (

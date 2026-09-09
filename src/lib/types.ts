@@ -239,6 +239,7 @@ export interface PurchaseItem {
   inventory_item_id: string;
   quantity: number;
   unit_price: number;
+  pack_size: number; // how many of the item's storage unit one purchased unit equals
   line_total: number;
   created_at: string;
   inventory_items?: Pick<InventoryItem, "name" | "unit">; // joined

@@ -228,6 +228,10 @@ export interface PurchaseLineInput {
   inventoryItemId: string;
   quantity: number;
   unitPrice: number;
+  /** How many of the item's storage unit (grams/ml/units) one purchased
+   * unit equals — e.g. 1000 when buying "kg" of an item tracked in grams.
+   * Defaults to 1 (buying in the item's own storage unit). */
+  packSize: number;
 }
 
 /**
@@ -248,6 +252,8 @@ export async function recordPurchase(
 
     const lines = items.filter((i) => i.inventoryItemId && i.quantity > 0 && i.unitPrice >= 0);
     if (lines.length === 0) return { ok: false, error: "Add at least one item with a quantity." };
+    if (lines.some((l) => !Number.isFinite(l.packSize) || l.packSize <= 0))
+      return { ok: false, error: "Pack size must be greater than zero." };
 
     const supabase = await createClient();
     const { error } = await supabase.rpc("rpc_record_purchase", {
@@ -257,6 +263,7 @@ export async function recordPurchase(
         inventory_item_id: l.inventoryItemId,
         quantity: l.quantity,
         unit_price: l.unitPrice,
+        pack_size: l.packSize,
       })),
       p_payment_method: paymentMethod,
     });

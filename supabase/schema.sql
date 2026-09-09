@@ -376,6 +376,10 @@ create table public.purchase_items (
   inventory_item_id uuid not null references public.inventory_items (id) on delete restrict,
   quantity          numeric(14,3) not null check (quantity > 0),
   unit_price        numeric(12,4) not null check (unit_price >= 0),
+  -- how many of the item's storage unit (grams/ml/units) one purchased unit
+  -- equals — e.g. 1000 for "kg" on an item tracked in grams. Stock added is
+  -- quantity × pack_size; see rpc_record_purchase.
+  pack_size         numeric(12,4) not null default 1 check (pack_size > 0),
   line_total        numeric(14,2) generated always as (quantity * unit_price) stored,
   created_at        timestamptz not null default now()
 );
@@ -561,7 +565,7 @@ for each row execute function public.tg_low_stock_alert();
 create or replace function public.rpc_record_purchase(
   p_supplier_name  text,
   p_notes          text,
-  p_items          jsonb, -- [{"inventory_item_id": "...", "quantity": 10, "unit_price": 250}, ...]
+  p_items          jsonb, -- [{"inventory_item_id","quantity","unit_price","pack_size"}, ...]
   p_payment_method payment_method default 'cash'
 )
 returns uuid
@@ -575,6 +579,7 @@ declare
   v_expense_category  uuid;
   v_expense_id        uuid;
   v_item              jsonb;
+  v_pack_size         numeric;
 begin
   v_role := public.get_my_role();
   if v_role is null or v_role not in ('admin', 'manager') then
@@ -604,19 +609,27 @@ begin
 
   for v_item in select * from jsonb_array_elements(p_items)
   loop
-    insert into public.purchase_items (purchase_id, inventory_item_id, quantity, unit_price)
+    v_pack_size := coalesce(nullif(v_item->>'pack_size', '')::numeric, 1);
+    if v_pack_size <= 0 then
+      v_pack_size := 1;
+    end if;
+
+    insert into public.purchase_items (purchase_id, inventory_item_id, quantity, unit_price, pack_size)
     values (
       v_purchase_id,
       (v_item->>'inventory_item_id')::uuid,
       (v_item->>'quantity')::numeric,
-      (v_item->>'unit_price')::numeric
+      (v_item->>'unit_price')::numeric,
+      v_pack_size
     );
 
-    -- Stock goes up by what was bought; unit_cost tracks the latest price
-    -- paid (used by Recipe Costing) rather than a running average.
+    -- Stock goes up by quantity × pack_size (converted into the item's own
+    -- storage unit); unit_cost is normalised back to a per-storage-unit
+    -- price so Recipe Costing's math doesn't need to know what unit this
+    -- particular bill was purchased in.
     update public.inventory_items
-    set quantity_in_stock = quantity_in_stock + (v_item->>'quantity')::numeric,
-        unit_cost = (v_item->>'unit_price')::numeric
+    set quantity_in_stock = quantity_in_stock + (v_item->>'quantity')::numeric * v_pack_size,
+        unit_cost = (v_item->>'unit_price')::numeric / v_pack_size
     where id = (v_item->>'inventory_item_id')::uuid;
   end loop;
 
