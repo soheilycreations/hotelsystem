@@ -152,10 +152,20 @@ export interface MenuItem {
   service_chargeable: boolean;
   is_available: boolean;
   image_url: string | null;
+  station: KitchenStation | null; // null = inherit the category's station
   created_at: string;
   updated_at: string;
   menu_categories?: MenuCategoryRow; // joined
   menu_recipe_ingredients?: Pick<MenuRecipeIngredient, "id">[]; // joined (recipe presence check)
+}
+
+/** The station a menu item's KOT/BOT actually prints to — its own override
+ * if set, otherwise its category's station, otherwise kitchen. */
+export function itemStation(item: {
+  station?: KitchenStation | null;
+  menu_categories?: Pick<MenuCategoryRow, "station"> | null;
+}): KitchenStation {
+  return item.station ?? item.menu_categories?.station ?? "kitchen";
 }
 
 export interface RestaurantOrder {
@@ -209,6 +219,30 @@ export interface InventoryItem {
   reorder_level: number;
   created_at: string;
   updated_at: string;
+}
+
+export interface Purchase {
+  id: string;
+  supplier_name: string | null;
+  purchase_date: string;
+  notes: string | null;
+  total_amount: number;
+  expense_id: string | null;
+  created_by: string | null;
+  created_at: string;
+  purchase_items?: PurchaseItem[]; // joined
+}
+
+export interface PurchaseItem {
+  id: string;
+  purchase_id: string;
+  inventory_item_id: string;
+  quantity: number;
+  unit_price: number;
+  pack_size: number; // how many of the item's storage unit one purchased unit equals
+  line_total: number;
+  created_at: string;
+  inventory_items?: Pick<InventoryItem, "name" | "unit">; // joined
 }
 
 export interface MenuRecipeIngredient {
@@ -319,6 +353,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/pos/tables": ["admin", "manager"],
   "/inventory": ["admin", "manager", "kitchen_staff"],
   "/inventory/recipes": ["admin", "manager"],
+  "/inventory/purchases": ["admin", "manager"],
   "/finance/expenses": ["admin", "manager"],
   "/finance/reports": ["admin", "manager"],
   "/finance/daily-summary": ["admin", "manager"],

@@ -157,6 +157,7 @@ create table public.menu_items (
   service_chargeable boolean not null default true, -- false for items that should never attract service charge
   is_available  boolean not null default true,
   image_url     text, -- public URL in the 'menu-images' storage bucket, see section 11
+  station       kitchen_station, -- null = use the category's station; set = override it for this item
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -356,6 +357,33 @@ create table public.credit_adjustments (
   created_at        timestamptz not null default now()
 );
 
+-- 3.11g Purchasing — a supplier bill's items top up inventory stock and
+-- post one matching expense, all via rpc_record_purchase (see section 6b).
+create table public.purchases (
+  id            uuid primary key default gen_random_uuid(),
+  supplier_name varchar(140),
+  purchase_date date not null default current_date,
+  notes         text,
+  total_amount  numeric(14,2) not null default 0,
+  expense_id    uuid references public.expenses (id) on delete set null,
+  created_by    uuid references public.staff_profiles (id),
+  created_at    timestamptz not null default now()
+);
+
+create table public.purchase_items (
+  id                uuid primary key default gen_random_uuid(),
+  purchase_id       uuid not null references public.purchases (id) on delete cascade,
+  inventory_item_id uuid not null references public.inventory_items (id) on delete restrict,
+  quantity          numeric(14,3) not null check (quantity > 0),
+  unit_price        numeric(12,4) not null check (unit_price >= 0),
+  -- how many of the item's storage unit (grams/ml/units) one purchased unit
+  -- equals — e.g. 1000 for "kg" on an item tracked in grams. Stock added is
+  -- quantity × pack_size; see rpc_record_purchase.
+  pack_size         numeric(12,4) not null default 1 check (pack_size > 0),
+  line_total        numeric(14,2) generated always as (quantity * unit_price) stored,
+  created_at        timestamptz not null default now()
+);
+
 -- 3.12 System logs (low-stock alerts + audit hooks)
 create table public.system_logs (
   id         uuid primary key default gen_random_uuid(),
@@ -529,6 +557,121 @@ after update of quantity_in_stock on public.inventory_items
 for each row execute function public.tg_low_stock_alert();
 
 -- ---------------------------------------------------------------------------
+-- 7b. RPC — record a supplier purchase (bill items -> stock + one expense)
+--     Called once per bill from the app; everything below happens in a
+--     single transaction so stock and the expense it posts can't drift
+--     apart from a half-applied purchase.
+-- ---------------------------------------------------------------------------
+create or replace function public.rpc_record_purchase(
+  p_supplier_name  text,
+  p_notes          text,
+  p_items          jsonb, -- [{"inventory_item_id"?,"new_item_name"?,"new_item_unit"?,"quantity","unit_price","pack_size"}, ...]
+  p_payment_method payment_method default 'cash'
+)
+returns uuid
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_role              staff_role;
+  v_purchase_id       uuid;
+  v_total             numeric(14,2);
+  v_expense_category  uuid;
+  v_expense_id        uuid;
+  v_item              jsonb;
+  v_pack_size         numeric;
+  v_inventory_item_id uuid;
+  v_new_name          text;
+  v_new_unit          text;
+begin
+  v_role := public.get_my_role();
+  if v_role is null or v_role not in ('admin', 'manager') then
+    raise exception 'Not authorized to record purchases.';
+  end if;
+
+  if p_items is null or jsonb_array_length(p_items) = 0 then
+    raise exception 'A purchase needs at least one item.';
+  end if;
+
+  select coalesce(sum((i->>'quantity')::numeric * (i->>'unit_price')::numeric), 0)
+  into v_total
+  from jsonb_array_elements(p_items) as i;
+
+  if v_total <= 0 then
+    raise exception 'Purchase total must be greater than zero.';
+  end if;
+
+  select id into v_expense_category from public.expense_categories where name = 'Purchasing' limit 1;
+  if v_expense_category is null then
+    raise exception 'No "Purchasing" expense category found — add one under Finance > Expenses first.';
+  end if;
+
+  insert into public.purchases (supplier_name, notes, total_amount, created_by)
+  values (nullif(trim(coalesce(p_supplier_name, '')), ''), nullif(trim(coalesce(p_notes, '')), ''), v_total, auth.uid())
+  returning id into v_purchase_id;
+
+  for v_item in select * from jsonb_array_elements(p_items)
+  loop
+    v_pack_size := coalesce(nullif(v_item->>'pack_size', '')::numeric, 1);
+    if v_pack_size <= 0 then
+      v_pack_size := 1;
+    end if;
+
+    v_inventory_item_id := nullif(v_item->>'inventory_item_id', '')::uuid;
+
+    if v_inventory_item_id is null then
+      v_new_name := nullif(trim(coalesce(v_item->>'new_item_name', '')), '');
+      v_new_unit := nullif(v_item->>'new_item_unit', '');
+      if v_new_name is null or v_new_unit is null then
+        raise exception 'Every line needs either an existing item or a name + unit for a new one.';
+      end if;
+
+      insert into public.inventory_items (name, unit, quantity_in_stock, unit_cost, reorder_level)
+      values (v_new_name, v_new_unit::inventory_unit, 0, 0, 0)
+      on conflict (name) do update set name = excluded.name
+      returning id into v_inventory_item_id;
+    end if;
+
+    insert into public.purchase_items (purchase_id, inventory_item_id, quantity, unit_price, pack_size)
+    values (
+      v_purchase_id,
+      v_inventory_item_id,
+      (v_item->>'quantity')::numeric,
+      (v_item->>'unit_price')::numeric,
+      v_pack_size
+    );
+
+    -- Stock goes up by quantity × pack_size (converted into the item's own
+    -- storage unit); unit_cost is normalised back to a per-storage-unit
+    -- price so Recipe Costing's math doesn't need to know what unit this
+    -- particular bill was purchased in.
+    update public.inventory_items
+    set quantity_in_stock = quantity_in_stock + (v_item->>'quantity')::numeric * v_pack_size,
+        unit_cost = (v_item->>'unit_price')::numeric / v_pack_size
+    where id = v_inventory_item_id;
+  end loop;
+
+  insert into public.expenses (category_id, amount, date, description, payment_method, division, logged_by)
+  values (
+    v_expense_category,
+    v_total,
+    current_date,
+    trim('Stock purchase' || case when nullif(trim(coalesce(p_supplier_name, '')), '') is not null
+      then ' — ' || trim(p_supplier_name) else '' end),
+    p_payment_method,
+    'restaurant',
+    auth.uid()
+  )
+  returning id into v_expense_id;
+
+  update public.purchases set expense_id = v_expense_id where id = v_purchase_id;
+
+  return v_purchase_id;
+end $$;
+
+grant execute on function public.rpc_record_purchase(text, text, jsonb, payment_method) to authenticated;
+
+-- ---------------------------------------------------------------------------
 -- 8. ORDER TOTAL RECALCULATOR (keeps restaurant_orders.total_amount honest)
 -- ---------------------------------------------------------------------------
 create or replace function public.tg_recalc_order_total()
@@ -600,6 +743,8 @@ alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
 alter table public.expenses               enable row level security;
 alter table public.system_logs            enable row level security;
+alter table public.purchases              enable row level security;
+alter table public.purchase_items         enable row level security;
 
 -- Role helper (stable → cached per statement)
 create or replace function public.get_my_role()
@@ -666,6 +811,11 @@ create policy "admin delete expenses" on public.expenses for delete using (publi
 -- 9.6 System logs: management reads, triggers (security definer) write
 create policy "mgmt read logs"        on public.system_logs for select using (public.get_my_role() in ('admin','manager','kitchen_staff'));
 
+-- 9.7 Purchases: any signed-in staff reads; writes only via
+-- rpc_record_purchase (security definer, does its own admin/manager check)
+create policy "staff read purchases" on public.purchases for select using (public.get_my_role() is not null);
+create policy "staff read purchase items" on public.purchase_items for select using (public.get_my_role() is not null);
+
 -- ---------------------------------------------------------------------------
 -- 10. REALTIME PUBLICATION (live sync for the UI)
 -- ---------------------------------------------------------------------------
@@ -686,6 +836,8 @@ alter publication supabase_realtime add table public.credit_repayments;
 alter publication supabase_realtime add table public.credit_adjustments;
 alter publication supabase_realtime add table public.inventory_items;
 alter publication supabase_realtime add table public.system_logs;
+alter publication supabase_realtime add table public.purchases;
+alter publication supabase_realtime add table public.purchase_items;
 
 commit;
 

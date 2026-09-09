@@ -100,8 +100,9 @@ export function DailySummaryView({
   const [pending, startTransition] = useTransition();
   const [exporting, setExporting] = useState(false);
 
-  const totalRevenue = roomRevenueTotal + posTotal;
-  const netCash = totalRevenue - expensesAgainstRevenue;
+  // Room and Restaurant are two separate cash pools — never blended into one
+  // combined "total revenue" or "net cash" figure. A rupee of room revenue
+  // never offsets a restaurant expense (or vice versa) anywhere on this page.
   const bankTransferTotal = expensesTotal - expensesAgainstRevenue;
   const roomBalance = roomRevenueTotal - roomExpenses;
   const restaurantBalance = posTotal - restaurantExpenses;
@@ -236,11 +237,16 @@ export function DailySummaryView({
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard title="Room revenue" value={formatLKR(roomRevenueTotal)} hint={`${roomSales.length} checkout(s)`} icon={BedDouble} />
         <StatCard title="POS revenue" value={formatLKR(posTotal)} hint={`incl. ${formatLKR(posServiceCharge)} service charge`} icon={UtensilsCrossed} />
-        <StatCard title="Expenses" value={formatLKR(expensesTotal)} hint={`${expenses.length} entrie(s)`} icon={Wallet} />
         <StatCard
-          title="Net cash balance"
-          value={formatLKR(netCash)}
-          hint={`Revenue ${formatLKR(totalRevenue)}`}
+          title="Room balance"
+          value={formatLKR(roomBalance)}
+          hint={`−${formatLKR(roomExpenses)} room expenses`}
+          icon={Wallet}
+        />
+        <StatCard
+          title="Restaurant balance"
+          value={formatLKR(restaurantBalance)}
+          hint={`−${formatLKR(restaurantExpenses)} restaurant expenses`}
           icon={BadgeDollarSign}
         />
       </div>
@@ -377,43 +383,6 @@ export function DailySummaryView({
         </CardContent>
       </Card>
 
-      {/* Cash summary */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Cash summary</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-2">
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">Room revenue</span>
-            <span className="tabular-nums">{formatLKR(roomRevenueTotal)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm">
-            <span className="text-muted-foreground">POS revenue (incl. service charge)</span>
-            <span className="tabular-nums">{formatLKR(posTotal)}</span>
-          </div>
-          <div className="flex items-center justify-between border-t pt-2 text-sm font-medium">
-            <span>Total revenue</span>
-            <span className="tabular-nums">{formatLKR(totalRevenue)}</span>
-          </div>
-          <div className="flex items-center justify-between text-sm text-red-500">
-            <span>Expenses (against revenue)</span>
-            <span className="tabular-nums">−{formatLKR(expensesAgainstRevenue)}</span>
-          </div>
-          {bankTransferTotal > 0 && (
-            <div className="flex items-center justify-between text-sm text-muted-foreground">
-              <span>Owner bank transfers (excluded)</span>
-              <span className="tabular-nums">{formatLKR(bankTransferTotal)}</span>
-            </div>
-          )}
-          <div className="flex items-center justify-between border-t pt-2 text-base font-bold">
-            <span>Net cash balance</span>
-            <span className={`tabular-nums ${netCash >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-              {formatLKR(netCash)}
-            </span>
-          </div>
-        </CardContent>
-      </Card>
-
       {/* Credit accounts */}
       {creditAccountBalances.length > 0 && (
         <Card>
@@ -458,10 +427,15 @@ export function DailySummaryView({
         </Card>
       )}
 
-      {/* Room vs Restaurant */}
+      {/* Room vs Restaurant — two separate cash pools, never combined */}
       <Card>
         <CardHeader>
           <CardTitle className="text-base">Room vs Restaurant</CardTitle>
+          {bankTransferTotal > 0 && (
+            <p className="text-xs text-muted-foreground">
+              Owner bank transfers excluded from both balances: {formatLKR(bankTransferTotal)}
+            </p>
+          )}
         </CardHeader>
         <CardContent className="grid gap-4 sm:grid-cols-2">
           <div className="rounded-lg border p-3">

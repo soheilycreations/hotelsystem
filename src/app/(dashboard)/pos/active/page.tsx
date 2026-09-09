@@ -27,7 +27,7 @@ export default async function PosActivePage() {
     supabase
       .from("restaurant_orders")
       .select(
-        "*, restaurant_tables(table_number), bookings(guest_name, rooms(room_number)), order_items(*, menu_items(name, menu_categories(station), menu_recipe_ingredients(id)))"
+        "*, restaurant_tables(table_number), bookings(guest_name, rooms(room_number)), order_items(*, menu_items(name, station, menu_categories(station), menu_recipe_ingredients(id)))"
       )
       .eq("order_status", "active")
       .order("created_at", { ascending: false }),
@@ -46,9 +46,6 @@ export default async function PosActivePage() {
       <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">POS terminal</h1>
-          <p className="text-sm text-muted-foreground">
-            Dine-in, room service, takeaway and delivery — one screen, synced live across terminals.
-          </p>
         </div>
         {canManageTables ? (
           <Button asChild variant="outline" size="icon" title="Manage tables — numbers, capacity, add/remove">

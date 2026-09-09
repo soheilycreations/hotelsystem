@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import type { InventoryUnit } from "@/lib/types";
+import type { InventoryUnit, PaymentMethod } from "@/lib/types";
 
 interface ActionResult {
   ok: boolean;
@@ -218,6 +218,70 @@ export async function removeRecipeIngredient(recipeIngredientId: string): Promis
     if (error) return { ok: false, error: error.message };
 
     revalidatePath("/inventory/recipes");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export interface PurchaseLineInput {
+  /** Set for an existing item; leave empty and set newItemName/newItemUnit
+   * instead to create the item as part of this same purchase. */
+  inventoryItemId: string;
+  newItemName?: string;
+  newItemUnit?: InventoryUnit;
+  quantity: number;
+  unitPrice: number;
+  /** How many of the item's storage unit (grams/ml/units) one purchased
+   * unit equals — e.g. 1000 when buying "kg" of an item tracked in grams.
+   * Defaults to 1 (buying in the item's own storage unit). */
+  packSize: number;
+}
+
+/**
+ * Records a supplier bill in one shot: inserts the purchase + its line
+ * items, tops up each item's stock and unit_cost, and posts one matching
+ * "Purchasing" expense for the bill total — all inside rpc_record_purchase
+ * (a single Postgres transaction), so stock and the expense ledger can
+ * never drift apart from a half-applied purchase.
+ */
+export async function recordPurchase(
+  supplierName: string,
+  notes: string,
+  paymentMethod: PaymentMethod,
+  items: PurchaseLineInput[]
+): Promise<ActionResult> {
+  try {
+    await assertRole(RECIPE_ROLES);
+
+    const lines = items.filter(
+      (i) => (i.inventoryItemId || (i.newItemName && i.newItemUnit)) && i.quantity > 0 && i.unitPrice >= 0
+    );
+    if (lines.length === 0) return { ok: false, error: "Add at least one item with a quantity." };
+    if (lines.some((l) => !Number.isFinite(l.packSize) || l.packSize <= 0))
+      return { ok: false, error: "Pack size must be greater than zero." };
+
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("rpc_record_purchase", {
+      p_supplier_name: supplierName.trim() || null,
+      p_notes: notes.trim() || null,
+      p_items: lines.map((l) => ({
+        inventory_item_id: l.inventoryItemId || null,
+        new_item_name: l.inventoryItemId ? null : l.newItemName?.trim() || null,
+        new_item_unit: l.inventoryItemId ? null : l.newItemUnit ?? null,
+        quantity: l.quantity,
+        unit_price: l.unitPrice,
+        pack_size: l.packSize,
+      })),
+      p_payment_method: paymentMethod,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/purchases");
+    revalidatePath("/finance/expenses");
+    revalidatePath("/finance/reports");
+    revalidatePath("/finance/daily-summary");
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };

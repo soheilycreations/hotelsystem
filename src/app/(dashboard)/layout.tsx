@@ -23,7 +23,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
         hotelName={settings?.hotel_name ?? "Soheily PMS"}
         logoUrl={settings?.logo_url ?? null}
       />
-      <div className="md:pl-16">
+      <div className="md:pl-20">
         <RouteGuard role={profile.role}>
           <main className="mx-auto w-full max-w-7xl p-4 md:p-6">{children}</main>
         </RouteGuard>

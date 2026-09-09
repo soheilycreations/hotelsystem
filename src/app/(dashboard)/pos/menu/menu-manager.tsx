@@ -174,14 +174,22 @@ export function MenuManager({
                     </div>
                   </TableCell>
                   <TableCell>
-                    <Badge variant="secondary" className="gap-1">
-                      {item.menu_categories?.station === "bar" ? (
-                        <Beer className="h-3 w-3" />
-                      ) : (
-                        <ChefHat className="h-3 w-3" />
+                    <div className="flex items-center gap-1.5">
+                      <Badge variant="secondary" className="gap-1">
+                        {item.menu_categories?.station === "bar" ? (
+                          <Beer className="h-3 w-3" />
+                        ) : (
+                          <ChefHat className="h-3 w-3" />
+                        )}
+                        {item.menu_categories?.name ?? "—"}
+                      </Badge>
+                      {item.station && (
+                        <Badge variant="outline" className="gap-1" title="Overrides the category's station">
+                          {item.station === "bar" ? <Beer className="h-3 w-3" /> : <ChefHat className="h-3 w-3" />}
+                          {item.station}
+                        </Badge>
                       )}
-                      {item.menu_categories?.name ?? "—"}
-                    </Badge>
+                    </div>
                   </TableCell>
                   <TableCell className="text-right tabular-nums">
                     {formatLKR(Number(item.selling_price))}
@@ -395,6 +403,18 @@ function MenuItemDialog({
               required
             />
           </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="menu-station">Prints to</Label>
+          <Select id="menu-station" name="station" defaultValue={item?.station ?? ""}>
+            <option value="">Use category default</option>
+            <option value="kitchen">Kitchen (KOT)</option>
+            <option value="bar">Bar (BOT)</option>
+          </Select>
+          <p className="text-xs text-muted-foreground">
+            Overrides the category&apos;s station just for this item — leave on category default unless this
+            specific item needs to go somewhere else.
+          </p>
         </div>
         <div className="space-y-1.5">
           <Label htmlFor="menu-other-cost">Other costs (LKR) — packaging, gas, etc.</Label>

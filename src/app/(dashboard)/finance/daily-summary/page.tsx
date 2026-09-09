@@ -244,7 +244,7 @@ export default async function DailySummaryPage({
     .reduce((sum, e) => sum + Number(e.amount), 0);
 
   // Credit accounts — settled against a named account instead of cash/card/
-  // bank. Still counts as revenue above (see the *Total revenue* stat). Two
+  // bank. Still counts as revenue above (room or restaurant, per source). Two
   // views: today's new credit activity (what got added today), and each
   // account's running balance AS OF this date — the latter keeps showing up
   // every day, even with no new activity, until the account is fully paid
