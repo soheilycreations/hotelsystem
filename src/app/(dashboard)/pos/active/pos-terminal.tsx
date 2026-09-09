@@ -45,6 +45,7 @@ import {
   openOrder,
   removeOrderItem,
   setDeliveryStatus,
+  setOrderItemQuantity,
   settleOrder,
 } from "../actions";
 import { Badge } from "@/components/ui/badge";
@@ -102,6 +103,11 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
   const [confirmSettle, setConfirmSettle] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  /** Menu item whose card qty box is currently open for typed entry — click
+   * the qty number, type a count, press Enter (faster than tapping + N
+   * times for a bulk order). */
+  const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
+  const [editingQtyValue, setEditingQtyValue] = useState("");
   const { printKot, print, printing, error: printError } = useThermalPrint();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -168,6 +174,30 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
    * merge rule (new taps land on that same line, not a KOT'd one). */
   function pendingLineForItem(menuItemId: string) {
     return (selectedOrder?.order_items ?? []).find((oi) => oi.menu_item_id === menuItemId && !oi.kot_printed_at);
+  }
+
+  function openQtyEdit(menuItemId: string) {
+    setEditingQtyId(menuItemId);
+    setEditingQtyValue(String(orderQtyForItem(menuItemId) || ""));
+  }
+
+  /** Commits the hover stepper's typed quantity box — the number typed is
+   * the item's new TOTAL on the order, so it's translated into a delta on
+   * the still-editable (unprinted) line; a total below what's already been
+   * sent on a KOT/BOT is rejected rather than silently clamped. */
+  function commitQtyEdit(menuItemId: string) {
+    const raw = editingQtyValue.trim();
+    setEditingQtyId(null);
+    if (raw === "" || !selectedOrder) return;
+    const desired = Math.round(Number(raw));
+    if (!Number.isFinite(desired) || desired < 0) return;
+
+    const printedQty = orderQtyForItem(menuItemId) - (pendingLineForItem(menuItemId)?.quantity ?? 0);
+    if (desired < printedQty) {
+      setError(`Already sent ${printedQty} to the kitchen/bar — can't go below that.`);
+      return;
+    }
+    run(() => setOrderItemQuantity(selectedOrder.id, menuItemId, desired - printedQty));
   }
 
   const openChannelOrder = () => {
@@ -474,7 +504,43 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                       >
                         <Minus className="h-3.5 w-3.5" />
                       </button>
-                      <span className="min-w-5 text-center text-sm font-semibold tabular-nums">{cardQty}</span>
+                      {editingQtyId === m.id ? (
+                        <input
+                          type="number"
+                          inputMode="numeric"
+                          min={0}
+                          autoFocus
+                          value={editingQtyValue}
+                          onClick={(e) => e.stopPropagation()}
+                          onChange={(e) => setEditingQtyValue(e.target.value)}
+                          onFocus={(e) => e.target.select()}
+                          onKeyDown={(e) => {
+                            e.stopPropagation();
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              commitQtyEdit(m.id);
+                            } else if (e.key === "Escape") {
+                              e.preventDefault();
+                              setEditingQtyId(null);
+                            }
+                          }}
+                          onBlur={() => setEditingQtyId(null)}
+                          className="num h-7 w-10 rounded-md border bg-background text-center text-sm font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                        />
+                      ) : (
+                        <button
+                          type="button"
+                          aria-label={`Type a quantity for ${m.name}`}
+                          disabled={disabled}
+                          onClick={(e) => {
+                            e.stopPropagation();
+                            openQtyEdit(m.id);
+                          }}
+                          className="min-w-5 rounded-md px-1 text-center text-sm font-semibold tabular-nums hover:bg-background/80 disabled:pointer-events-none"
+                        >
+                          {cardQty}
+                        </button>
+                      )}
                       <button
                         type="button"
                         aria-label={`Add one ${m.name}`}

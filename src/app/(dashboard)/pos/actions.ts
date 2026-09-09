@@ -134,6 +134,74 @@ export async function addOrderItem(
   }
 }
 
+/**
+ * Sets an item's on-order quantity to an exact number instead of
+ * incrementing — backs the "type a count, hit Enter" quantity box on the
+ * menu grid, so a bulk order doesn't need N taps of +. Same merge rule as
+ * addOrderItem (only touches a line that hasn't gone to the kitchen yet);
+ * a quantity of 0 removes that pending line.
+ */
+export async function setOrderItemQuantity(
+  orderId: string,
+  menuItemId: string,
+  quantity: number
+): Promise<ActionResult> {
+  try {
+    await assertRole(POS_ROLES);
+    if (!Number.isFinite(quantity) || quantity < 0 || !Number.isInteger(quantity))
+      return { ok: false, error: "Enter a valid quantity." };
+    const supabase = await createClient();
+
+    const { data: existingLines } = await supabase
+      .from("order_items")
+      .select("id")
+      .eq("order_id", orderId)
+      .eq("menu_item_id", menuItemId)
+      .is("kot_printed_at", null)
+      .limit(1);
+    const existing = existingLines?.[0];
+
+    if (quantity === 0) {
+      if (existing) {
+        const { error } = await supabase.from("order_items").delete().eq("id", existing.id);
+        if (error) return { ok: false, error: error.message };
+      }
+      revalidatePos();
+      return { ok: true };
+    }
+
+    if (existing) {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ quantity })
+        .eq("id", existing.id);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { data: menuItem } = await supabase
+        .from("menu_items")
+        .select("selling_price, is_available, service_chargeable")
+        .eq("id", menuItemId)
+        .single();
+      if (!menuItem) return { ok: false, error: "Menu item not found." };
+      if (!menuItem.is_available) return { ok: false, error: "That item is marked unavailable." };
+
+      const { error } = await supabase.from("order_items").insert({
+        order_id: orderId,
+        menu_item_id: menuItemId,
+        quantity,
+        unit_price: menuItem.selling_price,
+        service_chargeable: menuItem.service_chargeable,
+      });
+      if (error) return { ok: false, error: error.message };
+    }
+
+    revalidatePos();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 export async function setOrderBusinessDate(orderId: string, date: string): Promise<ActionResult> {
   try {
     await assertRole(POS_ROLES);
