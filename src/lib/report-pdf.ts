@@ -7,6 +7,10 @@ function fmt(n: number): string {
   return `Rs ${n.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
 }
 
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 interface PdfDoc {
   text: (t: string, x: number, y: number, o?: Record<string, unknown>) => void;
   setFont: (f: string, s: string) => void;
@@ -101,30 +105,6 @@ export interface DailySummaryData {
   todayCashMovements: { direction: string; category: string; description: string | null; amount: number }[];
   creditSales: { source: string; accountName: string; amount: number }[];
   creditAccountBalances: { accountName: string; balance: number }[];
-  billRows: {
-    orderNumber: number;
-    channel: string;
-    reference: string;
-    openedAt: string;
-    settledAt: string | null;
-    paymentMethod: string | null;
-    itemCount: number;
-    amount: number;
-  }[];
-  paymentTotals: { method: string; count: number; amount: number }[];
-  billItemCountTotal: number;
-}
-
-const PAYMENT_LABEL: Record<string, string> = {
-  cash: "Cash",
-  card: "Card",
-  bank_transfer: "Bank Transfer",
-  complimentary: "Complimentary",
-  credit: "Credit",
-};
-
-function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
@@ -220,47 +200,6 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     10,
     true
   );
-
-  // Bills — every settled bill for the day, bill-by-bill
-  l.sectionHeader(`Bills (${data.billRows.length}, ${data.billItemCountTotal} items)`);
-  if (data.billRows.length === 0) {
-    l.row([{ text: "No bills settled for this date.", x: MARGIN }], 9);
-  } else {
-    l.row(
-      [
-        { text: "Bill", x: MARGIN },
-        { text: "Channel / Ref", x: MARGIN + 16 },
-        { text: "Opened", x: MARGIN + 92 },
-        { text: "Settled", x: MARGIN + 116 },
-        { text: "Paid by", x: MARGIN + 140 },
-        { text: "Amount", x: colRight, align: "right" },
-      ],
-      8,
-      true
-    );
-    for (const b of data.billRows) {
-      l.row(
-        [
-          { text: `#${b.orderNumber}`, x: MARGIN },
-          { text: `${b.channel} — ${b.reference}`.slice(0, 42), x: MARGIN + 16 },
-          { text: fmtTime(b.openedAt), x: MARGIN + 92 },
-          { text: b.settledAt ? fmtTime(b.settledAt) : "—", x: MARGIN + 116 },
-          { text: b.paymentMethod ? PAYMENT_LABEL[b.paymentMethod] ?? b.paymentMethod : "—", x: MARGIN + 140 },
-          { text: fmt(b.amount), x: colRight, align: "right" },
-        ],
-        8
-      );
-    }
-  }
-  if (data.paymentTotals.length > 0) {
-    l.divider();
-    for (const p of data.paymentTotals) {
-      l.row([
-        { text: `${PAYMENT_LABEL[p.method] ?? p.method} (${p.count})`, x: MARGIN },
-        { text: fmt(p.amount), x: colRight, align: "right" },
-      ]);
-    }
-  }
 
   // Expenses
   l.sectionHeader("Expenses");
@@ -693,6 +632,122 @@ export async function generateExpensesReportPdf(data: ExpensesReportData): Promi
       { text: division, x: MARGIN },
       { text: fmt(amount), x: colRight, align: "right" },
     ]);
+  }
+
+  return doc.output("blob");
+}
+
+export interface BillDetailPdfRow {
+  orderNumber: number;
+  channel: string;
+  reference: string;
+  openedAt: string;
+  settledAt: string | null;
+  paymentMethod: string | null;
+  cashierName: string | null;
+  subtotal: number;
+  serviceCharge: number;
+  amount: number;
+  items: { name: string; qty: number; unitPrice: number; lineTotal: number }[];
+}
+
+export interface BillsReportData {
+  date: string; // YYYY-MM-DD
+  hotelName: string;
+  bills: BillDetailPdfRow[];
+}
+
+/** Full bill-by-bill export — every settled bill for the day with its line
+ * items expanded, for reconciling the till in detail (not just totals). */
+export async function generateBillsReportPdf(data: BillsReportData): Promise<Blob> {
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
+  const W = A4[0];
+  const colRight = W - MARGIN;
+
+  l.title(data.hotelName);
+  l.subtitle(
+    `All Bills — ${new Date(`${data.date}T00:00:00`).toLocaleDateString("en-GB", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })}`
+  );
+  l.subtitle(`${data.bills.length} bill(s)`, 9);
+  l.divider();
+
+  if (data.bills.length === 0) {
+    l.row([{ text: "No bills settled for this date.", x: MARGIN }], 10);
+  }
+
+  for (const b of data.bills) {
+    l.sectionHeader(`Bill #${b.orderNumber} — ${b.channel} — ${b.reference}`);
+    const paidLabel = b.paymentMethod ? PAYMENT_LABEL_PDF[b.paymentMethod] ?? b.paymentMethod : "—";
+    l.row(
+      [
+        {
+          text: `Opened ${fmtTime(b.openedAt)}  ·  Settled ${b.settledAt ? fmtTime(b.settledAt) : "—"}  ·  ${paidLabel}  ·  Cashier: ${b.cashierName ?? "—"}`,
+          x: MARGIN,
+        },
+      ],
+      8.5
+    );
+    l.space(1.5);
+
+    if (b.items.length > 0) {
+      l.row(
+        [
+          { text: "Item", x: MARGIN + 2 },
+          { text: "Qty", x: MARGIN + 120, align: "right" },
+          { text: "Price", x: MARGIN + 148, align: "right" },
+          { text: "Total", x: colRight, align: "right" },
+        ],
+        8,
+        true
+      );
+      for (const it of b.items) {
+        l.row([
+          { text: it.name.slice(0, 55), x: MARGIN + 2 },
+          { text: String(it.qty), x: MARGIN + 120, align: "right" },
+          { text: fmt(it.unitPrice), x: MARGIN + 148, align: "right" },
+          { text: fmt(it.lineTotal), x: colRight, align: "right" },
+        ]);
+      }
+    }
+
+    l.row([
+      { text: "Subtotal", x: MARGIN + 2 },
+      { text: fmt(b.subtotal), x: colRight, align: "right" },
+    ]);
+    if (b.serviceCharge > 0) {
+      l.row([
+        { text: "Service charge", x: MARGIN + 2 },
+        { text: fmt(b.serviceCharge), x: colRight, align: "right" },
+      ]);
+    }
+    l.row(
+      [
+        { text: "TOTAL", x: MARGIN + 2 },
+        { text: fmt(b.amount), x: colRight, align: "right" },
+      ],
+      10,
+      true
+    );
+    l.space(4);
+  }
+
+  if (data.bills.length > 0) {
+    const grandTotal = data.bills.reduce((sum, b) => sum + b.amount, 0);
+    l.divider();
+    l.row(
+      [
+        { text: `Grand total (${data.bills.length} bills)`, x: MARGIN },
+        { text: fmt(grandTotal), x: colRight, align: "right" },
+      ],
+      12,
+      true
+    );
   }
 
   return doc.output("blob");

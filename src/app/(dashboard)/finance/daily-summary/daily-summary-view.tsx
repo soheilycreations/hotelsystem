@@ -38,10 +38,6 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   credit: "Credit",
 };
 
-function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
-}
-
 interface RoomSaleRow {
   guestName: string;
   roomNumber: string;
@@ -59,21 +55,6 @@ interface ExpenseRow {
   description: string | null;
   amount: number;
   paymentMethod: PaymentMethod;
-}
-interface BillRow {
-  orderNumber: number;
-  channel: string;
-  reference: string;
-  openedAt: string;
-  settledAt: string | null;
-  paymentMethod: PaymentMethod | null;
-  itemCount: number;
-  amount: number;
-}
-interface PaymentTotalRow {
-  method: PaymentMethod;
-  count: number;
-  amount: number;
 }
 
 export function DailySummaryView({
@@ -95,9 +76,6 @@ export function DailySummaryView({
   roomLedger,
   restaurantLedger,
   todayCashMovements,
-  billRows,
-  paymentTotals,
-  billItemCountTotal,
 }: {
   date: string;
   hotel: HotelSettings | null;
@@ -117,9 +95,6 @@ export function DailySummaryView({
   roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   todayCashMovements: { direction: string; category: string; description: string | null; amount: number }[];
-  billRows: BillRow[];
-  paymentTotals: PaymentTotalRow[];
-  billItemCountTotal: number;
 }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
@@ -174,9 +149,6 @@ export function DailySummaryView({
         creditSales,
         creditAccountBalances,
         todayCashMovements,
-        billRows,
-        paymentTotals,
-        billItemCountTotal,
       });
       openPdfBlob(blob);
     } finally {
@@ -357,74 +329,6 @@ export function DailySummaryView({
               )}
             </TableBody>
           </Table>
-        </CardContent>
-      </Card>
-
-      {/* Bills — every settled bill for the day, bill-by-bill */}
-      <Card>
-        <CardHeader className="flex-row items-center justify-between space-y-0">
-          <CardTitle className="text-base">Bills — {billRows.length} today</CardTitle>
-          <span className="text-sm text-muted-foreground">{billItemCountTotal} items sold</span>
-        </CardHeader>
-        <CardContent className="space-y-4 px-0">
-          <div className="overflow-x-auto">
-            <Table>
-              <TableHeader>
-                <TableRow>
-                  <TableHead>Bill</TableHead>
-                  <TableHead>Channel</TableHead>
-                  <TableHead>Opened</TableHead>
-                  <TableHead>Settled</TableHead>
-                  <TableHead>Paid by</TableHead>
-                  <TableHead className="text-right">Items</TableHead>
-                  <TableHead className="text-right">Amount</TableHead>
-                </TableRow>
-              </TableHeader>
-              <TableBody>
-                {billRows.map((b) => (
-                  <TableRow key={b.orderNumber}>
-                    <TableCell className="font-medium">#{b.orderNumber}</TableCell>
-                    <TableCell className="text-sm">
-                      {b.channel}
-                      <span className="block text-xs text-muted-foreground">{b.reference}</span>
-                    </TableCell>
-                    <TableCell className="text-sm tabular-nums text-muted-foreground">
-                      {formatTime(b.openedAt)}
-                    </TableCell>
-                    <TableCell className="text-sm tabular-nums text-muted-foreground">
-                      {b.settledAt ? formatTime(b.settledAt) : "—"}
-                    </TableCell>
-                    <TableCell>
-                      <Badge variant={b.paymentMethod === "bank_transfer" ? "warning" : "secondary"}>
-                        {b.paymentMethod ? PAYMENT_LABEL[b.paymentMethod] : "—"}
-                      </Badge>
-                    </TableCell>
-                    <TableCell className="text-right tabular-nums">{b.itemCount}</TableCell>
-                    <TableCell className="text-right tabular-nums">{formatLKR(b.amount)}</TableCell>
-                  </TableRow>
-                ))}
-                {billRows.length === 0 && (
-                  <TableRow>
-                    <TableCell colSpan={7} className="py-8 text-center text-sm text-muted-foreground">
-                      No bills settled for this date.
-                    </TableCell>
-                  </TableRow>
-                )}
-              </TableBody>
-            </Table>
-          </div>
-          {paymentTotals.length > 0 && (
-            <div className="grid gap-2 border-t px-4 pt-3 sm:grid-cols-2 lg:grid-cols-3">
-              {paymentTotals.map((p) => (
-                <div key={p.method} className="flex items-center justify-between rounded-md border px-3 py-2 text-sm">
-                  <span className="text-muted-foreground">
-                    {PAYMENT_LABEL[p.method]} <span className="text-xs">({p.count})</span>
-                  </span>
-                  <span className="font-semibold tabular-nums">{formatLKR(p.amount)}</span>
-                </div>
-              ))}
-            </div>
-          )}
         </CardContent>
       </Card>
 

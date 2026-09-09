@@ -439,7 +439,7 @@ export async function settleOrder(
   creditAccountId?: string
 ): Promise<ActionResult> {
   try {
-    await assertRole(POS_ROLES);
+    const profile = await assertRole(POS_ROLES);
     const supabase = await createClient();
 
     const { data: order } = await supabase
@@ -464,6 +464,7 @@ export async function settleOrder(
     let patch: Record<string, unknown> = {
       order_status: "completed",
       settled_at: new Date().toISOString(),
+      settled_by: profile.id,
       service_charge_waived: serviceChargeWaived,
     };
     if (paymentMethod) patch.payment_method = paymentMethod;

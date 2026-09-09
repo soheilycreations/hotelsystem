@@ -185,6 +185,7 @@ export interface RestaurantOrder {
   order_status: OrderStatus;
   payment_method: PaymentMethod | null;
   settled_at: string | null;
+  settled_by: string | null;
   credit_account_id: string | null;
   service_charge_waived: boolean;
   delivery_status: DeliveryStatus | null;
@@ -358,6 +359,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/finance/expenses": ["admin", "manager"],
   "/finance/reports": ["admin", "manager"],
   "/finance/daily-summary": ["admin", "manager"],
+  "/finance/bills": ["admin", "manager"],
   "/finance/cash-book": ["admin", "manager"],
   "/finance/credit-accounts": ["admin", "manager", "receptionist", "cashier"],
 };
