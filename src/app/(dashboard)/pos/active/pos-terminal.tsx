@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState, useTransition } from "react";
+import { useEffect, useMemo, useRef, useState, useTransition } from "react";
 import {
   Armchair,
   BadgePlus,
@@ -102,10 +102,25 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
   const { printKot, print, printing, error: printError } = useThermalPrint();
+  const searchRef = useRef<HTMLInputElement>(null);
 
   const selectedOrder = useMemo(
     () => orders.find((o) => o.id === selectedOrderId) ?? null,
     [orders, selectedOrderId]
+  );
+
+  // Jump straight into the search box the moment a table/order is opened —
+  // the cashier can start typing an item name immediately, no mouse needed.
+  useEffect(() => {
+    if (selectedOrderId) searchRef.current?.focus();
+  }, [selectedOrderId]);
+
+  const visibleItems = useMemo(
+    () =>
+      menuQuery.trim() !== ""
+        ? menu.filter((m) => m.name.toLowerCase().includes(menuQuery.trim().toLowerCase()))
+        : menu.filter((m) => m.category_id === categoryId),
+    [menu, menuQuery, categoryId]
   );
 
   const orderForTable = (tableId: string) =>
@@ -128,6 +143,16 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
       run(() => openOrder({ channel: "dine_in", tableId: table.id }));
     }
   };
+
+  /** Enter in the search box adds the top match and clears the search —
+   * type a name, hit Enter, keep typing the next one. */
+  function addTopSearchMatch() {
+    if (!selectedOrder || menuQuery.trim() === "") return;
+    const top = visibleItems[0];
+    if (!top) return;
+    run(() => addOrderItem(selectedOrder.id, top.id, 1));
+    setMenuQuery("");
+  }
 
   const openChannelOrder = () => {
     run(() =>
@@ -193,7 +218,10 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
   return (
     <div className="grid gap-6 xl:grid-cols-5">
       {/* LEFT: channel selection + table matrix */}
-      <div className="space-y-6 xl:col-span-3">
+      <div className="space-y-4 xl:col-span-3">
+      {/* Sticky header — channel tabs, table row, search and categories stay
+          put while the item grid below scrolls. */}
+      <div className="sticky top-6 z-10 space-y-3 bg-background pb-3">
         <Tabs value={channel} onValueChange={(v) => setChannel(v as ChannelType)}>
           <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="dine_in"><Armchair className="mr-1.5 h-4 w-4" />Dine-in</TabsTrigger>
@@ -203,11 +231,8 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
             <TabsTrigger value="banquet"><PartyPopper className="mr-1.5 h-4 w-4" />Banquet</TabsTrigger>
           </TabsList>
 
-          <TabsContent value="dine_in" className="space-y-3">
-            <p className="text-sm text-muted-foreground">
-              Tap a vacant table to open an order, or an occupied one to keep adding items.
-            </p>
-            <div className="flex flex-wrap gap-2">
+          <TabsContent value="dine_in" className="space-y-2">
+            <div className="flex flex-wrap gap-1.5">
               {tables.map((table) => {
                 const order = orderForTable(table.id);
                 return (
@@ -217,14 +242,14 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                     onClick={() => handleTableTap(table)}
                     title={`Seats ${table.capacity} · ${table.floor_zone ?? "—"}`}
                     className={cn(
-                      "flex items-center gap-1.5 rounded-full border px-3 py-1.5 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+                      "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
                       TABLE_STYLES[table.current_status],
                       selectedOrder?.table_id === table.id && "ring-2 ring-ring"
                     )}
                   >
                     {table.table_number}
                     {order ? (
-                      <span className="text-xs font-normal opacity-80">
+                      <span className="font-normal opacity-80">
                         {formatLKR(Number(order.total_amount))}
                       </span>
                     ) : null}
@@ -321,55 +346,54 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
           </TabsContent>
         </Tabs>
 
-        {/* Menu — always visible so it works for whichever order is active */}
-        <div className="space-y-3 rounded-lg border p-4">
-          <div className="flex items-center justify-between gap-3">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Menu
-            </h2>
-            {!selectedOrder && (
-              <span className="text-xs text-muted-foreground">
-                Select a table or open an order first
-              </span>
-            )}
-          </div>
+        {/* Search + categories — part of the sticky header, right above the
+            (non-sticky) item grid so only the items scroll underneath. */}
+        <div className="space-y-2.5 rounded-lg border bg-background p-3">
           <div className="relative">
             <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
+              ref={searchRef}
               value={menuQuery}
               onChange={(e) => setMenuQuery(e.target.value)}
-              placeholder="Search the whole menu…"
+              onKeyDown={(e) => {
+                if (e.key === "Enter") {
+                  e.preventDefault();
+                  addTopSearchMatch();
+                }
+              }}
+              placeholder={selectedOrder ? "Type an item, press Enter to add…" : "Select a table first…"}
               className="pl-8"
             />
           </div>
+          {menuQuery.trim() === "" && (
+            <div className="flex flex-wrap gap-1.5">
+              {categories.map((c) => (
+                <button
+                  key={c.id}
+                  onClick={() => setCategoryId(c.id)}
+                  className={cn(
+                    "flex items-center gap-1.5 rounded-full px-2.5 py-1 text-xs font-medium transition-colors",
+                    categoryId === c.id
+                      ? "bg-primary text-primary-foreground"
+                      : "bg-muted text-muted-foreground hover:bg-accent hover:text-foreground"
+                  )}
+                >
+                  {c.station === "bar" ? <Beer className="h-3 w-3" /> : <ChefHat className="h-3 w-3" />}
+                  {c.name}
+                </button>
+              ))}
+            </div>
+          )}
+        </div>
+      </div>
 
-          <div className="flex gap-3">
-            {/* Vertical category rail — tap once, keep tapping items */}
-            {menuQuery.trim() === "" && (
-              <div className="flex w-32 shrink-0 flex-col gap-1 sm:w-40">
-                {categories.map((c) => (
-                  <button
-                    key={c.id}
-                    onClick={() => setCategoryId(c.id)}
-                    className={cn(
-                      "flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium transition-colors",
-                      categoryId === c.id
-                        ? "bg-primary text-primary-foreground"
-                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
-                    )}
-                  >
-                    {c.station === "bar" ? <Beer className="h-3.5 w-3.5 shrink-0" /> : <ChefHat className="h-3.5 w-3.5 shrink-0" />}
-                    <span className="truncate">{c.name}</span>
-                  </button>
-                ))}
-              </div>
+        {/* Items — the only part of the left column that scrolls */}
+        <div className="rounded-lg border p-3">
+          <div className="grid grid-cols-2 content-start gap-2 sm:grid-cols-3 lg:grid-cols-4">
+            {visibleItems.length === 0 && (
+              <p className="col-span-full py-6 text-center text-sm text-muted-foreground">No items found.</p>
             )}
-
-            <div className="grid flex-1 grid-cols-2 content-start gap-2 sm:grid-cols-3">
-              {(menuQuery.trim() !== ""
-                ? menu.filter((m) => m.name.toLowerCase().includes(menuQuery.trim().toLowerCase()))
-                : menu.filter((m) => m.category_id === categoryId)
-              ).map((m) => (
+            {visibleItems.map((m) => (
                 <button
                   key={m.id}
                   disabled={pending || !selectedOrder}
@@ -409,8 +433,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                     </p>
                   </div>
                 </button>
-              ))}
-            </div>
+            ))}
           </div>
         </div>
 
