@@ -32,6 +32,7 @@ function parseMenuForm(formData: FormData):
       price: number;
       otherCost: number;
       serviceChargeable: boolean;
+      imageUrl: string | null;
     }
   | { ok: false; error: string } {
   const name = String(formData.get("name") ?? "").trim();
@@ -39,6 +40,7 @@ function parseMenuForm(formData: FormData):
   const price = Number(formData.get("selling_price") ?? 0);
   const otherCost = Number(formData.get("other_cost") ?? 0);
   const serviceChargeable = formData.get("service_chargeable") === "on";
+  const imageUrl = String(formData.get("image_url") ?? "").trim() || null;
 
   if (!name) return { ok: false, error: "Item name is required." };
   if (!categoryId) return { ok: false, error: "Pick a category." };
@@ -46,7 +48,7 @@ function parseMenuForm(formData: FormData):
     return { ok: false, error: "Selling price must be greater than zero." };
   if (!Number.isFinite(otherCost) || otherCost < 0)
     return { ok: false, error: "Other costs can't be negative." };
-  return { ok: true, name, categoryId, price, otherCost, serviceChargeable };
+  return { ok: true, name, categoryId, price, otherCost, serviceChargeable, imageUrl };
 }
 
 export async function createMenuItem(formData: FormData): Promise<ActionResult> {
@@ -62,6 +64,7 @@ export async function createMenuItem(formData: FormData): Promise<ActionResult> 
       selling_price: parsed.price,
       other_cost: parsed.otherCost,
       service_chargeable: parsed.serviceChargeable,
+      image_url: parsed.imageUrl,
       is_available: true,
     });
     if (error) return { ok: false, error: error.message };
@@ -93,6 +96,7 @@ export async function updateMenuItem(
         selling_price: parsed.price,
         other_cost: parsed.otherCost,
         service_chargeable: parsed.serviceChargeable,
+        image_url: parsed.imageUrl,
       })
       .eq("id", menuItemId);
     if (error) return { ok: false, error: error.message };

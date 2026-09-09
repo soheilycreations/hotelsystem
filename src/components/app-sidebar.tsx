@@ -86,11 +86,16 @@ export function AppSidebar({
   const visible = NAV_ITEMS.filter((item) => canAccess(profile.role, item.href));
   const groups = Array.from(new Set(visible.map((i) => i.group)));
 
-  const nav = (
-    <nav className="flex flex-1 flex-col gap-4 overflow-y-auto px-3 py-4">
+  const nav = (isMini: boolean) => (
+    <nav className="flex flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-3 py-4">
       {groups.map((group) => (
         <div key={group}>
-          <p className="mb-1 px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground">
+          <p
+            className={cn(
+              "mb-1 whitespace-nowrap px-2 text-[11px] font-semibold uppercase tracking-wider text-muted-foreground transition-opacity duration-150",
+              isMini && "opacity-0 group-hover:opacity-100"
+            )}
+          >
             {group}
           </p>
           <div className="flex flex-col gap-0.5">
@@ -104,15 +109,24 @@ export function AppSidebar({
                     key={item.href}
                     href={item.href}
                     onClick={() => setOpen(false)}
+                    title={isMini ? item.label : undefined}
                     className={cn(
                       "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
+                      isMini && "justify-center group-hover:justify-start",
                       active
                         ? "bg-primary text-primary-foreground"
                         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                   >
                     <item.icon className="h-4 w-4 shrink-0" />
-                    {item.label}
+                    <span
+                      className={cn(
+                        "whitespace-nowrap transition-opacity duration-150",
+                        isMini && "hidden opacity-0 group-hover:inline group-hover:opacity-100"
+                      )}
+                    >
+                      {item.label}
+                    </span>
                   </Link>
                 );
               })}
@@ -122,9 +136,14 @@ export function AppSidebar({
     </nav>
   );
 
-  const footer = (
+  const footer = (isMini: boolean) => (
     <div className="border-t px-3 py-3">
-      <div className="mb-2 flex items-center justify-between gap-2 px-1">
+      <div
+        className={cn(
+          "mb-2 flex items-center justify-between gap-2 px-1 transition-opacity duration-150",
+          isMini && "opacity-0 group-hover:opacity-100"
+        )}
+      >
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{profile.full_name}</p>
           <Badge variant="secondary" className="mt-0.5">
@@ -134,8 +153,22 @@ export function AppSidebar({
         <ThemeToggle />
       </div>
       <form action={logout}>
-        <Button variant="outline" size="sm" className="w-full" type="submit">
-          <LogOut /> Sign out
+        <Button
+          variant="outline"
+          size="sm"
+          className={cn("w-full", isMini && "justify-center px-0 group-hover:justify-start group-hover:px-3")}
+          type="submit"
+          title={isMini ? "Sign out" : undefined}
+        >
+          <LogOut />
+          <span
+            className={cn(
+              "whitespace-nowrap transition-opacity duration-150",
+              isMini && "hidden opacity-0 group-hover:inline group-hover:opacity-100"
+            )}
+          >
+            Sign out
+          </span>
         </Button>
       </form>
     </div>
@@ -164,25 +197,27 @@ export function AppSidebar({
                 <X className="h-5 w-5" />
               </Button>
             </div>
-            {nav}
-            {footer}
+            {nav(false)}
+            {footer(false)}
           </aside>
         </div>
       ) : null}
 
-      {/* Desktop rail */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-60 flex-col border-r bg-background md:flex">
+      {/* Desktop rail — collapses to an icon-only strip and expands to full
+          width on hover, so the icon rail stays out of the way of the page
+          content (the POS menu grid especially) until it's actually needed. */}
+      <aside className="group fixed inset-y-0 left-0 z-30 hidden w-16 flex-col overflow-hidden border-r bg-background transition-[width] duration-200 ease-out hover:w-60 md:flex">
         <div className="flex h-14 items-center gap-2 border-b px-4 font-semibold">
-          <Brand hotelName={hotelName} logoUrl={logoUrl} />
+          <Brand hotelName={hotelName} logoUrl={logoUrl} mini />
         </div>
-        {nav}
-        {footer}
+        {nav(true)}
+        {footer(true)}
       </aside>
     </>
   );
 }
 
-function Brand({ hotelName, logoUrl }: { hotelName: string; logoUrl: string | null }) {
+function Brand({ hotelName, logoUrl, mini = false }: { hotelName: string; logoUrl: string | null; mini?: boolean }) {
   return (
     <span className="flex min-w-0 items-center gap-2">
       {logoUrl ? (
@@ -195,7 +230,14 @@ function Brand({ hotelName, logoUrl }: { hotelName: string; logoUrl: string | nu
       ) : (
         <Hotel className="h-5 w-5 shrink-0 text-primary" />
       )}
-      <span className="truncate font-semibold">{hotelName}</span>
+      <span
+        className={cn(
+          "truncate whitespace-nowrap font-semibold transition-opacity duration-150",
+          mini && "opacity-0 group-hover:opacity-100"
+        )}
+      >
+        {hotelName}
+      </span>
     </span>
   );
 }

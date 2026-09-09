@@ -1,7 +1,8 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Beer, ChefHat, Pencil, Plus, Settings2, Trash2, UtensilsCrossed } from "lucide-react";
+import { AlertTriangle, Beer, ChefHat, ImagePlus, Pencil, Plus, Settings2, Trash2, UtensilsCrossed } from "lucide-react";
+import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -159,7 +160,19 @@ export function MenuManager({
             <TableBody>
               {filtered.map((item) => (
                 <TableRow key={item.id} className={item.is_available ? "" : "opacity-60"}>
-                  <TableCell className="font-medium">{item.name}</TableCell>
+                  <TableCell className="font-medium">
+                    <div className="flex items-center gap-2.5">
+                      {item.image_url ? (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img src={item.image_url} alt="" className="h-9 w-9 shrink-0 rounded-md object-cover" />
+                      ) : (
+                        <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-md bg-muted">
+                          <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
+                        </span>
+                      )}
+                      {item.name}
+                    </div>
+                  </TableCell>
                   <TableCell>
                     <Badge variant="secondary" className="gap-1">
                       {item.menu_categories?.station === "bar" ? (
@@ -272,6 +285,27 @@ function MenuItemDialog({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const [imageUrl, setImageUrl] = useState(item?.image_url ?? "");
+  const [uploading, setUploading] = useState(false);
+
+  async function handleFileChange(e: React.ChangeEvent<HTMLInputElement>) {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    setUploading(true);
+    setError(null);
+    try {
+      const supabase = createClient();
+      const path = `${crypto.randomUUID()}-${file.name.replace(/[^a-zA-Z0-9._-]/g, "_")}`;
+      const { error: uploadError } = await supabase.storage.from("menu-images").upload(path, file);
+      if (uploadError) throw uploadError;
+      const { data } = supabase.storage.from("menu-images").getPublicUrl(path);
+      setImageUrl(data.publicUrl);
+    } catch (err) {
+      setError(err instanceof Error ? err.message : "Could not upload the photo.");
+    } finally {
+      setUploading(false);
+    }
+  }
 
   function submit(formData: FormData) {
     startTransition(async () => {
@@ -298,6 +332,31 @@ function MenuItemDialog({
         </DialogDescription>
       </DialogHeader>
       <form action={submit} className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="menu-image">Photo (optional)</Label>
+          <div className="flex items-center gap-3">
+            {imageUrl ? (
+              // eslint-disable-next-line @next/next/no-img-element
+              <img src={imageUrl} alt="" className="h-16 w-16 rounded-md object-cover" />
+            ) : (
+              <span className="flex h-16 w-16 items-center justify-center rounded-md bg-muted">
+                <ImagePlus className="h-5 w-5 text-muted-foreground" />
+              </span>
+            )}
+            <div className="flex-1">
+              <input
+                id="menu-image"
+                type="file"
+                accept="image/*"
+                onChange={handleFileChange}
+                disabled={uploading}
+                className="block w-full text-xs text-muted-foreground file:mr-3 file:rounded-md file:border-0 file:bg-secondary file:px-3 file:py-1.5 file:text-xs file:font-medium file:text-secondary-foreground"
+              />
+              {uploading && <p className="mt-1 text-xs text-muted-foreground">Uploading…</p>}
+            </div>
+          </div>
+          <input type="hidden" name="image_url" value={imageUrl} />
+        </div>
         <div className="space-y-1.5">
           <Label htmlFor="menu-name">Name</Label>
           <Input
@@ -364,7 +423,7 @@ function MenuItemDialog({
         </label>
         {error && <p className="text-sm text-destructive">{error}</p>}
         <DialogFooter>
-          <Button type="submit" disabled={pending}>
+          <Button type="submit" disabled={pending || uploading}>
             {pending ? "Saving…" : mode === "create" ? "Add item" : "Save changes"}
           </Button>
         </DialogFooter>
