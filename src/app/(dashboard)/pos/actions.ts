@@ -229,6 +229,58 @@ export async function removeOrderItem(orderItemId: string): Promise<ActionResult
   }
 }
 
+/** +1 to a line's quantity — the fast in-place stepper on the order pad. */
+export async function incrementOrderItem(orderItemId: string): Promise<ActionResult> {
+  try {
+    await assertRole(POS_ROLES);
+    const supabase = await createClient();
+    const { data: item } = await supabase
+      .from("order_items")
+      .select("quantity")
+      .eq("id", orderItemId)
+      .single();
+    if (!item) return { ok: false, error: "Line not found." };
+    const { error } = await supabase
+      .from("order_items")
+      .update({ quantity: item.quantity + 1 })
+      .eq("id", orderItemId);
+    if (error) return { ok: false, error: error.message };
+    revalidatePos();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** -1 to a line's quantity — removes the line once it hits zero. */
+export async function decrementOrderItem(orderItemId: string): Promise<ActionResult> {
+  try {
+    await assertRole(POS_ROLES);
+    const supabase = await createClient();
+    const { data: item } = await supabase
+      .from("order_items")
+      .select("quantity")
+      .eq("id", orderItemId)
+      .single();
+    if (!item) return { ok: false, error: "Line not found." };
+
+    if (item.quantity <= 1) {
+      const { error } = await supabase.from("order_items").delete().eq("id", orderItemId);
+      if (error) return { ok: false, error: error.message };
+    } else {
+      const { error } = await supabase
+        .from("order_items")
+        .update({ quantity: item.quantity - 1 })
+        .eq("id", orderItemId);
+      if (error) return { ok: false, error: error.message };
+    }
+    revalidatePos();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 /**
  * Stamp specific lines as sent (call AFTER the KOT/BOT actually prints).
  * Takes explicit item ids rather than "every pending line in the order" so

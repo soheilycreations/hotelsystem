@@ -13,16 +13,21 @@ import {
   Minus,
   PartyPopper,
   Plus,
+  Printer,
   Search,
   ShoppingBag,
   Trash2,
+  Wallet,
 } from "lucide-react";
 import type {
   Booking,
   ChannelType,
+  CreditAccount,
   DeliveryStatus,
+  HotelSettings,
   MenuCategoryRow,
   MenuItem,
+  PaymentMethod,
   RestaurantOrder,
   RestaurantTable,
   TableStatus,
@@ -33,6 +38,8 @@ import {
   addCustomOrderItem,
   addOrderItem,
   cancelOrder,
+  decrementOrderItem,
+  incrementOrderItem,
   markKotPrinted,
   openOrder,
   removeOrderItem,
@@ -54,6 +61,8 @@ interface PosTerminalProps {
   orders: RestaurantOrder[];
   guests: Pick<Booking, "id" | "guest_name" | "rooms">[];
   canVoid: boolean;
+  hotel: HotelSettings | null;
+  creditAccounts: CreditAccount[];
 }
 
 const TABLE_STYLES: Record<TableStatus, string> = {
@@ -65,7 +74,15 @@ const TABLE_STYLES: Record<TableStatus, string> = {
 
 const DELIVERY_FLOW: DeliveryStatus[] = ["pending", "cooking", "dispatched", "delivered"];
 
-export function PosTerminal({ tables, categories, menu, orders, guests, canVoid }: PosTerminalProps) {
+const PAYMENT_METHODS: { value: PaymentMethod; label: string }[] = [
+  { value: "cash", label: "Cash" },
+  { value: "card", label: "Card" },
+  { value: "bank_transfer", label: "Bank" },
+  { value: "credit", label: "Credit" },
+  { value: "complimentary", label: "Comp" },
+];
+
+export function PosTerminal({ tables, categories, menu, orders, guests, canVoid, hotel, creditAccounts }: PosTerminalProps) {
   const [channel, setChannel] = useState<ChannelType>("dine_in");
   const [selectedOrderId, setSelectedOrderId] = useState<string | null>(null);
   const [guestId, setGuestId] = useState("");
@@ -74,15 +91,17 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
   const [eventName, setEventName] = useState("");
   const [categoryId, setCategoryId] = useState<string>(categories[0]?.id ?? "");
   const [menuQuery, setMenuQuery] = useState("");
-  const [addQty, setAddQty] = useState("1");
   const [customDesc, setCustomDesc] = useState("");
   const [customAmount, setCustomAmount] = useState("");
   const [customChargeable, setCustomChargeable] = useState(false);
   const [customLogExpense, setCustomLogExpense] = useState(false);
   const [customExpenseAmount, setCustomExpenseAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [creditAccountId, setCreditAccountId] = useState("");
+  const [confirmSettle, setConfirmSettle] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const { printKot, printing, error: printError } = useThermalPrint();
+  const { printKot, print, printing, error: printError } = useThermalPrint();
 
   const selectedOrder = useMemo(
     () => orders.find((o) => o.id === selectedOrderId) ?? null,
@@ -124,6 +143,50 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
       })
     );
   };
+
+  function receiptPayload(order: RestaurantOrder) {
+    return {
+      order,
+      items: order.order_items ?? [],
+      hotel: hotel
+        ? {
+            name: hotel.hotel_name,
+            address: hotel.address,
+            phonePrimary: hotel.phone_primary,
+            phoneSecondary: hotel.phone_secondary,
+          }
+        : undefined,
+    };
+  }
+
+  async function handlePrintBill(order: RestaurantOrder) {
+    const sent = await print(receiptPayload(order));
+    if (sent) setError(null);
+  }
+
+  function handleSettle(order: RestaurantOrder) {
+    if (paymentMethod === "credit" && !creditAccountId) {
+      setError("Pick a credit account before settling.");
+      return;
+    }
+    const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom);
+    if (kotPending && !confirmSettle) {
+      setConfirmSettle(true);
+      setError("Some items were never sent to the kitchen/bar (no KOT/BOT). Press settle again to proceed anyway.");
+      return;
+    }
+    setConfirmSettle(false);
+    run(async () => {
+      const res = await settleOrder(
+        order.id,
+        paymentMethod,
+        false,
+        paymentMethod === "credit" ? creditAccountId : undefined
+      );
+      if (res.ok) setSelectedOrderId(null);
+      return res;
+    });
+  }
 
   const offTableOrders = orders.filter((o) => o.channel_type !== "dine_in");
 
@@ -270,76 +333,66 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
               </span>
             )}
           </div>
-          <div className="flex gap-2">
-            <div className="relative flex-1">
-              <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
-              <Input
-                value={menuQuery}
-                onChange={(e) => setMenuQuery(e.target.value)}
-                placeholder="Search the whole menu…"
-                className="pl-8"
-              />
-            </div>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
             <Input
-              type="number"
-              min="1"
-              step="1"
-              value={addQty}
-              onChange={(e) => setAddQty(e.target.value)}
-              title="Quantity to add when you tap an item"
-              className="w-16 text-center"
+              value={menuQuery}
+              onChange={(e) => setMenuQuery(e.target.value)}
+              placeholder="Search the whole menu…"
+              className="pl-8"
             />
           </div>
-          {addQty !== "1" && addQty.trim() !== "" && (
-            <p className="text-xs text-muted-foreground">
-              Tapping an item now adds <span className="font-medium">×{addQty}</span> at once.
-            </p>
-          )}
-          {menuQuery.trim() === "" ? (
-            <div className="flex flex-wrap gap-1.5">
-              {categories.map((c) => (
-                <Button
-                  key={c.id}
-                  size="sm"
-                  variant={categoryId === c.id ? "default" : "outline"}
-                  onClick={() => setCategoryId(c.id)}
+
+          <div className="flex gap-3">
+            {/* Vertical category rail — tap once, keep tapping items */}
+            {menuQuery.trim() === "" && (
+              <div className="flex w-32 shrink-0 flex-col gap-1 sm:w-40">
+                {categories.map((c) => (
+                  <button
+                    key={c.id}
+                    onClick={() => setCategoryId(c.id)}
+                    className={cn(
+                      "flex items-center gap-2 rounded-md px-2.5 py-2 text-left text-sm font-medium transition-colors",
+                      categoryId === c.id
+                        ? "bg-primary text-primary-foreground"
+                        : "text-muted-foreground hover:bg-accent hover:text-foreground"
+                    )}
+                  >
+                    {c.station === "bar" ? <Beer className="h-3.5 w-3.5 shrink-0" /> : <ChefHat className="h-3.5 w-3.5 shrink-0" />}
+                    <span className="truncate">{c.name}</span>
+                  </button>
+                ))}
+              </div>
+            )}
+
+            <div className="grid flex-1 grid-cols-2 content-start gap-2 sm:grid-cols-3">
+              {(menuQuery.trim() !== ""
+                ? menu.filter((m) => m.name.toLowerCase().includes(menuQuery.trim().toLowerCase()))
+                : menu.filter((m) => m.category_id === categoryId)
+              ).map((m) => (
+                <button
+                  key={m.id}
+                  disabled={pending || !selectedOrder}
+                  onClick={() => {
+                    if (!selectedOrder) return;
+                    run(() => addOrderItem(selectedOrder.id, m.id, 1));
+                  }}
+                  className="group relative rounded-lg border p-3 text-left text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
                 >
-                  {c.station === "bar" ? <Beer className="mr-1 h-3.5 w-3.5" /> : <ChefHat className="mr-1 h-3.5 w-3.5" />}
-                  {c.name}
-                </Button>
+                  {m.menu_categories?.station === "bar" ? (
+                    <Beer className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
+                  ) : (
+                    <Plus className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/0 transition-colors group-hover:text-primary" />
+                  )}
+                  <p className="pr-4 font-medium leading-snug">{m.name}</p>
+                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+                    {formatLKR(Number(m.selling_price))}
+                    {menuQuery.trim() !== "" ? <span className="ml-1.5 font-normal">· {m.menu_categories?.name}</span> : null}
+                  </p>
+                </button>
               ))}
             </div>
-          ) : null}
-          <div className="grid grid-cols-2 gap-2 sm:grid-cols-3 lg:grid-cols-4">
-            {(menuQuery.trim() !== ""
-              ? menu.filter((m) => m.name.toLowerCase().includes(menuQuery.trim().toLowerCase()))
-              : menu.filter((m) => m.category_id === categoryId)
-            ).map((m) => (
-              <button
-                key={m.id}
-                disabled={pending || !selectedOrder}
-                onClick={() => {
-                  if (!selectedOrder) return;
-                  const qty = Math.max(1, Math.floor(Number(addQty)) || 1);
-                  run(() => addOrderItem(selectedOrder.id, m.id, qty));
-                  setAddQty("1");
-                }}
-                className="relative rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60"
-              >
-                {m.menu_categories?.station === "bar" ? (
-                  <Beer className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
-                ) : null}
-                <p className="pr-4 font-medium leading-snug">{m.name}</p>
-                <p className="mt-0.5 text-xs text-muted-foreground tabular-nums">
-                  {formatLKR(Number(m.selling_price))}
-                  {menuQuery.trim() !== "" ? <span className="ml-1.5">· {m.menu_categories?.name}</span> : null}
-                </p>
-              </button>
-            ))}
           </div>
-          <p className="text-xs text-muted-foreground">
-            Settle and print from the Billing screen — stock deducts automatically on settle.
-          </p>
         </div>
 
         {/* Non-table active orders */}
@@ -379,10 +432,11 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
         ) : null}
       </div>
 
-      {/* RIGHT: order pad */}
+      {/* RIGHT: order pad — everything needed to fire, print and settle a bill
+          from one screen, without a trip to the Billing page. */}
       <div className="xl:col-span-2">
-        <Card className="xl:sticky xl:top-6">
-          <CardHeader className="pb-3">
+        <Card className="xl:sticky xl:top-6 overflow-hidden">
+          <CardHeader className="border-b bg-muted/30 pb-3">
             <CardTitle className="flex items-center justify-between text-base">
               {selectedOrder ? (
                 <>
@@ -401,8 +455,8 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
               )}
             </CardTitle>
           </CardHeader>
-          <CardContent className="space-y-4">
-            {error ? <p className="text-sm text-destructive">{error}</p> : null}
+          <CardContent className="space-y-4 pt-4">
+            {error ? <p className="rounded-md bg-destructive/10 px-3 py-2 text-sm text-destructive">{error}</p> : null}
 
             {!selectedOrder ? (
               <p className="text-sm text-muted-foreground">
@@ -410,7 +464,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
               </p>
             ) : (
               <>
-                {/* Lines */}
+                {/* Lines — +/- stepper for fast quantity changes, no re-typing */}
                 <div className="space-y-2">
                   {(selectedOrder.order_items ?? []).length === 0 ? (
                     <p className="text-sm text-muted-foreground">Empty bill — add the first item.</p>
@@ -421,30 +475,52 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
                           <p className="flex items-center gap-1.5 truncate font-medium">
                             {item.is_custom ? item.custom_description : item.menu_items?.name}
                             {item.is_custom && !item.service_chargeable ? (
-                              <span className="text-xs font-normal text-muted-foreground">
-                                (no SC)
-                              </span>
+                              <span className="text-xs font-normal text-muted-foreground">(no SC)</span>
                             ) : null}
                             {item.kot_printed_at ? (
-                              <span title="Sent to kitchen">
+                              <span title="Sent to kitchen/bar">
                                 <Check className="h-3.5 w-3.5 shrink-0 text-emerald-500" />
                               </span>
                             ) : null}
                           </p>
-                          <p className="text-xs text-muted-foreground">
-                            {item.quantity} × {formatLKR(Number(item.unit_price))}
-                          </p>
+                          <p className="text-xs text-muted-foreground">{formatLKR(Number(item.unit_price))} each</p>
                         </div>
                         <div className="flex items-center gap-2">
-                          <span className="font-semibold tabular-nums">{formatLKR(Number(item.line_total))}</span>
+                          {item.is_custom ? (
+                            <span className="num text-xs text-muted-foreground">×{item.quantity}</span>
+                          ) : (
+                            <div className="flex items-center gap-1 rounded-md border">
+                              <button
+                                type="button"
+                                disabled={pending}
+                                aria-label="Decrease quantity"
+                                onClick={() => run(() => decrementOrderItem(item.id))}
+                                className="flex h-6 w-6 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50"
+                              >
+                                <Minus className="h-3 w-3" />
+                              </button>
+                              <span className="w-4 text-center text-xs font-semibold tabular-nums">{item.quantity}</span>
+                              <button
+                                type="button"
+                                disabled={pending}
+                                aria-label="Increase quantity"
+                                onClick={() => run(() => incrementOrderItem(item.id))}
+                                className="flex h-6 w-6 items-center justify-center text-muted-foreground hover:text-foreground disabled:opacity-50"
+                              >
+                                <Plus className="h-3 w-3" />
+                              </button>
+                            </div>
+                          )}
+                          <span className="w-16 text-right font-semibold tabular-nums">{formatLKR(Number(item.line_total))}</span>
                           <Button
                             variant="ghost"
                             size="icon"
+                            className="h-7 w-7"
                             aria-label="Remove line"
                             disabled={pending}
                             onClick={() => run(() => removeOrderItem(item.id))}
                           >
-                            <Trash2 className="h-4 w-4" />
+                            <Trash2 className="h-3.5 w-3.5" />
                           </Button>
                         </div>
                       </div>
@@ -496,43 +572,31 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
                   };
 
                   return (
-                    <div className="space-y-1.5">
+                    <div className="grid grid-cols-2 gap-1.5">
                       {kitchenItems.length > 0 && (
                         <Button
                           variant="secondary"
-                          className="w-full"
                           disabled={pending || printing || pendingKitchen.length === 0}
                           onClick={() => send("kitchen", pendingKitchen)}
                         >
                           <ChefHat className="mr-2 h-4 w-4" />
-                          {printing
-                            ? "Printing…"
-                            : pendingKitchen.length > 0
-                            ? `Send KOT — ${pendingKitchen.length} new item${pendingKitchen.length > 1 ? "s" : ""}`
-                            : "All food sent to kitchen"}
+                          {pendingKitchen.length > 0 ? `KOT (${pendingKitchen.length})` : "KOT sent"}
                         </Button>
                       )}
                       {barItems.length > 0 && (
                         <Button
                           variant="secondary"
-                          className="w-full"
                           disabled={pending || printing || pendingBar.length === 0}
                           onClick={() => send("bar", pendingBar)}
                         >
                           <Beer className="mr-2 h-4 w-4" />
-                          {printing
-                            ? "Printing…"
-                            : pendingBar.length > 0
-                            ? `Send BOT — ${pendingBar.length} new item${pendingBar.length > 1 ? "s" : ""}`
-                            : "All drinks sent to bar"}
+                          {pendingBar.length > 0 ? `BOT (${pendingBar.length})` : "BOT sent"}
                         </Button>
                       )}
-                      {printError ? (
-                        <p className="text-xs text-destructive">{printError}</p>
-                      ) : null}
                     </div>
                   );
                 })()}
+                {printError ? <p className="text-xs text-destructive">{printError}</p> : null}
 
                 {/* Delivery pipeline */}
                 {selectedOrder.channel_type === "delivery" ? (
@@ -636,20 +700,80 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid 
                   </div>
                 )}
 
-                {selectedOrder.channel_type === "room_service" && (
+                {/* Print + Settle — the whole bill, start to finish, without
+                    leaving this screen. */}
+                <div className="space-y-2 border-t pt-3">
                   <Button
-                    variant="secondary"
+                    variant="outline"
                     className="w-full"
-                    disabled={pending || Number(selectedOrder.total_amount) <= 0}
-                    onClick={() => {
-                      run(() => settleOrder(selectedOrder.id));
-                      setSelectedOrderId(null);
-                    }}
+                    disabled={printing || (selectedOrder.order_items ?? []).length === 0}
+                    onClick={() => handlePrintBill(selectedOrder)}
                   >
-                    <ConciergeBell className="mr-2 h-4 w-4" />
-                    Charge to room folio
+                    <Printer className="mr-2 h-4 w-4" />
+                    {printing ? "Printing…" : "Print bill"}
                   </Button>
-                )}
+
+                  {selectedOrder.channel_type === "room_service" ? (
+                    <Button
+                      variant="secondary"
+                      className="w-full"
+                      disabled={pending || Number(selectedOrder.total_amount) <= 0}
+                      onClick={() => {
+                        run(() => settleOrder(selectedOrder.id));
+                        setSelectedOrderId(null);
+                      }}
+                    >
+                      <ConciergeBell className="mr-2 h-4 w-4" />
+                      Charge to room folio
+                    </Button>
+                  ) : (
+                    <>
+                      <div className="grid grid-cols-5 gap-1">
+                        {PAYMENT_METHODS.map((pm) => (
+                          <button
+                            key={pm.value}
+                            type="button"
+                            onClick={() => {
+                              setPaymentMethod(pm.value);
+                              setConfirmSettle(false);
+                            }}
+                            className={cn(
+                              "rounded-md border py-1.5 text-xs font-medium transition-colors",
+                              paymentMethod === pm.value
+                                ? "border-primary bg-primary/10 text-primary"
+                                : "border-input text-muted-foreground hover:bg-accent"
+                            )}
+                          >
+                            {pm.label}
+                          </button>
+                        ))}
+                      </div>
+                      {paymentMethod === "credit" && (
+                        <Select value={creditAccountId} onChange={(e) => setCreditAccountId(e.target.value)}>
+                          <option value="">Select an account…</option>
+                          {creditAccounts.map((a) => (
+                            <option key={a.id} value={a.id}>
+                              {a.name}
+                            </option>
+                          ))}
+                        </Select>
+                      )}
+                      <Button
+                        className="w-full"
+                        variant={confirmSettle ? "destructive" : "default"}
+                        disabled={
+                          pending ||
+                          Number(selectedOrder.total_amount) <= 0 ||
+                          (paymentMethod === "credit" && !creditAccountId)
+                        }
+                        onClick={() => handleSettle(selectedOrder)}
+                      >
+                        <Wallet className="mr-2 h-4 w-4" />
+                        {confirmSettle ? "Settle anyway (KOT/BOT pending)" : "Settle & complete"}
+                      </Button>
+                    </>
+                  )}
+                </div>
 
                 {canVoid && (
                   <Button
