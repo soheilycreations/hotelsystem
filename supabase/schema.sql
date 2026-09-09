@@ -180,6 +180,7 @@ create table public.restaurant_orders (
   total_amount     numeric(14,2) not null default 0 check (total_amount >= 0),
   order_status     order_status not null default 'active',
   payment_method   payment_method, -- set at settle time
+  settled_at       timestamptz, -- stamped only at settle time (updated_at touches on every edit)
   service_charge_waived boolean not null default false, -- per-bill SC override
   credit_account_id uuid references public.credit_accounts (id), -- set when payment_method = 'credit'
   delivery_status  delivery_status,
@@ -686,6 +687,7 @@ declare
   v_rate     numeric(5,2);
   v_sc       numeric(14,2);
   v_waived   boolean;
+  v_channel  channel_type;
 begin
   select coalesce(sum(oi.line_total), 0) into v_subtotal
   from public.order_items oi where oi.order_id = v_order_id;
@@ -698,10 +700,13 @@ begin
   select coalesce(hs.service_charge_rate, 0) into v_rate
   from public.hotel_settings hs where hs.id = 1;
 
-  select o.service_charge_waived into v_waived
+  select o.service_charge_waived, o.channel_type into v_waived, v_channel
   from public.restaurant_orders o where o.id = v_order_id;
 
+  -- No service charge on takeaway/delivery — there's no table service to
+  -- charge for, whatever the hotel's dine-in rate is set to.
   v_sc := case when coalesce(v_waived, false) then 0
+               when v_channel in ('takeaway', 'delivery') then 0
                else round(v_sc_base * coalesce(v_rate, 0) / 100.0, 2)
           end;
 

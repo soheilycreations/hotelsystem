@@ -101,6 +101,30 @@ export interface DailySummaryData {
   todayCashMovements: { direction: string; category: string; description: string | null; amount: number }[];
   creditSales: { source: string; accountName: string; amount: number }[];
   creditAccountBalances: { accountName: string; balance: number }[];
+  billRows: {
+    orderNumber: number;
+    channel: string;
+    reference: string;
+    openedAt: string;
+    settledAt: string | null;
+    paymentMethod: string | null;
+    itemCount: number;
+    amount: number;
+  }[];
+  paymentTotals: { method: string; count: number; amount: number }[];
+  billItemCountTotal: number;
+}
+
+const PAYMENT_LABEL: Record<string, string> = {
+  cash: "Cash",
+  card: "Card",
+  bank_transfer: "Bank Transfer",
+  complimentary: "Complimentary",
+  credit: "Credit",
+};
+
+function fmtTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
 }
 
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
@@ -196,6 +220,47 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     10,
     true
   );
+
+  // Bills — every settled bill for the day, bill-by-bill
+  l.sectionHeader(`Bills (${data.billRows.length}, ${data.billItemCountTotal} items)`);
+  if (data.billRows.length === 0) {
+    l.row([{ text: "No bills settled for this date.", x: MARGIN }], 9);
+  } else {
+    l.row(
+      [
+        { text: "Bill", x: MARGIN },
+        { text: "Channel / Ref", x: MARGIN + 16 },
+        { text: "Opened", x: MARGIN + 92 },
+        { text: "Settled", x: MARGIN + 116 },
+        { text: "Paid by", x: MARGIN + 140 },
+        { text: "Amount", x: colRight, align: "right" },
+      ],
+      8,
+      true
+    );
+    for (const b of data.billRows) {
+      l.row(
+        [
+          { text: `#${b.orderNumber}`, x: MARGIN },
+          { text: `${b.channel} — ${b.reference}`.slice(0, 42), x: MARGIN + 16 },
+          { text: fmtTime(b.openedAt), x: MARGIN + 92 },
+          { text: b.settledAt ? fmtTime(b.settledAt) : "—", x: MARGIN + 116 },
+          { text: b.paymentMethod ? PAYMENT_LABEL[b.paymentMethod] ?? b.paymentMethod : "—", x: MARGIN + 140 },
+          { text: fmt(b.amount), x: colRight, align: "right" },
+        ],
+        8
+      );
+    }
+  }
+  if (data.paymentTotals.length > 0) {
+    l.divider();
+    for (const p of data.paymentTotals) {
+      l.row([
+        { text: `${PAYMENT_LABEL[p.method] ?? p.method} (${p.count})`, x: MARGIN },
+        { text: fmt(p.amount), x: colRight, align: "right" },
+      ]);
+    }
+  }
 
   // Expenses
   l.sectionHeader("Expenses");
