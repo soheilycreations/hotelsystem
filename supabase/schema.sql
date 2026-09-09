@@ -156,6 +156,7 @@ create table public.menu_items (
   other_cost    numeric(12,2) not null default 0 check (other_cost >= 0), -- packaging/gas/misc, not stock-tracked
   service_chargeable boolean not null default true, -- false for items that should never attract service charge
   is_available  boolean not null default true,
+  image_url     text, -- public URL in the 'menu-images' storage bucket, see section 11
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -805,3 +806,27 @@ create policy "staff update bills" on storage.objects
 drop policy if exists "public read bills" on storage.objects;
 create policy "public read bills" on storage.objects
   for select using (bucket_id = 'bills');
+
+-- Public bucket for menu item photos (POS terminal + menu manager)
+insert into storage.buckets (id, name, public)
+values ('menu-images', 'menu-images', true)
+on conflict (id) do nothing;
+
+drop policy if exists "menu images public read" on storage.objects;
+create policy "menu images public read" on storage.objects
+  for select using (bucket_id = 'menu-images');
+
+drop policy if exists "menu images admin write" on storage.objects;
+create policy "menu images admin write" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'menu-images' and public.get_my_role() in ('admin', 'manager'));
+
+drop policy if exists "menu images admin update" on storage.objects;
+create policy "menu images admin update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'menu-images' and public.get_my_role() in ('admin', 'manager'));
+
+drop policy if exists "menu images admin delete" on storage.objects;
+create policy "menu images admin delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'menu-images' and public.get_my_role() in ('admin', 'manager'));

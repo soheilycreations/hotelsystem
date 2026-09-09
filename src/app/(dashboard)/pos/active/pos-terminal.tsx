@@ -377,18 +377,36 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                     if (!selectedOrder) return;
                     run(() => addOrderItem(selectedOrder.id, m.id, 1));
                   }}
-                  className="group relative rounded-lg border p-3 text-left text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+                  className="group relative overflow-hidden rounded-lg border text-left text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
                 >
-                  {m.menu_categories?.station === "bar" ? (
-                    <Beer className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/60" />
-                  ) : (
-                    <Plus className="absolute right-2.5 top-2.5 h-3.5 w-3.5 text-muted-foreground/0 transition-colors group-hover:text-primary" />
-                  )}
-                  <p className="pr-4 font-medium leading-snug">{m.name}</p>
-                  <p className="mt-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
-                    {formatLKR(Number(m.selling_price))}
-                    {menuQuery.trim() !== "" ? <span className="ml-1.5 font-normal">· {m.menu_categories?.name}</span> : null}
-                  </p>
+                  <div className="relative aspect-[4/3] w-full bg-muted">
+                    {m.image_url ? (
+                      // eslint-disable-next-line @next/next/no-img-element
+                      <img src={m.image_url} alt="" className="h-full w-full object-cover" />
+                    ) : (
+                      <div className="flex h-full w-full items-center justify-center">
+                        {m.menu_categories?.station === "bar" ? (
+                          <Beer className="h-6 w-6 text-muted-foreground/40" />
+                        ) : (
+                          <ChefHat className="h-6 w-6 text-muted-foreground/40" />
+                        )}
+                      </div>
+                    )}
+                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/90 shadow-sm">
+                      {m.menu_categories?.station === "bar" ? (
+                        <Beer className="h-3 w-3 text-primary" />
+                      ) : (
+                        <Plus className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
+                      )}
+                    </span>
+                  </div>
+                  <div className="p-2.5">
+                    <p className="truncate font-medium leading-snug">{m.name}</p>
+                    <p className="mt-0.5 text-xs font-semibold text-muted-foreground tabular-nums">
+                      {formatLKR(Number(m.selling_price))}
+                      {menuQuery.trim() !== "" ? <span className="ml-1.5 font-normal">· {m.menu_categories?.name}</span> : null}
+                    </p>
+                  </div>
                 </button>
               ))}
             </div>
