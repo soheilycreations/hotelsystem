@@ -41,9 +41,9 @@ export default async function PosActivePage() {
   ]);
 
   return (
-    <div className="space-y-6">
+    <div className="space-y-4">
       <LiveRefresher tables={["restaurant_orders", "order_items", "restaurant_tables", "menu_items"]} />
-      <div className="flex items-start justify-between gap-3">
+      <div className="flex items-center justify-between gap-3">
         <div>
           <h1 className="text-2xl font-semibold tracking-tight">POS terminal</h1>
           <p className="text-sm text-muted-foreground">

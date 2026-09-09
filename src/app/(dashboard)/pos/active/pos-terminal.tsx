@@ -392,12 +392,13 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                         )}
                       </div>
                     )}
-                    <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/90 shadow-sm">
-                      {m.menu_categories?.station === "bar" ? (
+                    {m.menu_categories?.station === "bar" && (
+                      <span className="absolute right-1.5 top-1.5 flex h-5 w-5 items-center justify-center rounded-full bg-background/90 shadow-sm">
                         <Beer className="h-3 w-3 text-primary" />
-                      ) : (
-                        <Plus className="h-3 w-3 text-muted-foreground opacity-0 transition-opacity group-hover:opacity-100" />
-                      )}
+                      </span>
+                    )}
+                    <span className="absolute inset-0 flex items-center justify-center bg-primary/0 opacity-0 transition-opacity group-hover:bg-primary/10 group-hover:opacity-100">
+                      <Plus className="h-6 w-6 rounded-full bg-background/90 p-1 text-primary shadow-sm" />
                     </span>
                   </div>
                   <div className="p-2.5">
@@ -454,7 +455,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
           from one screen, without a trip to the Billing page. */}
       <div className="xl:col-span-2">
         <Card className="xl:sticky xl:top-6 overflow-hidden">
-          <CardHeader className="border-b bg-muted/30 pb-3">
+          <CardHeader className="border-b bg-muted/30 py-3">
             <CardTitle className="flex items-center justify-between text-base">
               {selectedOrder ? (
                 <>
