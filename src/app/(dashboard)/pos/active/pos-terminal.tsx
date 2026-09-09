@@ -155,6 +155,21 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
     setMenuQuery("");
   }
 
+  /** Total quantity of a menu item already on the current order — shown as
+   * the hover stepper's count on its menu card. */
+  function orderQtyForItem(menuItemId: string): number {
+    return (selectedOrder?.order_items ?? [])
+      .filter((oi) => oi.menu_item_id === menuItemId)
+      .reduce((sum, oi) => sum + oi.quantity, 0);
+  }
+
+  /** The one line the hover stepper's "-" can shrink — only a line that
+   * hasn't been sent to the kitchen/bar yet, matching addOrderItem's own
+   * merge rule (new taps land on that same line, not a KOT'd one). */
+  function pendingLineForItem(menuItemId: string) {
+    return (selectedOrder?.order_items ?? []).find((oi) => oi.menu_item_id === menuItemId && !oi.kot_printed_at);
+  }
+
   const openChannelOrder = () => {
     run(() =>
       openOrder({
@@ -233,7 +248,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
           </TabsList>
 
           <TabsContent value="dine_in" className="space-y-2">
-            <div className="flex flex-wrap gap-1.5">
+            <div className="flex flex-wrap gap-2">
               {tables.map((table) => {
                 const order = orderForTable(table.id);
                 return (
@@ -243,7 +258,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                     onClick={() => handleTableTap(table)}
                     title={`Seats ${table.capacity} · ${table.floor_zone ?? "—"}`}
                     className={cn(
-                      "flex items-center gap-1 rounded-full border px-2.5 py-1 text-xs font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
+                      "flex items-center gap-1.5 rounded-full border px-3.5 py-2 text-sm font-medium transition-colors focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:opacity-60",
                       TABLE_STYLES[table.current_status],
                       selectedOrder?.table_id === table.id && "ring-2 ring-ring"
                     )}
@@ -394,15 +409,30 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
             {visibleItems.length === 0 && (
               <p className="col-span-full py-6 text-center text-sm text-muted-foreground">No items found.</p>
             )}
-            {visibleItems.map((m) => (
-                <button
+            {visibleItems.map((m) => {
+              const cardQty = orderQtyForItem(m.id);
+              const disabled = pending || !selectedOrder;
+              return (
+                <div
                   key={m.id}
-                  disabled={pending || !selectedOrder}
+                  role="button"
+                  tabIndex={disabled ? -1 : 0}
+                  aria-disabled={disabled}
                   onClick={() => {
-                    if (!selectedOrder) return;
+                    if (disabled || !selectedOrder) return;
                     run(() => addOrderItem(selectedOrder.id, m.id, 1));
                   }}
-                  className="group relative overflow-hidden rounded-lg border text-left text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring disabled:pointer-events-none disabled:opacity-60"
+                  onKeyDown={(e) => {
+                    if (disabled || !selectedOrder) return;
+                    if (e.key === "Enter" || e.key === " ") {
+                      e.preventDefault();
+                      run(() => addOrderItem(selectedOrder.id, m.id, 1));
+                    }
+                  }}
+                  className={cn(
+                    "group relative cursor-pointer overflow-hidden rounded-lg border text-left text-sm shadow-sm transition-all hover:-translate-y-0.5 hover:border-primary/50 hover:shadow-md focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-ring",
+                    disabled && "pointer-events-none opacity-60"
+                  )}
                 >
                   <div className="relative aspect-[4/3] w-full bg-muted">
                     {m.image_url ? (
@@ -422,9 +452,43 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                         <Beer className="h-3 w-3 text-primary" />
                       </span>
                     )}
-                    <span className="absolute inset-0 flex items-center justify-center bg-primary/0 opacity-0 transition-opacity group-hover:bg-primary/10 group-hover:opacity-100">
-                      <Plus className="h-6 w-6 rounded-full bg-background/90 p-1 text-primary shadow-sm" />
-                    </span>
+                    {cardQty > 0 && (
+                      <span className="absolute left-1.5 top-1.5 flex h-5 min-w-5 items-center justify-center rounded-full bg-primary px-1 text-[11px] font-semibold text-primary-foreground shadow-sm">
+                        {cardQty}
+                      </span>
+                    )}
+                    {/* Hover stepper — set the quantity right here instead of
+                        tapping the card repeatedly. Hidden until hovered so
+                        it doesn't clutter the grid at rest. */}
+                    <div className="absolute inset-0 flex items-center justify-center gap-1.5 bg-background/0 opacity-0 transition-opacity group-hover:bg-background/70 group-hover:opacity-100">
+                      <button
+                        type="button"
+                        aria-label={`Remove one ${m.name}`}
+                        disabled={disabled || !pendingLineForItem(m.id)}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          const line = pendingLineForItem(m.id);
+                          if (line) run(() => decrementOrderItem(line.id));
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-background text-foreground shadow-sm transition-colors hover:bg-accent disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        <Minus className="h-3.5 w-3.5" />
+                      </button>
+                      <span className="min-w-5 text-center text-sm font-semibold tabular-nums">{cardQty}</span>
+                      <button
+                        type="button"
+                        aria-label={`Add one ${m.name}`}
+                        disabled={disabled}
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          if (!selectedOrder) return;
+                          run(() => addOrderItem(selectedOrder.id, m.id, 1));
+                        }}
+                        className="flex h-7 w-7 items-center justify-center rounded-full bg-primary text-primary-foreground shadow-sm transition-colors hover:opacity-90 disabled:pointer-events-none disabled:opacity-40"
+                      >
+                        <Plus className="h-3.5 w-3.5" />
+                      </button>
+                    </div>
                   </div>
                   <div className="p-2.5">
                     <p className="truncate font-medium leading-snug">{m.name}</p>
@@ -433,8 +497,9 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                       {menuQuery.trim() !== "" ? <span className="ml-1.5 font-normal">· {m.menu_categories?.name}</span> : null}
                     </p>
                   </div>
-                </button>
-            ))}
+                </div>
+              );
+            })}
           </div>
         </div>
 
