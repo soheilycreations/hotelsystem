@@ -221,7 +221,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
       <div className="space-y-4 xl:col-span-3">
       {/* Sticky header — channel tabs, table row, search and categories stay
           put while the item grid below scrolls. */}
-      <div className="sticky top-6 z-10 space-y-3 bg-background pb-3">
+      <div className="sticky top-0 z-10 -mt-4 space-y-3 bg-background pb-3 pt-4 md:-mt-6 md:pt-6">
         <Tabs value={channel} onValueChange={(v) => setChannel(v as ChannelType)}>
           <TabsList className="w-full justify-start overflow-x-auto">
             <TabsTrigger value="dine_in"><Armchair className="mr-1.5 h-4 w-4" />Dine-in</TabsTrigger>
