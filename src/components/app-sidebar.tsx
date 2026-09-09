@@ -87,7 +87,7 @@ export function AppSidebar({
   const groups = Array.from(new Set(visible.map((i) => i.group)));
 
   const nav = (isMini: boolean) => (
-    <nav className="flex flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-3 py-4">
+    <nav className="no-scrollbar flex flex-1 flex-col gap-4 overflow-y-auto overflow-x-hidden px-3 py-4">
       {groups.map((group) => (
         <div key={group}>
           <p
@@ -206,7 +206,7 @@ export function AppSidebar({
       {/* Desktop rail — collapses to an icon-only strip and expands to full
           width on hover, so the icon rail stays out of the way of the page
           content (the POS menu grid especially) until it's actually needed. */}
-      <aside className="group fixed inset-y-0 left-0 z-30 hidden w-16 flex-col overflow-hidden border-r bg-background transition-[width] duration-200 ease-out hover:w-60 md:flex">
+      <aside className="group fixed inset-y-0 left-0 z-30 hidden w-20 flex-col overflow-hidden border-r bg-background transition-[width] duration-200 ease-out hover:w-60 md:flex">
         <div className="flex h-14 items-center gap-2 border-b px-4 font-semibold">
           <Brand hotelName={hotelName} logoUrl={logoUrl} mini />
         </div>

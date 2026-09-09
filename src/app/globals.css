@@ -57,3 +57,13 @@
     @apply bg-background text-foreground antialiased;
   }
 }
+
+/* Keeps a scrollable element's own scrollbar hidden — used on the sidebar's
+   icon rail, which scrolls but shouldn't show a track over a 64-80px strip. */
+.no-scrollbar {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+  display: none;
+}
