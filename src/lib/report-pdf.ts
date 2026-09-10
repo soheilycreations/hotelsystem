@@ -1,11 +1,10 @@
 /** A4 PDF export for the Daily Summary report — separate from the A5 bill layout. */
 
 import { SI_DICT } from "./i18n/translations";
+import { exportHtmlReport, escapeHtml } from "./html-pdf";
 
 const A4: [number, number] = [210, 297]; // mm
 const MARGIN = 16;
-const SINHALA_FONT_URL = "/fonts/NotoSansSinhala-Regular.ttf";
-const SINHALA_FONT_NAME = "NotoSansSinhala";
 
 export type PdfLanguage = "en" | "si";
 
@@ -34,63 +33,24 @@ interface PdfDoc {
   line: (x1: number, y1: number, x2: number, y2: number) => void;
   addPage: () => void;
   output: (t: "blob") => Blob;
-  addFileToVFS: (path: string, data: string) => void;
-  addFont: (path: string, name: string, style: string) => void;
 }
 
-let sinhalaFontBase64: Promise<string> | null = null;
-
-/** Fetches the Sinhala TTF from /public once per page load and caches the
- * base64 — jsPDF's built-in fonts (helvetica etc.) have no Sinhala glyphs,
- * so exporting a Sinhala report needs this font registered on the doc. */
-function loadSinhalaFontBase64(): Promise<string> {
-  if (!sinhalaFontBase64) {
-    sinhalaFontBase64 = fetch(SINHALA_FONT_URL)
-      .then((res) => res.arrayBuffer())
-      .then((buf) => {
-        const bytes = new Uint8Array(buf);
-        let binary = "";
-        const chunkSize = 0x8000;
-        for (let i = 0; i < bytes.length; i += chunkSize) {
-          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
-        }
-        return btoa(binary);
-      });
-  }
-  return sinhalaFontBase64;
-}
-
-async function registerSinhalaFont(doc: PdfDoc): Promise<void> {
-  const base64 = await loadSinhalaFontBase64();
-  const fileName = "NotoSansSinhala-Regular.ttf";
-  doc.addFileToVFS(fileName, base64);
-  // Only one weight is embedded — register it for both styles so a
-  // sectionHeader/row asking for "bold" doesn't hit a missing-font error.
-  doc.addFont(fileName, SINHALA_FONT_NAME, "normal");
-  doc.addFont(fileName, SINHALA_FONT_NAME, "bold");
-}
-
-async function newDoc(language: PdfLanguage = "en"): Promise<{ doc: PdfDoc; fontFamily: string }> {
+async function newDoc(): Promise<PdfDoc> {
   const { jsPDF } = await import("jspdf");
-  const doc = new jsPDF({ unit: "mm", format: A4 }) as unknown as PdfDoc;
-  if (language === "si") {
-    await registerSinhalaFont(doc);
-    return { doc, fontFamily: SINHALA_FONT_NAME };
-  }
-  return { doc, fontFamily: "helvetica" };
+  return new jsPDF({ unit: "mm", format: A4 }) as unknown as PdfDoc;
 }
 
 class ReportLayout {
   y = MARGIN;
-  constructor(private doc: PdfDoc, private width = A4[0], private fontFamily = "helvetica") {}
+  constructor(private doc: PdfDoc, private width = A4[0]) {}
   title(text: string, size = 16): void {
-    this.doc.setFont(this.fontFamily, "bold");
+    this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(size);
     this.doc.text(text, MARGIN, this.y);
     this.y += size * 0.5 + 2;
   }
   subtitle(text: string, size = 10): void {
-    this.doc.setFont(this.fontFamily, "normal");
+    this.doc.setFont("helvetica", "normal");
     this.doc.setFontSize(size);
     this.doc.text(text, MARGIN, this.y);
     this.y += size * 0.5 + 3;
@@ -98,7 +58,7 @@ class ReportLayout {
   sectionHeader(text: string): void {
     this.space(3);
     this.guard(10);
-    this.doc.setFont(this.fontFamily, "bold");
+    this.doc.setFont("helvetica", "bold");
     this.doc.setFontSize(12);
     this.doc.text(text, MARGIN, this.y);
     this.y += 5;
@@ -109,7 +69,7 @@ class ReportLayout {
   }
   row(cols: { text: string; x: number; align?: "left" | "right" }[], size = 9, bold = false): void {
     this.guard();
-    this.doc.setFont(this.fontFamily, bold ? "bold" : "normal");
+    this.doc.setFont("helvetica", bold ? "bold" : "normal");
     this.doc.setFontSize(size);
     for (const c of cols) {
       this.doc.text(c.text, c.x, this.y, c.align === "right" ? { align: "right" } : undefined);
@@ -161,17 +121,29 @@ export interface DailySummaryData {
   creditAccountBalances: { accountName: string; balance: number }[];
 }
 
+/**
+ * jsPDF's text() maps each character straight to a glyph with no OpenType
+ * shaping — Sinhala needs real shaping (vowel-sign reordering, GSUB
+ * conjuncts) or it renders as broken glyph soup, so this vector/text path
+ * is English-only. A Sinhala export goes through generateDailySummaryPdfHtml
+ * instead, which rasterizes real (correctly-shaped) browser-rendered HTML.
+ */
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
-  const lang: PdfLanguage = data.language ?? "en";
+  if ((data.language ?? "en") === "si") return generateDailySummaryPdfHtml(data);
+  return generateDailySummaryPdfVector(data);
+}
+
+async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Blob> {
+  const lang: PdfLanguage = "en";
   const T = (text: string) => tr(text, lang);
-  const { doc, fontFamily } = await newDoc(lang);
-  const l = new ReportLayout(doc, A4[0], fontFamily);
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
   const W = A4[0];
   const colRight = W - MARGIN;
 
   l.title(data.hotelName);
   l.subtitle(
-    `${T("Daily Summary")} — ${new Date(data.date).toLocaleDateString(lang === "si" ? "si-LK" : "en-GB", {
+    `${T("Daily Summary")} — ${new Date(data.date).toLocaleDateString("en-GB", {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -461,6 +433,201 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   return doc.output("blob");
 }
 
+function htmlSectionHeader(text: string): string {
+  return `<div style="font-size:14px;font-weight:700;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid #666;">${escapeHtml(
+    text
+  )}</div>`;
+}
+
+function htmlTable(headers: string[], rows: string[][]): string {
+  const th = headers
+    .map(
+      (h, i) =>
+        `<th style="text-align:${i === headers.length - 1 ? "right" : "left"};padding:3px 6px;border-bottom:1px solid #999;font-weight:700;">${escapeHtml(h)}</th>`
+    )
+    .join("");
+  const trs = rows
+    .map(
+      (cols) =>
+        `<tr>${cols
+          .map(
+            (c, i) =>
+              `<td style="padding:3px 6px;text-align:${i === cols.length - 1 ? "right" : "left"};">${c}</td>`
+          )
+          .join("")}</tr>`
+    )
+    .join("");
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px;">${
+    th ? `<thead><tr>${th}</tr></thead>` : ""
+  }<tbody>${trs}</tbody></table>`;
+}
+
+function htmlTotalRow(label: string, value: string, bold = false): string {
+  return `<div style="display:flex;justify-content:space-between;padding:5px 6px;border-top:1px solid #ccc;font-weight:${
+    bold ? 700 : 400
+  };font-size:${bold ? 13 : 12}px;"><span>${escapeHtml(label)}</span><span>${value}</span></div>`;
+}
+
+function htmlTwoColTotal(label: string, room: string, restaurant: string, bold = false): string {
+  return `<div style="display:flex;justify-content:space-between;padding:5px 6px;border-top:1px solid #ccc;font-weight:${
+    bold ? 700 : 400
+  };font-size:${bold ? 13 : 12}px;"><span style="flex:1;">${escapeHtml(
+    label
+  )}</span><span style="width:90px;text-align:right;">${room}</span><span style="width:90px;text-align:right;">${restaurant}</span></div>`;
+}
+
+/**
+ * Same report as generateDailySummaryPdfVector, built as plain HTML and
+ * rasterized via html2canvas — the browser shapes Sinhala correctly where
+ * jsPDF's own text drawing can't (see comment above the vector function).
+ */
+async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob> {
+  const T = (text: string) => tr(text, "si");
+  const dateLabel = new Date(`${data.date}T00:00:00`).toLocaleDateString("si-LK", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const paidLabelOf = (m?: string) =>
+    m === "bank_transfer" ? T("Bank Transfer") : m === "card" ? T("Card") : m === "complimentary" ? T("Complimentary") : T("Cash");
+
+  const expensesAgainstRevenue = data.expenses
+    .filter((e) => e.paymentMethod !== "bank_transfer")
+    .reduce((sum, e) => sum + e.amount, 0);
+  const bankTransferTotal = data.expensesTotal - expensesAgainstRevenue;
+  const roomBalance = data.roomRevenueTotal - data.roomExpenses;
+  const restaurantBalance = data.posTotal - data.restaurantExpenses;
+
+  let html = `<div style="font-family:'NotoSansSinhala',sans-serif;color:#111;padding:28px;">`;
+  html += `<h1 style="font-size:22px;font-weight:700;margin:0 0 4px;">${escapeHtml(data.hotelName)}</h1>`;
+  html += `<p style="margin:0 0 10px;color:#444;font-size:13px;">${escapeHtml(T("Daily Summary"))} — ${escapeHtml(dateLabel)}</p>`;
+  html += `<hr style="border:none;border-top:1px solid #999;margin:10px 0 4px;">`;
+
+  // Room sales
+  html += htmlSectionHeader(T("Room Sales"));
+  if (data.roomSales.length === 0) {
+    html += `<p style="font-size:12px;color:#666;">${escapeHtml(T("No checkouts recorded for this date."))}</p>`;
+  } else {
+    html += htmlTable(
+      [T("Guest"), T("Room"), T("Plan"), T("Paid by"), T("Amount")],
+      data.roomSales.map((r) => [
+        escapeHtml(r.guestName),
+        escapeHtml(r.roomNumber),
+        escapeHtml(r.planName ?? "—"),
+        escapeHtml(paidLabelOf(r.paymentMethod)),
+        fmt(r.amount),
+      ])
+    );
+  }
+  html += htmlTotalRow(T("Room revenue total"), fmt(data.roomRevenueTotal), true);
+
+  // Item sales
+  html += htmlSectionHeader(T("Restaurant / POS Item Sales"));
+  if (data.itemSales.length === 0) {
+    html += `<p style="font-size:12px;color:#666;">${escapeHtml(T("No completed orders for this date."))}</p>`;
+  } else {
+    html += htmlTable(
+      [T("Item"), T("Qty"), T("Revenue")],
+      data.itemSales.map((it) => [escapeHtml(it.name), String(it.qty), fmt(it.revenue)])
+    );
+  }
+  html += htmlTotalRow(T("POS subtotal"), fmt(data.posSubtotal));
+  html += htmlTotalRow(T("Service charge"), fmt(data.posServiceCharge));
+  html += htmlTotalRow(T("POS total"), fmt(data.posTotal), true);
+
+  // Expenses
+  html += htmlSectionHeader(T("Expenses"));
+  if (data.expenses.length === 0) {
+    html += `<p style="font-size:12px;color:#666;">${escapeHtml(T("No expenses logged for this date."))}</p>`;
+  } else {
+    html += htmlTable(
+      [T("Category"), T("Description"), T("Amount")],
+      data.expenses.map((e) => [
+        escapeHtml(e.category),
+        escapeHtml(
+          `${(e.description ?? "—").slice(0, 40)}${e.paymentMethod === "bank_transfer" ? ` (${T("owner bank transfer")})` : ""}`
+        ),
+        fmt(e.amount),
+      ])
+    );
+  }
+  html += htmlTotalRow(T("Expenses total (all)"), fmt(data.expensesTotal), true);
+
+  // Room vs Restaurant
+  html += htmlSectionHeader(T("Room vs Restaurant"));
+  if (bankTransferTotal > 0) {
+    html += `<p style="font-size:11px;color:#666;margin:0 0 6px;">${escapeHtml(
+      T("Owner bank transfers excluded from both balances")
+    )}: ${fmt(bankTransferTotal)}</p>`;
+  }
+  html += `<div style="display:flex;justify-content:flex-end;gap:0;padding:2px 6px;font-size:12px;font-weight:700;"><span style="flex:1;"></span><span style="width:90px;text-align:right;">${escapeHtml(
+    T("Room")
+  )}</span><span style="width:90px;text-align:right;">${escapeHtml(T("Restaurant"))}</span></div>`;
+  html += htmlTwoColTotal(T("Revenue"), fmt(data.roomRevenueTotal), fmt(data.posTotal));
+  html += htmlTwoColTotal(T("Expenses"), fmt(data.roomExpenses), fmt(data.restaurantExpenses));
+  html += htmlTwoColTotal(T("Balance"), fmt(roomBalance), fmt(restaurantBalance), true);
+
+  // Room & Restaurant ledger
+  html += htmlSectionHeader(T("Room & Restaurant Ledger (cash)"));
+  html += `<div style="display:flex;justify-content:flex-end;gap:0;padding:2px 6px;font-size:12px;font-weight:700;"><span style="flex:1;"></span><span style="width:90px;text-align:right;">${escapeHtml(
+    T("Room")
+  )}</span><span style="width:90px;text-align:right;">${escapeHtml(T("Restaurant"))}</span></div>`;
+  html += htmlTwoColTotal(T("Inhand (yesterday)"), fmt(data.roomLedger.opening), fmt(data.restaurantLedger.opening));
+  html += htmlTwoColTotal(T("+ Today's cash in"), fmt(data.roomLedger.todayIn), fmt(data.restaurantLedger.todayIn));
+  html += htmlTwoColTotal(T("- Today's cash out"), fmt(data.roomLedger.todayOut), fmt(data.restaurantLedger.todayOut));
+  html += htmlTwoColTotal(
+    T("Balance (carries to tomorrow)"),
+    fmt(data.roomLedger.closing),
+    fmt(data.restaurantLedger.closing),
+    true
+  );
+
+  // Cash movements today
+  if (data.todayCashMovements.length > 0) {
+    html += htmlSectionHeader(T("Cash movements today"));
+    html += htmlTable(
+      [],
+      data.todayCashMovements.map((m) => [
+        escapeHtml(m.category.slice(0, 30)),
+        escapeHtml((m.description ?? "").slice(0, 40)),
+        `${m.direction === "in" ? "+" : "-"}${fmt(m.amount)}`,
+      ])
+    );
+  }
+
+  // Credit accounts
+  if (data.creditAccountBalances.length > 0) {
+    html += htmlSectionHeader(T("Credit accounts — still owing"));
+    html += htmlTable(
+      [T("Account"), T("Balance")],
+      data.creditAccountBalances.map((a) => [escapeHtml(a.accountName.slice(0, 40)), fmt(a.balance)])
+    );
+    html += htmlTotalRow(
+      T("Total outstanding"),
+      fmt(data.creditAccountBalances.reduce((s, a) => s + a.balance, 0)),
+      true
+    );
+  }
+
+  // Credit sales added today
+  if (data.creditSales.length > 0) {
+    html += htmlSectionHeader(T("Credit — added today"));
+    html += htmlTable(
+      [T("Account"), T("Source"), T("Amount")],
+      data.creditSales.map((c) => [escapeHtml(c.accountName.slice(0, 28)), escapeHtml(c.source.slice(0, 38)), fmt(c.amount)])
+    );
+    html += htmlTotalRow(T("Total on credit today"), fmt(data.creditSales.reduce((s, c) => s + c.amount, 0)), true);
+  }
+
+  html += `</div>`;
+
+  return exportHtmlReport((root) => {
+    root.innerHTML = html;
+  });
+}
+
 export interface CashBookLedgerEntry {
   date: string;
   description: string;
@@ -485,8 +652,8 @@ export interface CashBookData {
 }
 
 export async function generateCashBookPdf(data: CashBookData): Promise<Blob> {
-  const { doc, fontFamily } = await newDoc();
-  const l = new ReportLayout(doc, A4[0], fontFamily);
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
   const W = A4[0];
   const colRight = W - MARGIN;
 
@@ -623,8 +790,8 @@ const PAYMENT_LABEL_PDF: Record<string, string> = {
 };
 
 export async function generateExpensesReportPdf(data: ExpensesReportData): Promise<Blob> {
-  const { doc, fontFamily } = await newDoc();
-  const l = new ReportLayout(doc, A4[0], fontFamily);
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
   const W = A4[0];
   const colRight = W - MARGIN;
 
@@ -724,8 +891,8 @@ export interface BillsReportData {
 /** Full bill-by-bill export — every settled bill for the day with its line
  * items expanded, for reconciling the till in detail (not just totals). */
 export async function generateBillsReportPdf(data: BillsReportData): Promise<Blob> {
-  const { doc, fontFamily } = await newDoc();
-  const l = new ReportLayout(doc, A4[0], fontFamily);
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
   const W = A4[0];
   const colRight = W - MARGIN;
 

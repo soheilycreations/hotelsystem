@@ -2,6 +2,18 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Used by the off-screen HTML-to-PDF renderer for Sinhala report exports —
+   jsPDF's own text drawing can't shape Sinhala (conjuncts/vowel signs), so
+   those reports are rasterized from real browser-rendered HTML instead,
+   which needs this font loaded regardless of what's on the visiting OS. */
+@font-face {
+  font-family: "NotoSansSinhala";
+  src: url("/fonts/NotoSansSinhala-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: block;
+}
+
 @layer base {
   :root {
     --background: 0 0% 100%;
