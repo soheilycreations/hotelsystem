@@ -358,6 +358,7 @@ export interface HotelSettings {
   phone_primary: string | null;
   phone_secondary: string | null;
   logo_url: string | null;
+  review_qr_url: string | null;
   service_charge_rate: number;
   created_at: string;
   updated_at: string;
