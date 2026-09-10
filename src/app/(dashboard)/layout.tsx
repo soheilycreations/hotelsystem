@@ -25,7 +25,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
       />
       <div className="md:pl-20">
         <RouteGuard role={profile.role}>
-          <main className="mx-auto w-full max-w-7xl p-4 md:p-6">{children}</main>
+          <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 xl:p-8">{children}</main>
         </RouteGuard>
       </div>
     </div>
