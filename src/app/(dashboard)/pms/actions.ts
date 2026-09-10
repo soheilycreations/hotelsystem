@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { BookingStatus, GuestStayHistory, PaymentMethod, RoomStatus } from "@/lib/types";
+import { formatOrderNumber } from "@/lib/utils";
 
 interface ActionResult {
   ok: boolean;
@@ -250,11 +251,11 @@ export async function setBookingStatus(
     if (status === "checked_out") {
       const { data: openRs } = await supabase
         .from("restaurant_orders")
-        .select("order_number")
+        .select("order_number, business_date")
         .eq("booking_id", bookingId)
         .eq("order_status", "active");
       if (openRs && openRs.length > 0) {
-        const nums = openRs.map((o) => `#${o.order_number}`).join(", ");
+        const nums = openRs.map((o) => `#${formatOrderNumber(o.business_date, o.order_number)}`).join(", ");
         return {
           ok: false,
           error: `Settle room-service bill${openRs.length > 1 ? "s" : ""} ${nums} first (Billing screen) — then check out.`,

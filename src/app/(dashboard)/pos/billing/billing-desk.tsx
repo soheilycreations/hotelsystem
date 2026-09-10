@@ -32,7 +32,7 @@ import {
 } from "@/components/ui/table";
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
-import { formatDateTime, formatLKR } from "@/lib/utils";
+import { formatDateTime, formatLKR, formatOrderNumber } from "@/lib/utils";
 import type { ChannelType, CreditAccount, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
 import { cancelOrder, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
 
@@ -100,7 +100,7 @@ export function BillingDesk({
       );
       setFeedback(
         res.ok
-          ? `Bill #${order.order_number} settled — stock deducted${
+          ? `Bill #${formatOrderNumber(order.business_date, order.order_number)} settled — stock deducted${
               order.channel_type === "room_service" ? " & charged to guest folio" : ""
             }.`
           : res.error ?? "Could not settle the bill."
@@ -111,7 +111,11 @@ export function BillingDesk({
   function handleCancel(order: RestaurantOrder) {
     startTransition(async () => {
       const res = await cancelOrder(order.id);
-      setFeedback(res.ok ? `Bill #${order.order_number} voided.` : res.error ?? "Could not void.");
+      setFeedback(
+        res.ok
+          ? `Bill #${formatOrderNumber(order.business_date, order.order_number)} voided.`
+          : res.error ?? "Could not void."
+      );
     });
   }
 
@@ -165,7 +169,7 @@ export function BillingDesk({
       const url = await uploadBillPdf(`pos-${order.order_number}-${order.id.slice(0, 8)}.pdf`, blob);
       const msg =
         `Hello! Thank you for your order at ${hotel?.hotel_name ?? "our restaurant"}. ` +
-        `Your bill #${order.order_number} (Total: Rs ${Number(order.total_amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
+        `Your bill #${formatOrderNumber(order.business_date, order.order_number)} (Total: Rs ${Number(order.total_amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
       window.open(buildWhatsAppUrl(phone, msg), "_blank", "noopener");
       setFeedback(`Bill link ready — WhatsApp opened.`);
     } catch (e) {
@@ -181,7 +185,7 @@ export function BillingDesk({
       const res = await setOrderBusinessDate(order.id, date);
       setFeedback(
         res.ok
-          ? `Bill #${order.order_number} now counts toward ${date}.`
+          ? `Bill #${formatOrderNumber(date, order.order_number)} now counts toward ${date}.`
           : res.error ?? "Could not update the date."
       );
     } finally {
@@ -191,7 +195,8 @@ export function BillingDesk({
 
   async function handlePrint(order: RestaurantOrder) {
     const sent = await print(receiptPayload(order));
-    if (sent) setFeedback(`Receipt for bill #${order.order_number} sent to printer.`);
+    if (sent)
+      setFeedback(`Receipt for bill #${formatOrderNumber(order.business_date, order.order_number)} sent to printer.`);
   }
 
   if (orders.length === 0) {
@@ -252,7 +257,9 @@ export function BillingDesk({
                       "cursor-pointer " + (selected?.id === order.id ? "bg-muted/60" : "")
                     }
                   >
-                    <TableCell className="font-medium">#{order.order_number}</TableCell>
+                    <TableCell className="font-medium">
+                      #{formatOrderNumber(order.business_date, order.order_number)}
+                    </TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1.5 text-sm">
                         <Icon className="h-3.5 w-3.5 text-muted-foreground" />
@@ -279,7 +286,9 @@ export function BillingDesk({
         <Card className="h-fit lg:sticky lg:top-6">
           <CardHeader className="space-y-1">
             <div className="flex items-center justify-between">
-              <CardTitle className="text-base">Bill #{selected.order_number}</CardTitle>
+              <CardTitle className="text-base">
+                Bill #{formatOrderNumber(selected.business_date, selected.order_number)}
+              </CardTitle>
               <div className="flex items-center gap-1.5">
                 {(selected.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom) ? (
                   <Badge variant="warning">KOT pending</Badge>

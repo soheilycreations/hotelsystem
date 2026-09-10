@@ -2,6 +2,7 @@
 
 import { SI_DICT } from "./i18n/translations";
 import { exportHtmlReport, escapeHtml } from "./html-pdf";
+import { formatOrderNumber } from "./utils";
 
 const A4: [number, number] = [210, 297]; // mm
 const MARGIN = 16;
@@ -913,7 +914,7 @@ export async function generateBillsReportPdf(data: BillsReportData): Promise<Blo
   }
 
   for (const b of data.bills) {
-    l.sectionHeader(`Bill #${b.orderNumber} — ${b.channel} — ${b.reference}`);
+    l.sectionHeader(`Bill #${formatOrderNumber(data.date, b.orderNumber)} — ${b.channel} — ${b.reference}`);
     const paidLabel = b.paymentMethod ? PAYMENT_LABEL_PDF[b.paymentMethod] ?? b.paymentMethod : "—";
     l.row(
       [

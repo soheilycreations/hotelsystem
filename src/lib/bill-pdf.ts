@@ -4,6 +4,7 @@
  */
 import { createClient } from "@/lib/supabase/client";
 import type { FolioPayload, ReceiptPayload } from "@/hooks/useThermalPrint";
+import { formatOrderNumber } from "@/lib/utils";
 
 const A5: [number, number] = [148, 210]; // mm
 const MARGIN = 14;
@@ -115,7 +116,7 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
   }
   for (const c of payload.charges ?? []) l.row(c.description, fmt(c.amount));
   for (const so of payload.serviceOrders) {
-    l.row(`Room service — bill #${so.orderNumber}`, fmt(so.amount));
+    l.row(`Room service — bill #${formatOrderNumber(so.businessDate, so.orderNumber)}`, fmt(so.amount));
     for (const item of so.items ?? []) {
       l.row(`  ${item.quantity} x ${item.name}`, "", 8);
     }
@@ -136,7 +137,10 @@ export async function generateReceiptPdf(payload: ReceiptPayload): Promise<Blob>
 
   header(l, hotel, "RESTAURANT BILL");
 
-  l.row(`Bill #${order.order_number}`, order.channel_type.replace("_", " ").toUpperCase());
+  l.row(
+    `Bill #${formatOrderNumber(order.business_date, order.order_number)}`,
+    order.channel_type.replace("_", " ").toUpperCase()
+  );
   l.row("Date", new Date(order.created_at).toLocaleString("en-GB"));
   if (order.restaurant_tables) l.row("Table", order.restaurant_tables.table_number);
   if (order.bookings) l.row("Guest", order.bookings.guest_name);

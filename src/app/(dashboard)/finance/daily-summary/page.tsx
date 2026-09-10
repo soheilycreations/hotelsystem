@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { colomboToday } from "@/lib/colombo-date";
 import type { HotelSettings } from "@/lib/types";
+import { formatOrderNumber } from "@/lib/utils";
 import { DailySummaryView } from "./daily-summary-view";
 
 export const dynamic = "force-dynamic";
@@ -266,7 +267,7 @@ export default async function DailySummaryPage({
     const account = o.credit_accounts as unknown as { name: string } | { name: string }[] | null;
     const accountName = Array.isArray(account) ? account[0]?.name : account?.name;
     creditSales.push({
-      source: `Bill #${o.order_number} — ${String(o.channel_type).replace("_", " ")}`,
+      source: `Bill #${formatOrderNumber(date, o.order_number)} — ${String(o.channel_type).replace("_", " ")}`,
       accountName: accountName ?? "Unknown account",
       amount: Number(o.total_amount),
     });

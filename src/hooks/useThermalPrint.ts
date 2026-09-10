@@ -2,6 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { OrderItem, RestaurantOrder } from "@/lib/types";
+import { formatOrderNumber } from "@/lib/utils";
 
 /**
  * ESC/POS raw spooler over WebUSB (Chrome/Edge). Builds a raw byte stream
@@ -60,7 +61,12 @@ export interface FolioPayload {
   nights: number;
   roomCharge: number;
   charges?: { description: string; amount: number }[];
-  serviceOrders: { orderNumber: number; amount: number; items?: { name: string; quantity: number; lineTotal: number }[] }[];
+  serviceOrders: {
+    orderNumber: number;
+    businessDate: string;
+    amount: number;
+    items?: { name: string; quantity: number; lineTotal: number }[];
+  }[];
   total: number;
   hotel?: HotelHeader;
 }
@@ -147,7 +153,7 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
     bytes.push(...row(c.description, money(c.amount)));
   }
   for (const so of serviceOrders) {
-    bytes.push(...row(`Room service #${so.orderNumber}`, money(so.amount)));
+    bytes.push(...row(`Room service #${formatOrderNumber(so.businessDate, so.orderNumber)}`, money(so.amount)));
     for (const item of so.items ?? []) {
       bytes.push(...encode(`  ${item.quantity} x ${item.name}\n`));
     }
@@ -190,7 +196,7 @@ export function buildKotTicket({ order, items, station = "kitchen", kotNumber }:
   bytes.push(ESC, 0x61, 0x00); // left
   bytes.push(
     ...row(
-      `Order #${order.order_number}${kotNumber ? ` / ${ticketLabel} ${kotNumber}` : ""}`,
+      `Order #${formatOrderNumber(order.business_date, order.order_number)}${kotNumber ? ` / ${ticketLabel} ${kotNumber}` : ""}`,
       order.channel_type.replace("_", " ").toUpperCase()
     )
   );
@@ -230,7 +236,12 @@ export function buildEscPosReceipt({
   bytes.push(...line("="));
 
   bytes.push(ESC, 0x61, 0x00); // left align
-  bytes.push(...row(`Bill #${order.order_number}`, order.channel_type.replace("_", " ").toUpperCase()));
+  bytes.push(
+    ...row(
+      `Bill #${formatOrderNumber(order.business_date, order.order_number)}`,
+      order.channel_type.replace("_", " ").toUpperCase()
+    )
+  );
   bytes.push(...row("Date", new Date(order.created_at).toLocaleString("en-GB")));
   if (order.restaurant_tables) bytes.push(...row("Table", order.restaurant_tables.table_number));
   if (order.bookings) bytes.push(...row("Guest", order.bookings.guest_name));
