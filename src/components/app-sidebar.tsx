@@ -35,6 +35,8 @@ import { cn } from "@/lib/utils";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
+import { LanguageToggle } from "@/components/language-toggle";
+import { useLanguage } from "@/lib/i18n/language-context";
 import { logout } from "@/app/(auth)/login/actions";
 
 interface NavItem {
@@ -86,6 +88,7 @@ export function AppSidebar({
 }) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
+  const { t } = useLanguage();
 
   const visible = NAV_ITEMS.filter((item) => canAccess(profile.role, item.href));
   const groups = Array.from(new Set(visible.map((i) => i.group)));
@@ -100,7 +103,7 @@ export function AppSidebar({
               isMini && "opacity-0 group-hover:opacity-100"
             )}
           >
-            {group}
+            {t(group)}
           </p>
           <div className="flex flex-col gap-0.5">
             {visible
@@ -113,7 +116,7 @@ export function AppSidebar({
                     key={item.href}
                     href={item.href}
                     onClick={() => setOpen(false)}
-                    title={isMini ? item.label : undefined}
+                    title={isMini ? t(item.label) : undefined}
                     className={cn(
                       "flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-colors",
                       isMini && "justify-center group-hover:justify-start",
@@ -129,7 +132,7 @@ export function AppSidebar({
                         isMini && "hidden opacity-0 group-hover:inline group-hover:opacity-100"
                       )}
                     >
-                      {item.label}
+                      {t(item.label)}
                     </span>
                   </Link>
                 );
@@ -151,10 +154,13 @@ export function AppSidebar({
         <div className="min-w-0">
           <p className="truncate text-sm font-medium">{profile.full_name}</p>
           <Badge variant="secondary" className="mt-0.5">
-            {ROLE_LABELS[profile.role] ?? profile.role}
+            {t(ROLE_LABELS[profile.role] ?? profile.role)}
           </Badge>
         </div>
-        <ThemeToggle />
+        <div className="flex items-center gap-1">
+          <LanguageToggle />
+          <ThemeToggle />
+        </div>
       </div>
       <form action={logout}>
         <Button
@@ -162,7 +168,7 @@ export function AppSidebar({
           size="sm"
           className={cn("w-full", isMini && "justify-center px-0 group-hover:justify-start group-hover:px-3")}
           type="submit"
-          title={isMini ? "Sign out" : undefined}
+          title={isMini ? t("Sign out") : undefined}
         >
           <LogOut />
           <span
@@ -171,7 +177,7 @@ export function AppSidebar({
               isMini && "hidden opacity-0 group-hover:inline group-hover:opacity-100"
             )}
           >
-            Sign out
+            {t("Sign out")}
           </span>
         </Button>
       </form>

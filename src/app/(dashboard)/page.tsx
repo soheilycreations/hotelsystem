@@ -15,7 +15,7 @@ import {
 } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { colomboDateKey, colomboDaysAgo, colomboToday } from "@/lib/colombo-date";
-import { formatLKR, formatDateTime } from "@/lib/utils";
+import { formatLKR, formatDateTime, formatOrderNumber } from "@/lib/utils";
 import type { Booking, ChannelType, Expense, Room } from "@/lib/types";
 import { StatCard } from "@/components/stat-card";
 import { Badge } from "@/components/ui/badge";
@@ -233,7 +233,7 @@ export default async function OverviewPage() {
   for (const o of completed) {
     activity.push({
       kind: "bill",
-      message: `Bill #${o.order_number} settled — ${formatLKR(Number(o.total_amount))} (${o.channel_type.replace("_", " ")}).`,
+      message: `Bill #${formatOrderNumber(o.business_date, o.order_number)} settled — ${formatLKR(Number(o.total_amount))} (${o.channel_type.replace("_", " ")}).`,
       at: o.business_date,
     });
   }

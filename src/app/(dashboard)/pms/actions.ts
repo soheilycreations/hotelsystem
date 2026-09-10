@@ -2,7 +2,8 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import type { BookingStatus, PaymentMethod, RoomStatus } from "@/lib/types";
+import type { BookingStatus, GuestStayHistory, PaymentMethod, RoomStatus } from "@/lib/types";
+import { formatOrderNumber } from "@/lib/utils";
 
 interface ActionResult {
   ok: boolean;
@@ -32,6 +33,25 @@ export async function setRoomStatus(roomId: string, status: RoomStatus): Promise
   }
 }
 
+/** Upserts into the guest registry, keyed by id_number — only when an ID
+ * number is actually given, since that's the only reliable dedup key.
+ * Never blocks the booking if this fails; it's a nice-to-have directory,
+ * not the source of truth for the stay itself. */
+async function upsertGuest(
+  supabase: Awaited<ReturnType<typeof createClient>>,
+  fullName: string,
+  idNumber: string | null,
+  contactNumber: string | null
+): Promise<void> {
+  if (!idNumber) return;
+  await supabase
+    .from("guests")
+    .upsert(
+      { full_name: fullName, id_number: idNumber, contact_number: contactNumber },
+      { onConflict: "id_number" }
+    );
+}
+
 export async function createBooking(formData: FormData): Promise<ActionResult> {
   try {
     const profile = await assertPmsRole();
@@ -42,9 +62,12 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
     const guestName = String(formData.get("guest_name") ?? "").trim();
     const guestIdNumber = String(formData.get("guest_id_number") ?? "").trim();
     const contact = String(formData.get("contact_number") ?? "").trim();
+    const secondGuestName = String(formData.get("second_guest_name") ?? "").trim();
+    const secondGuestIdNumber = String(formData.get("second_guest_id_number") ?? "").trim();
     const checkIn = String(formData.get("check_in_date") ?? "");
     const checkOut = String(formData.get("check_out_date") ?? "");
     const checkInNow = formData.get("check_in_now") === "on";
+    const customPriceRaw = String(formData.get("custom_price") ?? "").trim();
 
     if (!roomId || !guestName) return { ok: false, error: "Room and guest name are required." };
     if (!ratePlanId) return { ok: false, error: "Pick a rate plan for this stay." };
@@ -100,6 +123,19 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
       folio = price * nights;
     }
 
+    // A custom price overrides the plan-computed total for this one stay —
+    // the plan itself (rate_plan_id/name) is still recorded so reports can
+    // see what category it nominally was, priceOverridden just flags that
+    // the number was hand-typed rather than derived from the plan.
+    let priceOverridden = false;
+    if (customPriceRaw !== "") {
+      const customPrice = Number(customPriceRaw);
+      if (!Number.isFinite(customPrice) || customPrice < 0)
+        return { ok: false, error: "Custom price must be a valid, non-negative amount." };
+      folio = customPrice;
+      priceOverridden = true;
+    }
+
     const { data: booking, error } = await supabase
       .from("bookings")
       .insert({
@@ -107,6 +143,8 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
         guest_name: guestName,
         guest_id_number: guestIdNumber || null,
         contact_number: contact || null,
+        second_guest_name: secondGuestName || null,
+        second_guest_id_number: secondGuestIdNumber || null,
         check_in_date: checkInIso,
         check_out_date: checkOutIso,
         total_folio_amount: folio,
@@ -115,6 +153,7 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
         rate_plan_id: plan.id,
         rate_plan_name: plan.name,
         rate_plan_price: price,
+        price_overridden: priceOverridden,
         status: "pending",
         created_by: profile.id,
       })
@@ -122,6 +161,11 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
       .single();
 
     if (error || !booking) return { ok: false, error: error?.message ?? "Insert failed." };
+
+    await upsertGuest(supabase, guestName, guestIdNumber || null, contact || null);
+    if (secondGuestName) {
+      await upsertGuest(supabase, secondGuestName, secondGuestIdNumber || null, null);
+    }
 
     if (checkInNow) {
       const result = await setBookingStatus(booking.id, "checked_in");
@@ -131,6 +175,62 @@ export async function createBooking(formData: FormData): Promise<ActionResult> {
     revalidatePath("/pms/reserve");
     revalidatePath("/pms/rooms");
     return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+/** Looks up a guest's past stays by NIC/passport number, for the check-in
+ * form's "has this guest stayed before?" panel. Matches either the primary
+ * or second-guest ID field on any past booking, most recent first. */
+export async function lookupGuestHistory(idNumber: string): Promise<
+  { ok: true; stays: GuestStayHistory[] } | { ok: false; error: string }
+> {
+  try {
+    await assertPmsRole();
+    const trimmed = idNumber.trim();
+    if (!trimmed) return { ok: true, stays: [] };
+
+    const supabase = await createClient();
+    const selectCols =
+      "id, check_in_date, check_out_date, rate_plan_name, total_folio_amount, status, rooms(room_number)";
+    const [{ data: asPrimary, error: err1 }, { data: asSecond, error: err2 }] = await Promise.all([
+      supabase.from("bookings").select(selectCols).eq("guest_id_number", trimmed),
+      supabase.from("bookings").select(selectCols).eq("second_guest_id_number", trimmed),
+    ]);
+    if (err1) return { ok: false, error: err1.message };
+    if (err2) return { ok: false, error: err2.message };
+
+    interface BookingHistoryRow {
+      id: string;
+      check_in_date: string;
+      check_out_date: string;
+      rate_plan_name: string | null;
+      total_folio_amount: number;
+      status: string;
+      rooms: { room_number: string } | null;
+    }
+    const byId = new Map<string, BookingHistoryRow>();
+    for (const b of [...(asPrimary ?? []), ...(asSecond ?? [])] as unknown as BookingHistoryRow[]) {
+      byId.set(b.id, b);
+    }
+
+    const stays: GuestStayHistory[] = Array.from(byId.values())
+      .sort((a, b) => new Date(b.check_in_date).getTime() - new Date(a.check_in_date).getTime())
+      .slice(0, 5)
+      .map((b) => {
+        const room = b.rooms as unknown as { room_number: string } | null;
+        return {
+          bookingId: b.id,
+          roomNumber: room?.room_number ?? null,
+          checkInDate: b.check_in_date,
+          checkOutDate: b.check_out_date,
+          ratePlanName: b.rate_plan_name,
+          amount: Number(b.total_folio_amount),
+          status: b.status as BookingStatus,
+        };
+      });
+    return { ok: true, stays };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }
@@ -151,11 +251,11 @@ export async function setBookingStatus(
     if (status === "checked_out") {
       const { data: openRs } = await supabase
         .from("restaurant_orders")
-        .select("order_number")
+        .select("order_number, business_date")
         .eq("booking_id", bookingId)
         .eq("order_status", "active");
       if (openRs && openRs.length > 0) {
-        const nums = openRs.map((o) => `#${o.order_number}`).join(", ");
+        const nums = openRs.map((o) => `#${formatOrderNumber(o.business_date, o.order_number)}`).join(", ");
         return {
           ok: false,
           error: `Settle room-service bill${openRs.length > 1 ? "s" : ""} ${nums} first (Billing screen) — then check out.`,

@@ -9,6 +9,7 @@ export const metadata = { title: "Bookings" };
 
 export interface ServiceOrderDetail {
   orderNumber: number;
+  businessDate: string;
   amount: number;
   items: { name: string; quantity: number; lineTotal: number }[];
 }
@@ -43,7 +44,7 @@ export default async function ReservePage() {
     const { data: rsOrders } = await supabase
       .from("restaurant_orders")
       .select(
-        "booking_id, order_number, total_amount, order_status, order_items(quantity, line_total, is_custom, custom_description, menu_items(name))"
+        "booking_id, order_number, business_date, total_amount, order_status, order_items(quantity, line_total, is_custom, custom_description, menu_items(name))"
       )
       .eq("channel_type", "room_service")
       .in("order_status", ["completed", "active"])
@@ -54,6 +55,7 @@ export default async function ReservePage() {
         o.order_status === "completed" ? serviceOrdersByBooking : pendingServiceByBooking;
       (bucket[o.booking_id] ??= []).push({
         orderNumber: o.order_number,
+        businessDate: o.business_date,
         amount: Number(o.total_amount),
         items: (o.order_items ?? []).map((it) => {
           const menuItem = it.menu_items as unknown as { name: string } | null;

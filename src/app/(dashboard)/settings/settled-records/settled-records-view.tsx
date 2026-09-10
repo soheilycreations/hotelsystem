@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate, formatLKR } from "@/lib/utils";
+import { formatDate, formatLKR, formatOrderNumber } from "@/lib/utils";
 import type { CreditAccount, PaymentMethod } from "@/lib/types";
 import type { SettledBookingRow, SettledOrderRow, MenuItemOption } from "./page";
 import {
@@ -139,7 +139,7 @@ export function SettledRecordsView({
                 {orders.map((o) => (
                   <TableRow key={o.id}>
                     <TableCell className="whitespace-nowrap text-sm">{formatDate(o.business_date)}</TableCell>
-                    <TableCell className="font-medium">#{o.order_number}</TableCell>
+                    <TableCell className="font-medium">#{formatOrderNumber(o.business_date, o.order_number)}</TableCell>
                     <TableCell className="text-sm text-muted-foreground capitalize">
                       {o.channel_type.replace("_", " ")}
                     </TableCell>
@@ -283,7 +283,7 @@ function EditOrderDialog({
         subtotal: Number(subtotal),
         serviceCharge: Number(serviceCharge),
       });
-      if (res.ok) onDone(`Bill #${order.order_number} updated.`);
+      if (res.ok) onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} updated.`);
       else setError(res.error ?? "Could not save.");
     });
   }
@@ -292,7 +292,7 @@ function EditOrderDialog({
     if (quantity < 1) return;
     startItemTransition(async () => {
       const res = await updateSettledOrderItemQuantity(itemId, quantity);
-      if (res.ok) onDone(`Bill #${order.order_number} item updated — reopen to see the new total.`);
+      if (res.ok) onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} item updated — reopen to see the new total.`);
       else setError(res.error ?? "Could not update the item.");
     });
   }
@@ -300,7 +300,7 @@ function EditOrderDialog({
   function removeItem(itemId: string) {
     startItemTransition(async () => {
       const res = await deleteSettledOrderItem(itemId);
-      if (res.ok) onDone(`Bill #${order.order_number} item removed — reopen to see the new total.`);
+      if (res.ok) onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} item removed — reopen to see the new total.`);
       else setError(res.error ?? "Could not remove the item.");
     });
   }
@@ -310,7 +310,7 @@ function EditOrderDialog({
       const res = await addSettledOrderItemFromMenu({ orderId: order.id, menuItemId, quantity: 1 });
       if (res.ok) {
         setMenuQuery("");
-        onDone(`Bill #${order.order_number} item added — reopen to see the new total.`);
+        onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} item added — reopen to see the new total.`);
       } else {
         setError(res.error ?? "Could not add the item.");
       }
@@ -329,7 +329,7 @@ function EditOrderDialog({
       if (res.ok) {
         setNewItemDesc("");
         setNewItemAmount("");
-        onDone(`Bill #${order.order_number} item added — reopen to see the new total.`);
+        onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} item added — reopen to see the new total.`);
       } else {
         setError(res.error ?? "Could not add the item.");
       }
@@ -339,7 +339,7 @@ function EditOrderDialog({
   return (
     <DialogContent>
       <DialogHeader>
-        <DialogTitle>Edit — Bill #{order.order_number}</DialogTitle>
+        <DialogTitle>Edit — Bill #{formatOrderNumber(order.business_date, order.order_number)}</DialogTitle>
         <DialogDescription>
           {order.channel_type.replace("_", " ")} · {formatDate(order.business_date)}
         </DialogDescription>

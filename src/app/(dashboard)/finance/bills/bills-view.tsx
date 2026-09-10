@@ -14,7 +14,7 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
-import { formatLKR, cn } from "@/lib/utils";
+import { formatLKR, formatOrderNumber, cn } from "@/lib/utils";
 import type { PaymentMethod } from "@/lib/types";
 import { generateBillsReportPdf, openPdfBlob } from "@/lib/report-pdf";
 
@@ -172,7 +172,7 @@ export function BillsView({ date, hotelName, bills }: { date: string; hotelName:
                 <Receipt className="h-4 w-4 shrink-0 text-muted-foreground" />
                 <div className="min-w-0 flex-1">
                   <p className="flex flex-wrap items-center gap-x-2 gap-y-0.5 font-medium">
-                    <span>#{b.orderNumber}</span>
+                    <span>#{formatOrderNumber(date, b.orderNumber)}</span>
                     <span className="text-muted-foreground">·</span>
                     <span>{b.channel}</span>
                     <span className="text-xs font-normal text-muted-foreground">{b.reference}</span>

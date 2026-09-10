@@ -1,7 +1,13 @@
 /** A4 PDF export for the Daily Summary report — separate from the A5 bill layout. */
 
+import { SI_DICT } from "./i18n/translations";
+import { exportHtmlReport, escapeHtml } from "./html-pdf";
+import { formatOrderNumber } from "./utils";
+
 const A4: [number, number] = [210, 297]; // mm
 const MARGIN = 16;
+
+export type PdfLanguage = "en" | "si";
 
 function fmt(n: number): string {
   return `Rs ${n.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -9,6 +15,14 @@ function fmt(n: number): string {
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Looks text up in the Sinhala dictionary (same one the on-screen UI uses)
+ * — falls back to the English text untranslated so an export never breaks
+ * or blanks out a line just because that phrase hasn't been added yet. */
+function tr(text: string, language: PdfLanguage): string {
+  if (language !== "si") return text;
+  return SI_DICT[text] ?? text;
 }
 
 interface PdfDoc {
@@ -84,6 +98,7 @@ class ReportLayout {
 export interface DailySummaryData {
   date: string; // YYYY-MM-DD
   hotelName: string;
+  language?: PdfLanguage;
   roomSales: {
     guestName: string;
     roomNumber: string;
@@ -107,28 +122,49 @@ export interface DailySummaryData {
   creditAccountBalances: { accountName: string; balance: number }[];
 }
 
+/**
+ * jsPDF's text() maps each character straight to a glyph with no OpenType
+ * shaping — Sinhala needs real shaping (vowel-sign reordering, GSUB
+ * conjuncts) or it renders as broken glyph soup, so this vector/text path
+ * is English-only. A Sinhala export goes through generateDailySummaryPdfHtml
+ * instead, which rasterizes real (correctly-shaped) browser-rendered HTML.
+ */
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
+  if ((data.language ?? "en") === "si") return generateDailySummaryPdfHtml(data);
+  return generateDailySummaryPdfVector(data);
+}
+
+async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Blob> {
+  const lang: PdfLanguage = "en";
+  const T = (text: string) => tr(text, lang);
   const doc = await newDoc();
   const l = new ReportLayout(doc);
   const W = A4[0];
   const colRight = W - MARGIN;
 
   l.title(data.hotelName);
-  l.subtitle(`Daily Summary — ${new Date(data.date).toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`);
+  l.subtitle(
+    `${T("Daily Summary")} — ${new Date(data.date).toLocaleDateString("en-GB", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })}`
+  );
   l.divider();
 
   // Room sales
-  l.sectionHeader("Room Sales");
+  l.sectionHeader(T("Room Sales"));
   if (data.roomSales.length === 0) {
-    l.row([{ text: "No checkouts recorded for this date.", x: MARGIN }], 9);
+    l.row([{ text: T("No checkouts recorded for this date."), x: MARGIN }], 9);
   } else {
     l.row(
       [
-        { text: "Guest", x: MARGIN },
-        { text: "Room", x: MARGIN + 55 },
-        { text: "Plan", x: MARGIN + 75 },
-        { text: "Paid by", x: MARGIN + 135 },
-        { text: "Amount", x: colRight, align: "right" },
+        { text: T("Guest"), x: MARGIN },
+        { text: T("Room"), x: MARGIN + 55 },
+        { text: T("Plan"), x: MARGIN + 75 },
+        { text: T("Paid by"), x: MARGIN + 135 },
+        { text: T("Amount"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -146,7 +182,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
         { text: r.guestName, x: MARGIN },
         { text: r.roomNumber, x: MARGIN + 55 },
         { text: r.planName ?? "—", x: MARGIN + 75 },
-        { text: paidLabel, x: MARGIN + 135 },
+        { text: T(paidLabel), x: MARGIN + 135 },
         { text: fmt(r.amount), x: colRight, align: "right" },
       ]);
     }
@@ -154,7 +190,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   l.divider();
   l.row(
     [
-      { text: "Room revenue total", x: MARGIN },
+      { text: T("Room revenue total"), x: MARGIN },
       { text: fmt(data.roomRevenueTotal), x: colRight, align: "right" },
     ],
     10,
@@ -162,15 +198,15 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   );
 
   // Item sales
-  l.sectionHeader("Restaurant / POS Item Sales");
+  l.sectionHeader(T("Restaurant / POS Item Sales"));
   if (data.itemSales.length === 0) {
-    l.row([{ text: "No completed orders for this date.", x: MARGIN }], 9);
+    l.row([{ text: T("No completed orders for this date."), x: MARGIN }], 9);
   } else {
     l.row(
       [
-        { text: "Item", x: MARGIN },
-        { text: "Qty", x: MARGIN + 110, align: "right" },
-        { text: "Revenue", x: colRight, align: "right" },
+        { text: T("Item"), x: MARGIN },
+        { text: T("Qty"), x: MARGIN + 110, align: "right" },
+        { text: T("Revenue"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -185,16 +221,16 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   }
   l.divider();
   l.row([
-    { text: "POS subtotal", x: MARGIN },
+    { text: T("POS subtotal"), x: MARGIN },
     { text: fmt(data.posSubtotal), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "Service charge", x: MARGIN },
+    { text: T("Service charge"), x: MARGIN },
     { text: fmt(data.posServiceCharge), x: colRight, align: "right" },
   ]);
   l.row(
     [
-      { text: "POS total", x: MARGIN },
+      { text: T("POS total"), x: MARGIN },
       { text: fmt(data.posTotal), x: colRight, align: "right" },
     ],
     10,
@@ -202,21 +238,21 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   );
 
   // Expenses
-  l.sectionHeader("Expenses");
+  l.sectionHeader(T("Expenses"));
   if (data.expenses.length === 0) {
-    l.row([{ text: "No expenses logged for this date.", x: MARGIN }], 9);
+    l.row([{ text: T("No expenses logged for this date."), x: MARGIN }], 9);
   } else {
     l.row(
       [
-        { text: "Category", x: MARGIN },
-        { text: "Description", x: MARGIN + 45 },
-        { text: "Amount", x: colRight, align: "right" },
+        { text: T("Category"), x: MARGIN },
+        { text: T("Description"), x: MARGIN + 45 },
+        { text: T("Amount"), x: colRight, align: "right" },
       ],
       9,
       true
     );
     for (const e of data.expenses) {
-      const bankNote = e.paymentMethod === "bank_transfer" ? " (owner bank transfer)" : "";
+      const bankNote = e.paymentMethod === "bank_transfer" ? ` (${T("owner bank transfer")})` : "";
       l.row([
         { text: e.category, x: MARGIN },
         { text: `${(e.description ?? "—").slice(0, 40)}${bankNote}`.slice(0, 45), x: MARGIN + 45 },
@@ -227,7 +263,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   l.divider();
   l.row(
     [
-      { text: "Expenses total (all)", x: MARGIN },
+      { text: T("Expenses total (all)"), x: MARGIN },
       { text: fmt(data.expensesTotal), x: colRight, align: "right" },
     ],
     10,
@@ -245,35 +281,36 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   const roomBalance = data.roomRevenueTotal - data.roomExpenses;
   const restaurantBalance = data.posTotal - data.restaurantExpenses;
 
-  l.sectionHeader("Room vs Restaurant");
+  l.sectionHeader(T("Room vs Restaurant"));
   if (bankTransferTotal > 0) {
-    l.row([
-      { text: `Owner bank transfers excluded from both balances: ${fmt(bankTransferTotal)}`, x: MARGIN },
-    ], 8);
+    l.row(
+      [{ text: `${T("Owner bank transfers excluded from both balances")}: ${fmt(bankTransferTotal)}`, x: MARGIN }],
+      8
+    );
   }
   l.row(
     [
       { text: "", x: MARGIN },
-      { text: "Room", x: MARGIN + 90, align: "right" },
-      { text: "Restaurant", x: colRight, align: "right" },
+      { text: T("Room"), x: MARGIN + 90, align: "right" },
+      { text: T("Restaurant"), x: colRight, align: "right" },
     ],
     9,
     true
   );
   l.row([
-    { text: "Revenue", x: MARGIN },
+    { text: T("Revenue"), x: MARGIN },
     { text: fmt(data.roomRevenueTotal), x: MARGIN + 90, align: "right" },
     { text: fmt(data.posTotal), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "Expenses", x: MARGIN },
+    { text: T("Expenses"), x: MARGIN },
     { text: fmt(data.roomExpenses), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantExpenses), x: colRight, align: "right" },
   ]);
   l.divider();
   l.row(
     [
-      { text: "Balance", x: MARGIN },
+      { text: T("Balance"), x: MARGIN },
       { text: fmt(roomBalance), x: MARGIN + 90, align: "right" },
       { text: fmt(restaurantBalance), x: colRight, align: "right" },
     ],
@@ -282,35 +319,35 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   );
 
   // Room & Restaurant cash ledger — Inhand carried forward day to day
-  l.sectionHeader("Room & Restaurant Ledger (cash)");
+  l.sectionHeader(T("Room & Restaurant Ledger (cash)"));
   l.row(
     [
       { text: "", x: MARGIN },
-      { text: "Room", x: MARGIN + 90, align: "right" },
-      { text: "Restaurant", x: colRight, align: "right" },
+      { text: T("Room"), x: MARGIN + 90, align: "right" },
+      { text: T("Restaurant"), x: colRight, align: "right" },
     ],
     9,
     true
   );
   l.row([
-    { text: "Inhand (yesterday)", x: MARGIN },
+    { text: T("Inhand (yesterday)"), x: MARGIN },
     { text: fmt(data.roomLedger.opening), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantLedger.opening), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "+ Today's cash in", x: MARGIN },
+    { text: T("+ Today's cash in"), x: MARGIN },
     { text: fmt(data.roomLedger.todayIn), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantLedger.todayIn), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "- Today's cash out", x: MARGIN },
+    { text: T("- Today's cash out"), x: MARGIN },
     { text: fmt(data.roomLedger.todayOut), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantLedger.todayOut), x: colRight, align: "right" },
   ]);
   l.divider();
   l.row(
     [
-      { text: "Balance (carries to tomorrow)", x: MARGIN },
+      { text: T("Balance (carries to tomorrow)"), x: MARGIN },
       { text: fmt(data.roomLedger.closing), x: MARGIN + 90, align: "right" },
       { text: fmt(data.restaurantLedger.closing), x: colRight, align: "right" },
     ],
@@ -321,7 +358,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   // Cash movements today — the individual float top-ups / deposits /
   // withdrawals folded into the Restaurant ledger above
   if (data.todayCashMovements.length > 0) {
-    l.sectionHeader("Cash movements today");
+    l.sectionHeader(T("Cash movements today"));
     for (const m of data.todayCashMovements) {
       const sign = m.direction === "in" ? "+" : "-";
       l.row([
@@ -334,11 +371,11 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
 
   // Credit accounts — running balance, persists until settled
   if (data.creditAccountBalances.length > 0) {
-    l.sectionHeader("Credit accounts — still owing");
+    l.sectionHeader(T("Credit accounts — still owing"));
     l.row(
       [
-        { text: "Account", x: MARGIN },
-        { text: "Balance", x: colRight, align: "right" },
+        { text: T("Account"), x: MARGIN },
+        { text: T("Balance"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -354,7 +391,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     l.divider();
     l.row(
       [
-        { text: "Total outstanding", x: MARGIN },
+        { text: T("Total outstanding"), x: MARGIN },
         { text: fmt(outstandingTotal), x: colRight, align: "right" },
       ],
       10,
@@ -364,12 +401,12 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
 
   // Credit sales added today
   if (data.creditSales.length > 0) {
-    l.sectionHeader("Credit — added today");
+    l.sectionHeader(T("Credit — added today"));
     l.row(
       [
-        { text: "Account", x: MARGIN },
-        { text: "Source", x: MARGIN + 70 },
-        { text: "Amount", x: colRight, align: "right" },
+        { text: T("Account"), x: MARGIN },
+        { text: T("Source"), x: MARGIN + 70 },
+        { text: T("Amount"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -386,7 +423,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     l.divider();
     l.row(
       [
-        { text: "Total on credit today", x: MARGIN },
+        { text: T("Total on credit today"), x: MARGIN },
         { text: fmt(creditTotal), x: colRight, align: "right" },
       ],
       10,
@@ -395,6 +432,201 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   }
 
   return doc.output("blob");
+}
+
+function htmlSectionHeader(text: string): string {
+  return `<div style="font-size:14px;font-weight:700;margin:16px 0 6px;padding-bottom:4px;border-bottom:1px solid #666;">${escapeHtml(
+    text
+  )}</div>`;
+}
+
+function htmlTable(headers: string[], rows: string[][]): string {
+  const th = headers
+    .map(
+      (h, i) =>
+        `<th style="text-align:${i === headers.length - 1 ? "right" : "left"};padding:3px 6px;border-bottom:1px solid #999;font-weight:700;">${escapeHtml(h)}</th>`
+    )
+    .join("");
+  const trs = rows
+    .map(
+      (cols) =>
+        `<tr>${cols
+          .map(
+            (c, i) =>
+              `<td style="padding:3px 6px;text-align:${i === cols.length - 1 ? "right" : "left"};">${c}</td>`
+          )
+          .join("")}</tr>`
+    )
+    .join("");
+  return `<table style="width:100%;border-collapse:collapse;font-size:12px;">${
+    th ? `<thead><tr>${th}</tr></thead>` : ""
+  }<tbody>${trs}</tbody></table>`;
+}
+
+function htmlTotalRow(label: string, value: string, bold = false): string {
+  return `<div style="display:flex;justify-content:space-between;padding:5px 6px;border-top:1px solid #ccc;font-weight:${
+    bold ? 700 : 400
+  };font-size:${bold ? 13 : 12}px;"><span>${escapeHtml(label)}</span><span>${value}</span></div>`;
+}
+
+function htmlTwoColTotal(label: string, room: string, restaurant: string, bold = false): string {
+  return `<div style="display:flex;justify-content:space-between;padding:5px 6px;border-top:1px solid #ccc;font-weight:${
+    bold ? 700 : 400
+  };font-size:${bold ? 13 : 12}px;"><span style="flex:1;">${escapeHtml(
+    label
+  )}</span><span style="width:90px;text-align:right;">${room}</span><span style="width:90px;text-align:right;">${restaurant}</span></div>`;
+}
+
+/**
+ * Same report as generateDailySummaryPdfVector, built as plain HTML and
+ * rasterized via html2canvas — the browser shapes Sinhala correctly where
+ * jsPDF's own text drawing can't (see comment above the vector function).
+ */
+async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob> {
+  const T = (text: string) => tr(text, "si");
+  const dateLabel = new Date(`${data.date}T00:00:00`).toLocaleDateString("si-LK", {
+    weekday: "long",
+    year: "numeric",
+    month: "long",
+    day: "numeric",
+  });
+
+  const paidLabelOf = (m?: string) =>
+    m === "bank_transfer" ? T("Bank Transfer") : m === "card" ? T("Card") : m === "complimentary" ? T("Complimentary") : T("Cash");
+
+  const expensesAgainstRevenue = data.expenses
+    .filter((e) => e.paymentMethod !== "bank_transfer")
+    .reduce((sum, e) => sum + e.amount, 0);
+  const bankTransferTotal = data.expensesTotal - expensesAgainstRevenue;
+  const roomBalance = data.roomRevenueTotal - data.roomExpenses;
+  const restaurantBalance = data.posTotal - data.restaurantExpenses;
+
+  let html = `<div style="font-family:'NotoSansSinhala',sans-serif;color:#111;padding:28px;">`;
+  html += `<h1 style="font-size:22px;font-weight:700;margin:0 0 4px;">${escapeHtml(data.hotelName)}</h1>`;
+  html += `<p style="margin:0 0 10px;color:#444;font-size:13px;">${escapeHtml(T("Daily Summary"))} — ${escapeHtml(dateLabel)}</p>`;
+  html += `<hr style="border:none;border-top:1px solid #999;margin:10px 0 4px;">`;
+
+  // Room sales
+  html += htmlSectionHeader(T("Room Sales"));
+  if (data.roomSales.length === 0) {
+    html += `<p style="font-size:12px;color:#666;">${escapeHtml(T("No checkouts recorded for this date."))}</p>`;
+  } else {
+    html += htmlTable(
+      [T("Guest"), T("Room"), T("Plan"), T("Paid by"), T("Amount")],
+      data.roomSales.map((r) => [
+        escapeHtml(r.guestName),
+        escapeHtml(r.roomNumber),
+        escapeHtml(r.planName ?? "—"),
+        escapeHtml(paidLabelOf(r.paymentMethod)),
+        fmt(r.amount),
+      ])
+    );
+  }
+  html += htmlTotalRow(T("Room revenue total"), fmt(data.roomRevenueTotal), true);
+
+  // Item sales
+  html += htmlSectionHeader(T("Restaurant / POS Item Sales"));
+  if (data.itemSales.length === 0) {
+    html += `<p style="font-size:12px;color:#666;">${escapeHtml(T("No completed orders for this date."))}</p>`;
+  } else {
+    html += htmlTable(
+      [T("Item"), T("Qty"), T("Revenue")],
+      data.itemSales.map((it) => [escapeHtml(it.name), String(it.qty), fmt(it.revenue)])
+    );
+  }
+  html += htmlTotalRow(T("POS subtotal"), fmt(data.posSubtotal));
+  html += htmlTotalRow(T("Service charge"), fmt(data.posServiceCharge));
+  html += htmlTotalRow(T("POS total"), fmt(data.posTotal), true);
+
+  // Expenses
+  html += htmlSectionHeader(T("Expenses"));
+  if (data.expenses.length === 0) {
+    html += `<p style="font-size:12px;color:#666;">${escapeHtml(T("No expenses logged for this date."))}</p>`;
+  } else {
+    html += htmlTable(
+      [T("Category"), T("Description"), T("Amount")],
+      data.expenses.map((e) => [
+        escapeHtml(e.category),
+        escapeHtml(
+          `${(e.description ?? "—").slice(0, 40)}${e.paymentMethod === "bank_transfer" ? ` (${T("owner bank transfer")})` : ""}`
+        ),
+        fmt(e.amount),
+      ])
+    );
+  }
+  html += htmlTotalRow(T("Expenses total (all)"), fmt(data.expensesTotal), true);
+
+  // Room vs Restaurant
+  html += htmlSectionHeader(T("Room vs Restaurant"));
+  if (bankTransferTotal > 0) {
+    html += `<p style="font-size:11px;color:#666;margin:0 0 6px;">${escapeHtml(
+      T("Owner bank transfers excluded from both balances")
+    )}: ${fmt(bankTransferTotal)}</p>`;
+  }
+  html += `<div style="display:flex;justify-content:flex-end;gap:0;padding:2px 6px;font-size:12px;font-weight:700;"><span style="flex:1;"></span><span style="width:90px;text-align:right;">${escapeHtml(
+    T("Room")
+  )}</span><span style="width:90px;text-align:right;">${escapeHtml(T("Restaurant"))}</span></div>`;
+  html += htmlTwoColTotal(T("Revenue"), fmt(data.roomRevenueTotal), fmt(data.posTotal));
+  html += htmlTwoColTotal(T("Expenses"), fmt(data.roomExpenses), fmt(data.restaurantExpenses));
+  html += htmlTwoColTotal(T("Balance"), fmt(roomBalance), fmt(restaurantBalance), true);
+
+  // Room & Restaurant ledger
+  html += htmlSectionHeader(T("Room & Restaurant Ledger (cash)"));
+  html += `<div style="display:flex;justify-content:flex-end;gap:0;padding:2px 6px;font-size:12px;font-weight:700;"><span style="flex:1;"></span><span style="width:90px;text-align:right;">${escapeHtml(
+    T("Room")
+  )}</span><span style="width:90px;text-align:right;">${escapeHtml(T("Restaurant"))}</span></div>`;
+  html += htmlTwoColTotal(T("Inhand (yesterday)"), fmt(data.roomLedger.opening), fmt(data.restaurantLedger.opening));
+  html += htmlTwoColTotal(T("+ Today's cash in"), fmt(data.roomLedger.todayIn), fmt(data.restaurantLedger.todayIn));
+  html += htmlTwoColTotal(T("- Today's cash out"), fmt(data.roomLedger.todayOut), fmt(data.restaurantLedger.todayOut));
+  html += htmlTwoColTotal(
+    T("Balance (carries to tomorrow)"),
+    fmt(data.roomLedger.closing),
+    fmt(data.restaurantLedger.closing),
+    true
+  );
+
+  // Cash movements today
+  if (data.todayCashMovements.length > 0) {
+    html += htmlSectionHeader(T("Cash movements today"));
+    html += htmlTable(
+      [],
+      data.todayCashMovements.map((m) => [
+        escapeHtml(m.category.slice(0, 30)),
+        escapeHtml((m.description ?? "").slice(0, 40)),
+        `${m.direction === "in" ? "+" : "-"}${fmt(m.amount)}`,
+      ])
+    );
+  }
+
+  // Credit accounts
+  if (data.creditAccountBalances.length > 0) {
+    html += htmlSectionHeader(T("Credit accounts — still owing"));
+    html += htmlTable(
+      [T("Account"), T("Balance")],
+      data.creditAccountBalances.map((a) => [escapeHtml(a.accountName.slice(0, 40)), fmt(a.balance)])
+    );
+    html += htmlTotalRow(
+      T("Total outstanding"),
+      fmt(data.creditAccountBalances.reduce((s, a) => s + a.balance, 0)),
+      true
+    );
+  }
+
+  // Credit sales added today
+  if (data.creditSales.length > 0) {
+    html += htmlSectionHeader(T("Credit — added today"));
+    html += htmlTable(
+      [T("Account"), T("Source"), T("Amount")],
+      data.creditSales.map((c) => [escapeHtml(c.accountName.slice(0, 28)), escapeHtml(c.source.slice(0, 38)), fmt(c.amount)])
+    );
+    html += htmlTotalRow(T("Total on credit today"), fmt(data.creditSales.reduce((s, c) => s + c.amount, 0)), true);
+  }
+
+  html += `</div>`;
+
+  return exportHtmlReport((root) => {
+    root.innerHTML = html;
+  });
 }
 
 export interface CashBookLedgerEntry {
@@ -682,7 +914,7 @@ export async function generateBillsReportPdf(data: BillsReportData): Promise<Blo
   }
 
   for (const b of data.bills) {
-    l.sectionHeader(`Bill #${b.orderNumber} — ${b.channel} — ${b.reference}`);
+    l.sectionHeader(`Bill #${formatOrderNumber(data.date, b.orderNumber)} — ${b.channel} — ${b.reference}`);
     const paidLabel = b.paymentMethod ? PAYMENT_LABEL_PDF[b.paymentMethod] ?? b.paymentMethod : "—";
     l.row(
       [

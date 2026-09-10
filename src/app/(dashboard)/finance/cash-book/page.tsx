@@ -1,6 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { colomboDateKey, colomboToday } from "@/lib/colombo-date";
 import type { CashMovement } from "@/lib/types";
+import { formatOrderNumber } from "@/lib/utils";
 import { LiveRefresher } from "../../live-refresher";
 import { CashBookView } from "./cash-book-view";
 
@@ -121,7 +122,7 @@ export default async function CashBookPage({
   for (const o of (orders ?? []) as OrderRow[]) {
     raw.push({
       date: String(o.business_date).slice(0, 10),
-      description: `Bill #${o.order_number} — ${o.channel_type.replace("_", " ")}`,
+      description: `Bill #${formatOrderNumber(o.business_date, o.order_number)} — ${o.channel_type.replace("_", " ")}`,
       direction: "in",
       amount: Number(o.total_amount),
     });

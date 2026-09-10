@@ -33,7 +33,7 @@ import type {
   TableStatus,
 } from "@/lib/types";
 import { itemStation } from "@/lib/types";
-import { cn, formatLKR } from "@/lib/utils";
+import { cn, formatLKR, formatOrderNumber } from "@/lib/utils";
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import {
   addCustomOrderItem,
@@ -587,7 +587,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                 >
                   <div>
                     <p className="font-medium">
-                      #{o.order_number} · {o.channel_type.replace("_", " ")}
+                      #{formatOrderNumber(o.business_date, o.order_number)} · {o.channel_type.replace("_", " ")}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {o.event_name ?? o.bookings?.guest_name ?? o.customer_phone ?? "Walk-in"}
@@ -615,7 +615,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
               {selectedOrder ? (
                 <>
                   <span>
-                    Order #{selectedOrder.order_number}
+                    Order #{formatOrderNumber(selectedOrder.business_date, selectedOrder.order_number)}
                     {selectedOrder.restaurant_tables
                       ? ` · Table ${selectedOrder.restaurant_tables.table_number}`
                       : ""}

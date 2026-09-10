@@ -1,6 +1,7 @@
 import { notFound } from "next/navigation";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { CreditAccount } from "@/lib/types";
+import { formatOrderNumber } from "@/lib/utils";
 import { LiveRefresher } from "../../../live-refresher";
 import { CreditAccountDetailView } from "./detail-view";
 
@@ -57,7 +58,7 @@ export default async function CreditAccountDetailPage({
     entries.push({
       date: o.business_date,
       kind: "charge",
-      description: `Bill #${o.order_number} — ${String(o.channel_type).replace("_", " ")}`,
+      description: `Bill #${formatOrderNumber(o.business_date, o.order_number)} — ${String(o.channel_type).replace("_", " ")}`,
       amount: Number(o.total_amount),
     });
   }
