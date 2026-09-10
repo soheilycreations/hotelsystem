@@ -225,6 +225,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
             address: hotel.address,
             phonePrimary: hotel.phone_primary,
             phoneSecondary: hotel.phone_secondary,
+            reviewQrUrl: hotel.review_qr_url,
           }
         : undefined,
     };

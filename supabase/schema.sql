@@ -299,6 +299,7 @@ create table public.hotel_settings (
   phone_primary   varchar(40),
   phone_secondary varchar(40),
   logo_url        text,
+  review_qr_url   text, -- Google-review QR code image, printed on every bill
   service_charge_rate numeric(5,2) not null default 10 check (service_charge_rate >= 0 and service_charge_rate <= 100),
   created_at      timestamptz not null default now(),
   updated_at      timestamptz not null default now()
@@ -1011,3 +1012,27 @@ drop policy if exists "menu images admin delete" on storage.objects;
 create policy "menu images admin delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'menu-images' and public.get_my_role() in ('admin', 'manager'));
+
+-- Public bucket for hotel logo + Google-review QR (Hotel Profile uploads)
+insert into storage.buckets (id, name, public)
+values ('hotel-assets', 'hotel-assets', true)
+on conflict (id) do nothing;
+
+drop policy if exists "hotel assets public read" on storage.objects;
+create policy "hotel assets public read" on storage.objects
+  for select using (bucket_id = 'hotel-assets');
+
+drop policy if exists "hotel assets admin write" on storage.objects;
+create policy "hotel assets admin write" on storage.objects
+  for insert to authenticated
+  with check (bucket_id = 'hotel-assets' and public.get_my_role() in ('admin', 'manager'));
+
+drop policy if exists "hotel assets admin update" on storage.objects;
+create policy "hotel assets admin update" on storage.objects
+  for update to authenticated
+  using (bucket_id = 'hotel-assets' and public.get_my_role() in ('admin', 'manager'));
+
+drop policy if exists "hotel assets admin delete" on storage.objects;
+create policy "hotel assets admin delete" on storage.objects
+  for delete to authenticated
+  using (bucket_id = 'hotel-assets' and public.get_my_role() in ('admin', 'manager'));

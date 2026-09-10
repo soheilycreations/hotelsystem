@@ -141,6 +141,7 @@ export function BillingDesk({
             address: hotel.address,
             phonePrimary: hotel.phone_primary,
             phoneSecondary: hotel.phone_secondary,
+            reviewQrUrl: hotel.review_qr_url,
           }
         : undefined,
     };

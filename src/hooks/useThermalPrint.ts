@@ -44,6 +44,7 @@ export interface HotelHeader {
   address?: string | null;
   phonePrimary?: string | null;
   phoneSecondary?: string | null;
+  reviewQrUrl?: string | null;
 }
 
 export interface FolioPayload {
@@ -71,6 +72,67 @@ export interface FolioPayload {
   hotel?: HotelHeader;
 }
 
+/** Converts an image URL into ESC/POS GS v 0 raster bitmap bytes (1-bit,
+ * thresholded) — used to print the review QR as an actual bitmap rather
+ * than attempting it as text. GS v 0 is one of the most broadly supported
+ * ESC/POS commands, even on cheap clone printers. Returns [] on any
+ * failure (offline, CORS, bad URL) so a bill never fails to print over a
+ * QR code that didn't load. */
+async function buildQrRasterBytes(url: string, targetWidthPx = 200): Promise<number[]> {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    const bitmap = await createImageBitmap(blob);
+
+    const widthBytes = Math.ceil(targetWidthPx / 8);
+    const widthPx = widthBytes * 8;
+    const heightPx = Math.max(1, Math.round((bitmap.height / bitmap.width) * widthPx));
+
+    const canvas = document.createElement("canvas");
+    canvas.width = widthPx;
+    canvas.height = heightPx;
+    const ctx = canvas.getContext("2d");
+    if (!ctx) return [];
+    ctx.fillStyle = "#ffffff";
+    ctx.fillRect(0, 0, widthPx, heightPx);
+    ctx.drawImage(bitmap, 0, 0, widthPx, heightPx);
+    const { data } = ctx.getImageData(0, 0, widthPx, heightPx);
+
+    const raster: number[] = [];
+    for (let y = 0; y < heightPx; y++) {
+      for (let xb = 0; xb < widthBytes; xb++) {
+        let byte = 0;
+        for (let bit = 0; bit < 8; bit++) {
+          const x = xb * 8 + bit;
+          const idx = (y * widthPx + x) * 4;
+          const luminance = 0.299 * (data[idx] ?? 0) + 0.587 * (data[idx + 1] ?? 0) + 0.114 * (data[idx + 2] ?? 0);
+          if (luminance < 128) byte |= 0x80 >> bit;
+        }
+        raster.push(byte);
+      }
+    }
+
+    const xL = widthBytes & 0xff;
+    const xH = (widthBytes >> 8) & 0xff;
+    const yL = heightPx & 0xff;
+    const yH = (heightPx >> 8) & 0xff;
+    return [GS, 0x76, 0x30, 0x00, xL, xH, yL, yH, ...raster];
+  } catch {
+    return [];
+  }
+}
+
+/** Appends the review QR (bitmap + caption) at the current print position,
+ * if the hotel has one set. No-op (and no error) if it fails to load. */
+async function pushReviewQr(bytes: number[], hotel: HotelHeader | undefined): Promise<void> {
+  if (!hotel?.reviewQrUrl) return;
+  const qrBytes = await buildQrRasterBytes(hotel.reviewQrUrl);
+  if (qrBytes.length === 0) return;
+  bytes.push(ESC, 0x61, 0x01); // center
+  bytes.push(...qrBytes);
+  bytes.push(...encode("\nScan to leave us a review!\n\n"));
+}
+
 function pushHotelHeader(bytes: number[], hotel: HotelHeader | undefined, fallback: string): void {
   bytes.push(ESC, 0x61, 0x01); // center
   bytes.push(ESC, 0x21, 0x30); // double size
@@ -81,7 +143,7 @@ function pushHotelHeader(bytes: number[], hotel: HotelHeader | undefined, fallba
   if (phones) bytes.push(...encode(`Tel: ${phones}\n`));
 }
 
-export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
+export async function buildFolioReceipt(payload: FolioPayload): Promise<Uint8Array> {
   const {
     guestName,
     guestIdNumber,
@@ -167,6 +229,7 @@ export function buildFolioReceipt(payload: FolioPayload): Uint8Array {
 
   bytes.push(ESC, 0x61, 0x01);
   bytes.push(...encode("Thank you for staying with us!\n\n"));
+  await pushReviewQr(bytes, hotel);
   bytes.push(GS, 0x56, 0x42, 0x10);
 
   return new Uint8Array(bytes);
@@ -221,13 +284,13 @@ export function buildKotTicket({ order, items, station = "kitchen", kotNumber }:
   return new Uint8Array(bytes);
 }
 
-export function buildEscPosReceipt({
+export async function buildEscPosReceipt({
   order,
   items,
   hotelName = "SOHEILY GRAND HOTEL",
   footerNote = "Thank you — come again!",
   hotel,
-}: ReceiptPayload): Uint8Array {
+}: ReceiptPayload): Promise<Uint8Array> {
   const bytes: number[] = [];
 
   bytes.push(ESC, 0x40); // initialize
@@ -271,6 +334,7 @@ export function buildEscPosReceipt({
 
   bytes.push(ESC, 0x61, 0x01); // center
   bytes.push(...encode(footerNote + "\n\n"));
+  await pushReviewQr(bytes, hotel);
 
   bytes.push(GS, 0x56, 0x42, 0x10); // partial cut with feed
 
@@ -333,7 +397,7 @@ export function useThermalPrint(): UseThermalPrintResult {
   }, []);
 
   const print = useCallback(
-    (payload: ReceiptPayload) => spool(buildEscPosReceipt(payload)),
+    async (payload: ReceiptPayload) => spool(await buildEscPosReceipt(payload)),
     [spool]
   );
 
@@ -343,7 +407,7 @@ export function useThermalPrint(): UseThermalPrintResult {
   );
 
   const printFolio = useCallback(
-    (payload: FolioPayload) => spool(buildFolioReceipt(payload)),
+    async (payload: FolioPayload) => spool(await buildFolioReceipt(payload)),
     [spool]
   );
 

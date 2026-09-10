@@ -23,6 +23,39 @@ interface PdfDoc {
   addPage: () => void;
   output: (t: "blob") => Blob;
   splitTextToSize: (t: string, w: number) => string[];
+  addImage: (data: string, format: string, x: number, y: number, w: number, h: number) => void;
+}
+
+/** Fetches an image and converts it to a data URL — jsPDF's addImage is
+ * unreliable with bare cross-origin URLs, but happy with a data URI. */
+async function fetchImageAsDataUrl(url: string): Promise<string | null> {
+  try {
+    const res = await fetch(url);
+    const blob = await res.blob();
+    return await new Promise((resolve, reject) => {
+      const reader = new FileReader();
+      reader.onload = () => resolve(reader.result as string);
+      reader.onerror = () => reject(reader.error);
+      reader.readAsDataURL(blob);
+    });
+  } catch {
+    return null;
+  }
+}
+
+/** Draws the "scan to review us" QR at the current y position, centered,
+ * if the hotel has one set — used at the foot of every printed bill. */
+async function addReviewQr(l: Layout, doc: PdfDoc, hotel: FolioPayload["hotel"]): Promise<void> {
+  if (!hotel?.reviewQrUrl) return;
+  const dataUrl = await fetchImageAsDataUrl(hotel.reviewQrUrl);
+  if (!dataUrl) return;
+  const format = dataUrl.includes("image/png") ? "PNG" : dataUrl.includes("image/webp") ? "WEBP" : "JPEG";
+  const size = 26; // mm
+  l.space(3);
+  const x = (A5[0] - size) / 2;
+  doc.addImage(dataUrl, format, x, l.y, size, size);
+  l.y += size + 2;
+  l.center("Scan to leave us a review!", 8, true);
 }
 
 async function newDoc(): Promise<PdfDoc> {
@@ -126,6 +159,7 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
   l.divider();
   l.space(2);
   l.center("Thank you for staying with us!", 9);
+  await addReviewQr(l, doc, payload.hotel);
 
   return doc.output("blob");
 }
@@ -165,6 +199,7 @@ export async function generateReceiptPdf(payload: ReceiptPayload): Promise<Blob>
   l.divider();
   l.space(2);
   l.center("Thank you — come again!", 9);
+  await addReviewQr(l, doc, hotel);
 
   return doc.output("blob");
 }
