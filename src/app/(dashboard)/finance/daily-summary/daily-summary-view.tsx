@@ -238,22 +238,15 @@ export function DailySummaryView({
         </Card>
       )}
 
+      {/* Room's two cards and Restaurant's two cards are grouped side by
+          side (not interleaved) — same left/right split as the ledger
+          cards above, so nothing visually implies the two pools mix. */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
         <StatCard
           title={t("Room revenue")}
           value={formatLKR(roomRevenueTotal)}
           hint={language === "si" ? `නික්මුණු ගණන ${roomSales.length}` : `${roomSales.length} checkout(s)`}
           icon={BedDouble}
-        />
-        <StatCard
-          title={t("POS revenue")}
-          value={formatLKR(posTotal)}
-          hint={
-            language === "si"
-              ? `සේවා ගාස්තුව ${formatLKR(posServiceCharge)} ඇතුළුව`
-              : `incl. ${formatLKR(posServiceCharge)} service charge`
-          }
-          icon={UtensilsCrossed}
         />
         <StatCard
           title={t("Room balance")}
@@ -264,6 +257,16 @@ export function DailySummaryView({
               : `−${formatLKR(roomExpenses)} room expenses`
           }
           icon={Wallet}
+        />
+        <StatCard
+          title={t("POS revenue")}
+          value={formatLKR(posTotal)}
+          hint={
+            language === "si"
+              ? `සේවා ගාස්තුව ${formatLKR(posServiceCharge)} ඇතුළුව`
+              : `incl. ${formatLKR(posServiceCharge)} service charge`
+          }
+          icon={UtensilsCrossed}
         />
         <StatCard
           title={t("Restaurant balance")}
