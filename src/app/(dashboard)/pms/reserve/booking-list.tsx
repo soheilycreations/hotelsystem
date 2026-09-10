@@ -154,6 +154,7 @@ export function BookingList({
             address: hotel.address,
             phonePrimary: hotel.phone_primary,
             phoneSecondary: hotel.phone_secondary,
+            logoUrl: hotel.logo_url,
             reviewQrUrl: hotel.review_qr_url,
           }
         : undefined,
