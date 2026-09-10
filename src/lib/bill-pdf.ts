@@ -43,19 +43,36 @@ async function fetchImageAsDataUrl(url: string): Promise<string | null> {
   }
 }
 
-/** Draws the "scan to review us" QR at the current y position, centered,
- * if the hotel has one set — used at the foot of every printed bill. */
-async function addReviewQr(l: Layout, doc: PdfDoc, hotel: FolioPayload["hotel"]): Promise<void> {
-  if (!hotel?.reviewQrUrl) return;
-  const dataUrl = await fetchImageAsDataUrl(hotel.reviewQrUrl);
-  if (!dataUrl) return;
-  const format = dataUrl.includes("image/png") ? "PNG" : dataUrl.includes("image/webp") ? "WEBP" : "JPEG";
-  const size = 26; // mm
-  l.space(3);
-  const x = (A5[0] - size) / 2;
-  doc.addImage(dataUrl, format, x, l.y, size, size);
-  l.y += size + 2;
-  l.center("Scan to leave us a review!", 8, true);
+function imageFormat(dataUrl: string): string {
+  return dataUrl.includes("image/png") ? "PNG" : dataUrl.includes("image/webp") ? "WEBP" : "JPEG";
+}
+
+/** Draws the "we value your feedback" review panel — heading, stars, the QR,
+ * a call to action, and the closing thank-you line — at the foot of every
+ * printed bill, if the hotel has a review QR set. Falls back to just the
+ * thank-you line if no QR is configured yet or it fails to load. */
+async function addReviewPanel(
+  l: Layout,
+  doc: PdfDoc,
+  hotel: FolioPayload["hotel"],
+  thankYouLine: string
+): Promise<void> {
+  const dataUrl = hotel?.reviewQrUrl ? await fetchImageAsDataUrl(hotel.reviewQrUrl) : null;
+  if (dataUrl) {
+    l.divider();
+    l.space(1);
+    l.center("WE VALUE YOUR FEEDBACK!", 10, true);
+    l.center("* * * * *", 9);
+    l.space(1);
+    const size = 26; // mm
+    const x = (A5[0] - size) / 2;
+    doc.addImage(dataUrl, imageFormat(dataUrl), x, l.y, size, size);
+    l.y += size + 2;
+    l.center("SCAN TO REVIEW US ON GOOGLE", 9, true);
+    l.space(1);
+    l.divider();
+  }
+  l.center(thankYouLine, 9, true);
 }
 
 async function newDoc(): Promise<PdfDoc> {
@@ -98,7 +115,16 @@ class Layout {
   }
 }
 
-function header(l: Layout, hotel: FolioPayload["hotel"], subtitle: string): void {
+async function header(l: Layout, doc: PdfDoc, hotel: FolioPayload["hotel"], subtitle: string): Promise<void> {
+  if (hotel?.logoUrl) {
+    const dataUrl = await fetchImageAsDataUrl(hotel.logoUrl);
+    if (dataUrl) {
+      const size = 18; // mm
+      const x = (A5[0] - size) / 2;
+      doc.addImage(dataUrl, imageFormat(dataUrl), x, l.y, size, size);
+      l.y += size + 2;
+    }
+  }
   l.center(hotel?.name ?? "SOHEILY PMS", 15, true);
   if (hotel?.address) l.center(hotel.address, 8);
   const phones = [hotel?.phonePrimary, hotel?.phoneSecondary].filter(Boolean).join(" / ");
@@ -112,7 +138,7 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
   const doc = await newDoc();
   const l = new Layout(doc);
 
-  header(l, payload.hotel, "GUEST FOLIO / ROOM BILL");
+  await header(l, doc, payload.hotel, "GUEST FOLIO / ROOM BILL");
 
   l.row("Guest", payload.guestName);
   if (payload.guestIdNumber) l.row("NIC / Passport", payload.guestIdNumber);
@@ -158,8 +184,7 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
   l.row("TOTAL", fmt(payload.total), 12, true);
   l.divider();
   l.space(2);
-  l.center("Thank you for staying with us!", 9);
-  await addReviewQr(l, doc, payload.hotel);
+  await addReviewPanel(l, doc, payload.hotel, "Thank You For Visiting Us!");
 
   return doc.output("blob");
 }
@@ -169,7 +194,7 @@ export async function generateReceiptPdf(payload: ReceiptPayload): Promise<Blob>
   const l = new Layout(doc);
   const { order, items, hotel } = payload;
 
-  header(l, hotel, "RESTAURANT BILL");
+  await header(l, doc, hotel, "RESTAURANT BILL");
 
   l.row(
     `Bill #${formatOrderNumber(order.business_date, order.order_number)}`,
@@ -198,8 +223,7 @@ export async function generateReceiptPdf(payload: ReceiptPayload): Promise<Blob>
   l.row("TOTAL", fmt(Number(order.total_amount)), 12, true);
   l.divider();
   l.space(2);
-  l.center("Thank you — come again!", 9);
-  await addReviewQr(l, doc, hotel);
+  await addReviewPanel(l, doc, hotel, "Thank You For Visiting Us!");
 
   return doc.output("blob");
 }

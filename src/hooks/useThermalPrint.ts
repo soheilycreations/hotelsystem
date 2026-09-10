@@ -13,8 +13,20 @@ import { formatOrderNumber } from "@/lib/utils";
 const ESC = 0x1b;
 const GS = 0x1d;
 
+/** Thermal printers speak a single-byte codepage (CP437/850), not UTF-8 —
+ * typographic characters like em-dashes or curly quotes turn into mojibake
+ * (e.g. "—" prints as "ÇÖ"). Flatten them to plain ASCII before encoding. */
+function sanitizeForPrinter(text: string): string {
+  return text
+    .replace(/[—–]/g, "-")
+    .replace(/[‘’]/g, "'")
+    .replace(/[“”]/g, '"')
+    .replace(/…/g, "...")
+    .replace(/[•★☆]/g, "*");
+}
+
 function encode(text: string): number[] {
-  return Array.from(new TextEncoder().encode(text));
+  return Array.from(new TextEncoder().encode(sanitizeForPrinter(text)));
 }
 
 function line(char = "-", width = 48): number[] {
@@ -44,6 +56,7 @@ export interface HotelHeader {
   address?: string | null;
   phonePrimary?: string | null;
   phoneSecondary?: string | null;
+  logoUrl?: string | null;
   reviewQrUrl?: string | null;
 }
 
@@ -73,12 +86,12 @@ export interface FolioPayload {
 }
 
 /** Converts an image URL into ESC/POS GS v 0 raster bitmap bytes (1-bit,
- * thresholded) — used to print the review QR as an actual bitmap rather
- * than attempting it as text. GS v 0 is one of the most broadly supported
- * ESC/POS commands, even on cheap clone printers. Returns [] on any
- * failure (offline, CORS, bad URL) so a bill never fails to print over a
- * QR code that didn't load. */
-async function buildQrRasterBytes(url: string, targetWidthPx = 200): Promise<number[]> {
+ * thresholded) — used to print the hotel logo and the review QR as actual
+ * bitmaps rather than attempting them as text. GS v 0 is one of the most
+ * broadly supported ESC/POS commands, even on cheap clone printers. Returns
+ * [] on any failure (offline, CORS, bad URL) so a bill never fails to print
+ * over an image that didn't load. */
+async function buildImageRasterBytes(url: string, targetWidthPx = 200): Promise<number[]> {
   try {
     const res = await fetch(url);
     const blob = await res.blob();
@@ -122,19 +135,49 @@ async function buildQrRasterBytes(url: string, targetWidthPx = 200): Promise<num
   }
 }
 
-/** Appends the review QR (bitmap + caption) at the current print position,
- * if the hotel has one set. No-op (and no error) if it fails to load. */
-async function pushReviewQr(bytes: number[], hotel: HotelHeader | undefined): Promise<void> {
-  if (!hotel?.reviewQrUrl) return;
-  const qrBytes = await buildQrRasterBytes(hotel.reviewQrUrl);
-  if (qrBytes.length === 0) return;
+/** Appends a "we value your feedback" review panel — heading, stars, the QR
+ * bitmap, a call to action, and the closing thank-you line, boxed between
+ * dashed rules — then the thank-you line on its own if no QR is set yet.
+ * No-op on the QR image itself (and no error) if it fails to load. */
+async function pushReviewPanel(
+  bytes: number[],
+  hotel: HotelHeader | undefined,
+  thankYouLine: string
+): Promise<void> {
+  const qrBytes = hotel?.reviewQrUrl ? await buildImageRasterBytes(hotel.reviewQrUrl) : [];
+
   bytes.push(ESC, 0x61, 0x01); // center
-  bytes.push(...qrBytes);
-  bytes.push(...encode("\nScan to leave us a review!\n\n"));
+  if (qrBytes.length > 0) {
+    bytes.push(...line("-"));
+    bytes.push(ESC, 0x21, 0x10); // emphasized
+    bytes.push(...encode("WE VALUE YOUR FEEDBACK!\n"));
+    bytes.push(ESC, 0x21, 0x00);
+    bytes.push(...encode("* * * * *\n\n"));
+    bytes.push(...qrBytes);
+    bytes.push(...encode("\n"));
+    bytes.push(ESC, 0x21, 0x10); // emphasized
+    bytes.push(...encode("SCAN TO REVIEW US ON GOOGLE\n"));
+    bytes.push(ESC, 0x21, 0x00);
+    bytes.push(...line("-"));
+  }
+  bytes.push(...encode(`${thankYouLine}\n`));
+  if (qrBytes.length > 0) bytes.push(...line("-"));
+  bytes.push(...encode("\n"));
 }
 
-function pushHotelHeader(bytes: number[], hotel: HotelHeader | undefined, fallback: string): void {
+async function pushHotelHeader(
+  bytes: number[],
+  hotel: HotelHeader | undefined,
+  fallback: string
+): Promise<void> {
   bytes.push(ESC, 0x61, 0x01); // center
+  if (hotel?.logoUrl) {
+    const logoBytes = await buildImageRasterBytes(hotel.logoUrl, 160);
+    if (logoBytes.length > 0) {
+      bytes.push(...logoBytes);
+      bytes.push(...encode("\n"));
+    }
+  }
   bytes.push(ESC, 0x21, 0x30); // double size
   bytes.push(...encode(`${hotel?.name ?? fallback}\n`));
   bytes.push(ESC, 0x21, 0x00);
@@ -166,7 +209,7 @@ export async function buildFolioReceipt(payload: FolioPayload): Promise<Uint8Arr
   const bytes: number[] = [];
 
   bytes.push(ESC, 0x40);
-  pushHotelHeader(bytes, hotel, "SOHEILY PMS");
+  await pushHotelHeader(bytes, hotel, "SOHEILY PMS");
   bytes.push(...encode("GUEST FOLIO / ROOM BILL\n"));
   bytes.push(...line("="));
 
@@ -227,9 +270,7 @@ export async function buildFolioReceipt(payload: FolioPayload): Promise<Uint8Arr
   bytes.push(ESC, 0x21, 0x00);
   bytes.push(...line("="));
 
-  bytes.push(ESC, 0x61, 0x01);
-  bytes.push(...encode("Thank you for staying with us!\n\n"));
-  await pushReviewQr(bytes, hotel);
+  await pushReviewPanel(bytes, hotel, "Thank You For Visiting Us!");
   bytes.push(GS, 0x56, 0x42, 0x10);
 
   return new Uint8Array(bytes);
@@ -288,13 +329,13 @@ export async function buildEscPosReceipt({
   order,
   items,
   hotelName = "SOHEILY GRAND HOTEL",
-  footerNote = "Thank you — come again!",
+  footerNote = "Thank You For Visiting Us!",
   hotel,
 }: ReceiptPayload): Promise<Uint8Array> {
   const bytes: number[] = [];
 
   bytes.push(ESC, 0x40); // initialize
-  pushHotelHeader(bytes, hotel, hotelName);
+  await pushHotelHeader(bytes, hotel, hotelName);
   bytes.push(...encode("Restaurant & Room Service\n"));
   bytes.push(...line("="));
 
@@ -332,9 +373,7 @@ export async function buildEscPosReceipt({
   bytes.push(ESC, 0x21, 0x00);
   bytes.push(...line("="));
 
-  bytes.push(ESC, 0x61, 0x01); // center
-  bytes.push(...encode(footerNote + "\n\n"));
-  await pushReviewQr(bytes, hotel);
+  await pushReviewPanel(bytes, hotel, footerNote);
 
   bytes.push(GS, 0x56, 0x42, 0x10); // partial cut with feed
 
