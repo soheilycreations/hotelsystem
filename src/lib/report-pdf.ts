@@ -1,7 +1,13 @@
 /** A4 PDF export for the Daily Summary report — separate from the A5 bill layout. */
 
+import { SI_DICT } from "./i18n/translations";
+
 const A4: [number, number] = [210, 297]; // mm
 const MARGIN = 16;
+const SINHALA_FONT_URL = "/fonts/NotoSansSinhala-Regular.ttf";
+const SINHALA_FONT_NAME = "NotoSansSinhala";
+
+export type PdfLanguage = "en" | "si";
 
 function fmt(n: number): string {
   return `Rs ${n.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 })}`;
@@ -9,6 +15,14 @@ function fmt(n: number): string {
 
 function fmtTime(iso: string): string {
   return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
+/** Looks text up in the Sinhala dictionary (same one the on-screen UI uses)
+ * — falls back to the English text untranslated so an export never breaks
+ * or blanks out a line just because that phrase hasn't been added yet. */
+function tr(text: string, language: PdfLanguage): string {
+  if (language !== "si") return text;
+  return SI_DICT[text] ?? text;
 }
 
 interface PdfDoc {
@@ -20,24 +34,63 @@ interface PdfDoc {
   line: (x1: number, y1: number, x2: number, y2: number) => void;
   addPage: () => void;
   output: (t: "blob") => Blob;
+  addFileToVFS: (path: string, data: string) => void;
+  addFont: (path: string, name: string, style: string) => void;
 }
 
-async function newDoc(): Promise<PdfDoc> {
+let sinhalaFontBase64: Promise<string> | null = null;
+
+/** Fetches the Sinhala TTF from /public once per page load and caches the
+ * base64 — jsPDF's built-in fonts (helvetica etc.) have no Sinhala glyphs,
+ * so exporting a Sinhala report needs this font registered on the doc. */
+function loadSinhalaFontBase64(): Promise<string> {
+  if (!sinhalaFontBase64) {
+    sinhalaFontBase64 = fetch(SINHALA_FONT_URL)
+      .then((res) => res.arrayBuffer())
+      .then((buf) => {
+        const bytes = new Uint8Array(buf);
+        let binary = "";
+        const chunkSize = 0x8000;
+        for (let i = 0; i < bytes.length; i += chunkSize) {
+          binary += String.fromCharCode(...bytes.subarray(i, i + chunkSize));
+        }
+        return btoa(binary);
+      });
+  }
+  return sinhalaFontBase64;
+}
+
+async function registerSinhalaFont(doc: PdfDoc): Promise<void> {
+  const base64 = await loadSinhalaFontBase64();
+  const fileName = "NotoSansSinhala-Regular.ttf";
+  doc.addFileToVFS(fileName, base64);
+  // Only one weight is embedded — register it for both styles so a
+  // sectionHeader/row asking for "bold" doesn't hit a missing-font error.
+  doc.addFont(fileName, SINHALA_FONT_NAME, "normal");
+  doc.addFont(fileName, SINHALA_FONT_NAME, "bold");
+}
+
+async function newDoc(language: PdfLanguage = "en"): Promise<{ doc: PdfDoc; fontFamily: string }> {
   const { jsPDF } = await import("jspdf");
-  return new jsPDF({ unit: "mm", format: A4 }) as unknown as PdfDoc;
+  const doc = new jsPDF({ unit: "mm", format: A4 }) as unknown as PdfDoc;
+  if (language === "si") {
+    await registerSinhalaFont(doc);
+    return { doc, fontFamily: SINHALA_FONT_NAME };
+  }
+  return { doc, fontFamily: "helvetica" };
 }
 
 class ReportLayout {
   y = MARGIN;
-  constructor(private doc: PdfDoc, private width = A4[0]) {}
+  constructor(private doc: PdfDoc, private width = A4[0], private fontFamily = "helvetica") {}
   title(text: string, size = 16): void {
-    this.doc.setFont("helvetica", "bold");
+    this.doc.setFont(this.fontFamily, "bold");
     this.doc.setFontSize(size);
     this.doc.text(text, MARGIN, this.y);
     this.y += size * 0.5 + 2;
   }
   subtitle(text: string, size = 10): void {
-    this.doc.setFont("helvetica", "normal");
+    this.doc.setFont(this.fontFamily, "normal");
     this.doc.setFontSize(size);
     this.doc.text(text, MARGIN, this.y);
     this.y += size * 0.5 + 3;
@@ -45,7 +98,7 @@ class ReportLayout {
   sectionHeader(text: string): void {
     this.space(3);
     this.guard(10);
-    this.doc.setFont("helvetica", "bold");
+    this.doc.setFont(this.fontFamily, "bold");
     this.doc.setFontSize(12);
     this.doc.text(text, MARGIN, this.y);
     this.y += 5;
@@ -56,7 +109,7 @@ class ReportLayout {
   }
   row(cols: { text: string; x: number; align?: "left" | "right" }[], size = 9, bold = false): void {
     this.guard();
-    this.doc.setFont("helvetica", bold ? "bold" : "normal");
+    this.doc.setFont(this.fontFamily, bold ? "bold" : "normal");
     this.doc.setFontSize(size);
     for (const c of cols) {
       this.doc.text(c.text, c.x, this.y, c.align === "right" ? { align: "right" } : undefined);
@@ -84,6 +137,7 @@ class ReportLayout {
 export interface DailySummaryData {
   date: string; // YYYY-MM-DD
   hotelName: string;
+  language?: PdfLanguage;
   roomSales: {
     guestName: string;
     roomNumber: string;
@@ -108,27 +162,36 @@ export interface DailySummaryData {
 }
 
 export async function generateDailySummaryPdf(data: DailySummaryData): Promise<Blob> {
-  const doc = await newDoc();
-  const l = new ReportLayout(doc);
+  const lang: PdfLanguage = data.language ?? "en";
+  const T = (text: string) => tr(text, lang);
+  const { doc, fontFamily } = await newDoc(lang);
+  const l = new ReportLayout(doc, A4[0], fontFamily);
   const W = A4[0];
   const colRight = W - MARGIN;
 
   l.title(data.hotelName);
-  l.subtitle(`Daily Summary — ${new Date(data.date).toLocaleDateString("en-GB", { weekday: "long", year: "numeric", month: "long", day: "numeric" })}`);
+  l.subtitle(
+    `${T("Daily Summary")} — ${new Date(data.date).toLocaleDateString(lang === "si" ? "si-LK" : "en-GB", {
+      weekday: "long",
+      year: "numeric",
+      month: "long",
+      day: "numeric",
+    })}`
+  );
   l.divider();
 
   // Room sales
-  l.sectionHeader("Room Sales");
+  l.sectionHeader(T("Room Sales"));
   if (data.roomSales.length === 0) {
-    l.row([{ text: "No checkouts recorded for this date.", x: MARGIN }], 9);
+    l.row([{ text: T("No checkouts recorded for this date."), x: MARGIN }], 9);
   } else {
     l.row(
       [
-        { text: "Guest", x: MARGIN },
-        { text: "Room", x: MARGIN + 55 },
-        { text: "Plan", x: MARGIN + 75 },
-        { text: "Paid by", x: MARGIN + 135 },
-        { text: "Amount", x: colRight, align: "right" },
+        { text: T("Guest"), x: MARGIN },
+        { text: T("Room"), x: MARGIN + 55 },
+        { text: T("Plan"), x: MARGIN + 75 },
+        { text: T("Paid by"), x: MARGIN + 135 },
+        { text: T("Amount"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -146,7 +209,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
         { text: r.guestName, x: MARGIN },
         { text: r.roomNumber, x: MARGIN + 55 },
         { text: r.planName ?? "—", x: MARGIN + 75 },
-        { text: paidLabel, x: MARGIN + 135 },
+        { text: T(paidLabel), x: MARGIN + 135 },
         { text: fmt(r.amount), x: colRight, align: "right" },
       ]);
     }
@@ -154,7 +217,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   l.divider();
   l.row(
     [
-      { text: "Room revenue total", x: MARGIN },
+      { text: T("Room revenue total"), x: MARGIN },
       { text: fmt(data.roomRevenueTotal), x: colRight, align: "right" },
     ],
     10,
@@ -162,15 +225,15 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   );
 
   // Item sales
-  l.sectionHeader("Restaurant / POS Item Sales");
+  l.sectionHeader(T("Restaurant / POS Item Sales"));
   if (data.itemSales.length === 0) {
-    l.row([{ text: "No completed orders for this date.", x: MARGIN }], 9);
+    l.row([{ text: T("No completed orders for this date."), x: MARGIN }], 9);
   } else {
     l.row(
       [
-        { text: "Item", x: MARGIN },
-        { text: "Qty", x: MARGIN + 110, align: "right" },
-        { text: "Revenue", x: colRight, align: "right" },
+        { text: T("Item"), x: MARGIN },
+        { text: T("Qty"), x: MARGIN + 110, align: "right" },
+        { text: T("Revenue"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -185,16 +248,16 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   }
   l.divider();
   l.row([
-    { text: "POS subtotal", x: MARGIN },
+    { text: T("POS subtotal"), x: MARGIN },
     { text: fmt(data.posSubtotal), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "Service charge", x: MARGIN },
+    { text: T("Service charge"), x: MARGIN },
     { text: fmt(data.posServiceCharge), x: colRight, align: "right" },
   ]);
   l.row(
     [
-      { text: "POS total", x: MARGIN },
+      { text: T("POS total"), x: MARGIN },
       { text: fmt(data.posTotal), x: colRight, align: "right" },
     ],
     10,
@@ -202,21 +265,21 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   );
 
   // Expenses
-  l.sectionHeader("Expenses");
+  l.sectionHeader(T("Expenses"));
   if (data.expenses.length === 0) {
-    l.row([{ text: "No expenses logged for this date.", x: MARGIN }], 9);
+    l.row([{ text: T("No expenses logged for this date."), x: MARGIN }], 9);
   } else {
     l.row(
       [
-        { text: "Category", x: MARGIN },
-        { text: "Description", x: MARGIN + 45 },
-        { text: "Amount", x: colRight, align: "right" },
+        { text: T("Category"), x: MARGIN },
+        { text: T("Description"), x: MARGIN + 45 },
+        { text: T("Amount"), x: colRight, align: "right" },
       ],
       9,
       true
     );
     for (const e of data.expenses) {
-      const bankNote = e.paymentMethod === "bank_transfer" ? " (owner bank transfer)" : "";
+      const bankNote = e.paymentMethod === "bank_transfer" ? ` (${T("owner bank transfer")})` : "";
       l.row([
         { text: e.category, x: MARGIN },
         { text: `${(e.description ?? "—").slice(0, 40)}${bankNote}`.slice(0, 45), x: MARGIN + 45 },
@@ -227,7 +290,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   l.divider();
   l.row(
     [
-      { text: "Expenses total (all)", x: MARGIN },
+      { text: T("Expenses total (all)"), x: MARGIN },
       { text: fmt(data.expensesTotal), x: colRight, align: "right" },
     ],
     10,
@@ -245,35 +308,36 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   const roomBalance = data.roomRevenueTotal - data.roomExpenses;
   const restaurantBalance = data.posTotal - data.restaurantExpenses;
 
-  l.sectionHeader("Room vs Restaurant");
+  l.sectionHeader(T("Room vs Restaurant"));
   if (bankTransferTotal > 0) {
-    l.row([
-      { text: `Owner bank transfers excluded from both balances: ${fmt(bankTransferTotal)}`, x: MARGIN },
-    ], 8);
+    l.row(
+      [{ text: `${T("Owner bank transfers excluded from both balances")}: ${fmt(bankTransferTotal)}`, x: MARGIN }],
+      8
+    );
   }
   l.row(
     [
       { text: "", x: MARGIN },
-      { text: "Room", x: MARGIN + 90, align: "right" },
-      { text: "Restaurant", x: colRight, align: "right" },
+      { text: T("Room"), x: MARGIN + 90, align: "right" },
+      { text: T("Restaurant"), x: colRight, align: "right" },
     ],
     9,
     true
   );
   l.row([
-    { text: "Revenue", x: MARGIN },
+    { text: T("Revenue"), x: MARGIN },
     { text: fmt(data.roomRevenueTotal), x: MARGIN + 90, align: "right" },
     { text: fmt(data.posTotal), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "Expenses", x: MARGIN },
+    { text: T("Expenses"), x: MARGIN },
     { text: fmt(data.roomExpenses), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantExpenses), x: colRight, align: "right" },
   ]);
   l.divider();
   l.row(
     [
-      { text: "Balance", x: MARGIN },
+      { text: T("Balance"), x: MARGIN },
       { text: fmt(roomBalance), x: MARGIN + 90, align: "right" },
       { text: fmt(restaurantBalance), x: colRight, align: "right" },
     ],
@@ -282,35 +346,35 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   );
 
   // Room & Restaurant cash ledger — Inhand carried forward day to day
-  l.sectionHeader("Room & Restaurant Ledger (cash)");
+  l.sectionHeader(T("Room & Restaurant Ledger (cash)"));
   l.row(
     [
       { text: "", x: MARGIN },
-      { text: "Room", x: MARGIN + 90, align: "right" },
-      { text: "Restaurant", x: colRight, align: "right" },
+      { text: T("Room"), x: MARGIN + 90, align: "right" },
+      { text: T("Restaurant"), x: colRight, align: "right" },
     ],
     9,
     true
   );
   l.row([
-    { text: "Inhand (yesterday)", x: MARGIN },
+    { text: T("Inhand (yesterday)"), x: MARGIN },
     { text: fmt(data.roomLedger.opening), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantLedger.opening), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "+ Today's cash in", x: MARGIN },
+    { text: T("+ Today's cash in"), x: MARGIN },
     { text: fmt(data.roomLedger.todayIn), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantLedger.todayIn), x: colRight, align: "right" },
   ]);
   l.row([
-    { text: "- Today's cash out", x: MARGIN },
+    { text: T("- Today's cash out"), x: MARGIN },
     { text: fmt(data.roomLedger.todayOut), x: MARGIN + 90, align: "right" },
     { text: fmt(data.restaurantLedger.todayOut), x: colRight, align: "right" },
   ]);
   l.divider();
   l.row(
     [
-      { text: "Balance (carries to tomorrow)", x: MARGIN },
+      { text: T("Balance (carries to tomorrow)"), x: MARGIN },
       { text: fmt(data.roomLedger.closing), x: MARGIN + 90, align: "right" },
       { text: fmt(data.restaurantLedger.closing), x: colRight, align: "right" },
     ],
@@ -321,7 +385,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
   // Cash movements today — the individual float top-ups / deposits /
   // withdrawals folded into the Restaurant ledger above
   if (data.todayCashMovements.length > 0) {
-    l.sectionHeader("Cash movements today");
+    l.sectionHeader(T("Cash movements today"));
     for (const m of data.todayCashMovements) {
       const sign = m.direction === "in" ? "+" : "-";
       l.row([
@@ -334,11 +398,11 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
 
   // Credit accounts — running balance, persists until settled
   if (data.creditAccountBalances.length > 0) {
-    l.sectionHeader("Credit accounts — still owing");
+    l.sectionHeader(T("Credit accounts — still owing"));
     l.row(
       [
-        { text: "Account", x: MARGIN },
-        { text: "Balance", x: colRight, align: "right" },
+        { text: T("Account"), x: MARGIN },
+        { text: T("Balance"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -354,7 +418,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     l.divider();
     l.row(
       [
-        { text: "Total outstanding", x: MARGIN },
+        { text: T("Total outstanding"), x: MARGIN },
         { text: fmt(outstandingTotal), x: colRight, align: "right" },
       ],
       10,
@@ -364,12 +428,12 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
 
   // Credit sales added today
   if (data.creditSales.length > 0) {
-    l.sectionHeader("Credit — added today");
+    l.sectionHeader(T("Credit — added today"));
     l.row(
       [
-        { text: "Account", x: MARGIN },
-        { text: "Source", x: MARGIN + 70 },
-        { text: "Amount", x: colRight, align: "right" },
+        { text: T("Account"), x: MARGIN },
+        { text: T("Source"), x: MARGIN + 70 },
+        { text: T("Amount"), x: colRight, align: "right" },
       ],
       9,
       true
@@ -386,7 +450,7 @@ export async function generateDailySummaryPdf(data: DailySummaryData): Promise<B
     l.divider();
     l.row(
       [
-        { text: "Total on credit today", x: MARGIN },
+        { text: T("Total on credit today"), x: MARGIN },
         { text: fmt(creditTotal), x: colRight, align: "right" },
       ],
       10,
@@ -421,8 +485,8 @@ export interface CashBookData {
 }
 
 export async function generateCashBookPdf(data: CashBookData): Promise<Blob> {
-  const doc = await newDoc();
-  const l = new ReportLayout(doc);
+  const { doc, fontFamily } = await newDoc();
+  const l = new ReportLayout(doc, A4[0], fontFamily);
   const W = A4[0];
   const colRight = W - MARGIN;
 
@@ -559,8 +623,8 @@ const PAYMENT_LABEL_PDF: Record<string, string> = {
 };
 
 export async function generateExpensesReportPdf(data: ExpensesReportData): Promise<Blob> {
-  const doc = await newDoc();
-  const l = new ReportLayout(doc);
+  const { doc, fontFamily } = await newDoc();
+  const l = new ReportLayout(doc, A4[0], fontFamily);
   const W = A4[0];
   const colRight = W - MARGIN;
 
@@ -660,8 +724,8 @@ export interface BillsReportData {
 /** Full bill-by-bill export — every settled bill for the day with its line
  * items expanded, for reconciling the till in detail (not just totals). */
 export async function generateBillsReportPdf(data: BillsReportData): Promise<Blob> {
-  const doc = await newDoc();
-  const l = new ReportLayout(doc);
+  const { doc, fontFamily } = await newDoc();
+  const l = new ReportLayout(doc, A4[0], fontFamily);
   const W = A4[0];
   const colRight = W - MARGIN;
 
