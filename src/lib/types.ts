@@ -83,6 +83,8 @@ export interface Booking {
   guest_name: string;
   guest_id_number: string | null;
   contact_number: string | null;
+  second_guest_name: string | null;
+  second_guest_id_number: string | null;
   check_in_date: string;
   check_out_date: string;
   total_folio_amount: number;
@@ -91,6 +93,7 @@ export interface Booking {
   rate_plan_id: string | null;
   rate_plan_name: string | null;
   rate_plan_price: number | null;
+  price_overridden: boolean;
   actual_check_in: string | null;
   actual_check_out: string | null;
   status: BookingStatus;
@@ -101,6 +104,27 @@ export interface Booking {
   updated_at: string;
   rooms?: Room; // joined
   booking_charges?: BookingCharge[]; // joined
+}
+
+export interface Guest {
+  id: string;
+  full_name: string;
+  id_number: string | null;
+  contact_number: string | null;
+  notes: string | null;
+  created_at: string;
+  updated_at: string;
+}
+
+/** One past stay shown in the check-in form's guest-history lookup. */
+export interface GuestStayHistory {
+  bookingId: string;
+  roomNumber: string | null;
+  checkInDate: string;
+  checkOutDate: string;
+  ratePlanName: string | null;
+  amount: number;
+  status: BookingStatus;
 }
 
 export interface RoomRatePlan {

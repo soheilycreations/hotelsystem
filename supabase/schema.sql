@@ -102,29 +102,48 @@ create table public.rooms (
   updated_at  timestamptz not null default now()
 );
 
+-- 3.3b Guest registry — a growing directory of everyone who has ever
+-- stayed, keyed by NIC/passport number. createBooking upserts into this on
+-- every check-in (on conflict id_number), so the check-in form can look up
+-- "has this guest stayed before, what room/price" without any separate
+-- data entry.
+create table public.guests (
+  id             uuid primary key default gen_random_uuid(),
+  full_name      varchar(160) not null,
+  id_number      varchar(40) unique, -- dedup key; null allowed (unique ignores nulls)
+  contact_number varchar(40),
+  notes          text,
+  created_at     timestamptz not null default now(),
+  updated_at     timestamptz not null default now()
+);
+create index idx_guests_id_number on public.guests (id_number);
+
 -- 3.4 Bookings
 create table public.bookings (
-  id                 uuid primary key default gen_random_uuid(),
-  room_id            uuid references public.rooms (id) on delete set null,
-  guest_name         varchar(160) not null,
-  guest_id_number    varchar(40), -- NIC/passport, recorded at check-in
-  contact_number     varchar(40),
-  check_in_date      timestamptz not null,
-  check_out_date     timestamptz not null,
-  total_folio_amount numeric(14,2) not null default 0 check (total_folio_amount >= 0),
-  stay_type          stay_type not null default 'overnight',
-  duration_hours     int check (duration_hours is null or duration_hours > 0),
-  rate_plan_id       uuid references public.room_rate_plans (id) on delete set null,
-  rate_plan_name     varchar(120),
-  rate_plan_price    numeric(12,2),
-  actual_check_in    timestamptz,
-  actual_check_out   timestamptz,
-  status             booking_status not null default 'pending',
-  payment_method     payment_method, -- set at checkout
-  credit_account_id  uuid references public.credit_accounts (id), -- set when payment_method = 'credit'
-  created_by         uuid references public.staff_profiles (id),
-  created_at         timestamptz not null default now(),
-  updated_at         timestamptz not null default now(),
+  id                     uuid primary key default gen_random_uuid(),
+  room_id                uuid references public.rooms (id) on delete set null,
+  guest_name             varchar(160) not null,
+  guest_id_number        varchar(40), -- NIC/passport, recorded at check-in
+  contact_number         varchar(40),
+  second_guest_name      varchar(160), -- optional 2nd occupant on the same room
+  second_guest_id_number varchar(40),
+  check_in_date          timestamptz not null,
+  check_out_date         timestamptz not null,
+  total_folio_amount     numeric(14,2) not null default 0 check (total_folio_amount >= 0),
+  stay_type              stay_type not null default 'overnight',
+  duration_hours         int check (duration_hours is null or duration_hours > 0),
+  rate_plan_id           uuid references public.room_rate_plans (id) on delete set null,
+  rate_plan_name         varchar(120),
+  rate_plan_price        numeric(12,2),
+  price_overridden       boolean not null default false, -- true when staff typed a custom price at check-in
+  actual_check_in        timestamptz,
+  actual_check_out       timestamptz,
+  status                 booking_status not null default 'pending',
+  payment_method         payment_method, -- set at checkout
+  credit_account_id      uuid references public.credit_accounts (id), -- set when payment_method = 'credit'
+  created_by             uuid references public.staff_profiles (id),
+  created_at             timestamptz not null default now(),
+  updated_at             timestamptz not null default now(),
   constraint chk_booking_dates check (check_out_date > check_in_date)
 );
 
@@ -438,6 +457,7 @@ create trigger trg_touch_staff      before update on public.staff_profiles      
 create trigger trg_touch_room_types before update on public.room_types          for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_rooms      before update on public.rooms               for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_bookings   before update on public.bookings            for each row execute function public.tg_set_updated_at();
+create trigger trg_touch_guests     before update on public.guests               for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_hotel      before update on public.hotel_settings      for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_events     before update on public.event_bookings      for each row execute function public.tg_set_updated_at();
 create trigger trg_touch_credit_accounts before update on public.credit_accounts for each row execute function public.tg_set_updated_at();
@@ -731,6 +751,7 @@ alter table public.staff_profiles         enable row level security;
 alter table public.room_types             enable row level security;
 alter table public.rooms                  enable row level security;
 alter table public.bookings               enable row level security;
+alter table public.guests                 enable row level security;
 alter table public.restaurant_tables      enable row level security;
 alter table public.menu_items             enable row level security;
 alter table public.restaurant_orders      enable row level security;
@@ -771,6 +792,8 @@ create policy "staff read room types" on public.room_types for select using (pub
 create policy "mgmt write room types" on public.room_types for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read bookings"   on public.bookings   for select using (public.get_my_role() is not null);
 create policy "pms write bookings"    on public.bookings   for all    using (public.get_my_role() in ('admin','manager','receptionist')) with check (public.get_my_role() in ('admin','manager','receptionist'));
+create policy "staff read guests"     on public.guests     for select using (public.get_my_role() is not null);
+create policy "pms write guests"      on public.guests     for all    using (public.get_my_role() in ('admin','manager','receptionist')) with check (public.get_my_role() in ('admin','manager','receptionist'));
 
 -- 9.3 POS: admin/manager/cashier write; kitchen reads orders
 create policy "staff read tables"     on public.restaurant_tables for select using (public.get_my_role() is not null);
