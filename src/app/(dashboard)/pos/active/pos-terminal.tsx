@@ -108,6 +108,12 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
    * times for a bulk order). */
   const [editingQtyId, setEditingQtyId] = useState<string | null>(null);
   const [editingQtyValue, setEditingQtyValue] = useState("");
+  /** Order-line quantity box currently open for typed entry, in the cart
+   * panel on the right — same idea as the menu-grid stepper above, but
+   * keyed by order_item id since each line here is already the one
+   * pending/editable line for its menu item. */
+  const [editingLineId, setEditingLineId] = useState<string | null>(null);
+  const [editingLineValue, setEditingLineValue] = useState("");
   const { printKot, print, printing, error: printError } = useThermalPrint();
   const searchRef = useRef<HTMLInputElement>(null);
 
@@ -198,6 +204,18 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
       return;
     }
     run(() => setOrderItemQuantity(selectedOrder.id, menuItemId, desired - printedQty));
+  }
+
+  /** Commits the cart panel's typed quantity box for one line — the line is
+   * already the pending/editable one for its menu item, so the typed number
+   * becomes its new quantity directly (no printed-portion math needed). */
+  function commitLineQtyEdit(menuItemId: string | null) {
+    const raw = editingLineValue.trim();
+    setEditingLineId(null);
+    if (raw === "" || !selectedOrder || !menuItemId) return;
+    const desired = Math.round(Number(raw));
+    if (!Number.isFinite(desired) || desired < 0) return;
+    run(() => setOrderItemQuantity(selectedOrder.id, menuItemId, desired));
   }
 
   const openChannelOrder = () => {
@@ -682,7 +700,41 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                               >
                                 <Minus className="h-3 w-3" />
                               </button>
-                              <span className="w-4 text-center text-xs font-semibold tabular-nums">{item.quantity}</span>
+                              {editingLineId === item.id ? (
+                                <input
+                                  type="number"
+                                  inputMode="numeric"
+                                  min={0}
+                                  autoFocus
+                                  value={editingLineValue}
+                                  onChange={(e) => setEditingLineValue(e.target.value)}
+                                  onFocus={(e) => e.target.select()}
+                                  onKeyDown={(e) => {
+                                    if (e.key === "Enter") {
+                                      e.preventDefault();
+                                      commitLineQtyEdit(item.menu_item_id);
+                                    } else if (e.key === "Escape") {
+                                      e.preventDefault();
+                                      setEditingLineId(null);
+                                    }
+                                  }}
+                                  onBlur={() => setEditingLineId(null)}
+                                  className="num h-6 w-10 rounded-md border bg-background text-center text-xs font-semibold outline-none focus-visible:ring-2 focus-visible:ring-ring"
+                                />
+                              ) : (
+                                <button
+                                  type="button"
+                                  aria-label="Type a quantity"
+                                  disabled={pending}
+                                  onClick={() => {
+                                    setEditingLineId(item.id);
+                                    setEditingLineValue(String(item.quantity));
+                                  }}
+                                  className="w-4 rounded text-center text-xs font-semibold tabular-nums hover:bg-accent disabled:pointer-events-none"
+                                >
+                                  {item.quantity}
+                                </button>
+                              )}
                               <button
                                 type="button"
                                 disabled={pending}
