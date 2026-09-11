@@ -166,6 +166,7 @@ export function PurchasingDesk({
                 <option value="card">Card</option>
                 <option value="bank_transfer">Bank Transfer</option>
                 <option value="credit">Credit</option>
+                <option value="owner_paid">Owner / Boss (not cash drawer)</option>
               </Select>
             </div>
           </div>

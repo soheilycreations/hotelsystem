@@ -23,7 +23,7 @@ create type channel_type      as enum ('dine_in', 'room_service', 'takeaway', 'd
 create type kitchen_station   as enum ('kitchen', 'bar'); -- which printer a menu category's KOT/BOT goes to
 create type order_status      as enum ('active', 'completed', 'cancelled');
 create type delivery_status   as enum ('pending', 'cooking', 'dispatched', 'delivered');
-create type payment_method    as enum ('cash', 'card', 'bank_transfer', 'complimentary', 'credit');
+create type payment_method    as enum ('cash', 'card', 'bank_transfer', 'complimentary', 'credit', 'owner_paid');
 create type expense_division  as enum ('restaurant', 'room');
 create type cash_direction    as enum ('in', 'out');
 create type inventory_unit    as enum ('grams', 'ml', 'units');

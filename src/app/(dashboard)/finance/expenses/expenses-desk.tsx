@@ -49,6 +49,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Bank Transfer",
   complimentary: "Complimentary",
   credit: "Credit",
+  owner_paid: "Owner / Boss",
 };
 
 const PAYMENT_BADGE: Record<PaymentMethod, "success" | "info" | "warning" | "secondary"> = {
@@ -57,6 +58,7 @@ const PAYMENT_BADGE: Record<PaymentMethod, "success" | "info" | "warning" | "sec
   bank_transfer: "warning",
   complimentary: "secondary",
   credit: "warning",
+  owner_paid: "secondary",
 };
 
 export function ExpensesDesk({
@@ -195,6 +197,7 @@ export function ExpensesDesk({
                   <option value="cash">Cash</option>
                   <option value="card">Card</option>
                   <option value="bank_transfer">Bank Transfer</option>
+                  <option value="owner_paid">Owner / Boss (not cash drawer)</option>
                 </Select>
               </div>
             </div>
@@ -449,6 +452,7 @@ function EditExpenseDialog({
               <option value="cash">Cash</option>
               <option value="card">Card</option>
               <option value="bank_transfer">Bank Transfer</option>
+              <option value="owner_paid">Owner / Boss (not cash drawer)</option>
             </Select>
           </div>
         </div>

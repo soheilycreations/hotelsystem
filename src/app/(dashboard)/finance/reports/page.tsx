@@ -142,11 +142,12 @@ export default async function ReportsPage({
   const expenseTotals: Record<string, number> = {};
   for (const c of categories ?? []) expenseTotals[c.name] = 0;
 
-  // Bank-transfer expenses are the owner's own direct funds, not money spent
-  // out of the hotel's revenue — they're still shown in the category
-  // breakdown below, but excluded from Net Profit and the daily chart's
-  // "expenses" bars so they don't understate the business's own profit.
-  // Room/Restaurant expenses are tracked separately for the divisional P&L.
+  // Bank-transfer and owner-paid expenses are the owner's own direct funds,
+  // not money spent out of the hotel's revenue — they're still shown in the
+  // category breakdown below, but excluded from Net Profit and the daily
+  // chart's "expenses" bars so they don't understate the business's own
+  // profit. Room/Restaurant expenses are tracked separately for the
+  // divisional P&L.
   let totalExpenses = 0;
   let expensesAgainstRevenue = 0;
   let roomExpenses = 0;
@@ -156,7 +157,7 @@ export default async function ReportsPage({
     totalExpenses += amount;
     const categoryName = (e.expense_categories as { name?: string } | null)?.name ?? "Uncategorised";
     expenseTotals[categoryName] = (expenseTotals[categoryName] ?? 0) + amount;
-    if (e.payment_method === "bank_transfer") continue;
+    if (e.payment_method === "bank_transfer" || e.payment_method === "owner_paid") continue;
     expensesAgainstRevenue += amount;
     if (e.division === "room") roomExpenses += amount;
     else restaurantExpenses += amount;
