@@ -25,6 +25,23 @@ function tr(text: string, language: PdfLanguage): string {
   return SI_DICT[text] ?? text;
 }
 
+/** "Cash: Rs X   Owner / Boss: Rs Y   ..." — one line summing the day's
+ * expenses by how they were paid, so it's obvious at a glance how much
+ * actually came out of the till versus the owner's own pocket. */
+function paymentBreakdownText(
+  expenses: { amount: number; paymentMethod?: string }[],
+  T: (text: string) => string
+): string {
+  const totals = expenses.reduce((acc: Record<string, number>, e) => {
+    const key = e.paymentMethod ?? "cash";
+    acc[key] = (acc[key] ?? 0) + e.amount;
+    return acc;
+  }, {});
+  return Object.entries(totals)
+    .map(([method, amount]) => `${T(PAYMENT_LABEL_PDF[method] ?? method)}: ${fmt(amount)}`)
+    .join("   ");
+}
+
 interface PdfDoc {
   text: (t: string, x: number, y: number, o?: Record<string, unknown>) => void;
   setFont: (f: string, s: string) => void;
@@ -272,6 +289,9 @@ async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Bl
     10,
     true
   );
+  if (data.expenses.length > 0) {
+    l.row([{ text: paymentBreakdownText(data.expenses, T), x: MARGIN }], 8);
+  }
 
   // Room and Restaurant are two separate cash pools — never combined into
   // one blended revenue/balance figure. Bank-transfer and owner-paid
@@ -561,6 +581,11 @@ async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob
     );
   }
   html += htmlTotalRow(T("Expenses total (all)"), fmt(data.expensesTotal), true);
+  if (data.expenses.length > 0) {
+    html += `<p style="font-size:11px;color:#666;margin:0 0 6px;text-align:right;">${escapeHtml(
+      paymentBreakdownText(data.expenses, T)
+    )}</p>`;
+  }
 
   // Room vs Restaurant
   html += htmlSectionHeader(T("Room vs Restaurant"));
@@ -794,6 +819,7 @@ const PAYMENT_LABEL_PDF: Record<string, string> = {
   bank_transfer: "Bank Transfer",
   complimentary: "Complimentary",
   credit: "Credit",
+  owner_paid: "Owner / Boss",
 };
 
 export async function generateExpensesReportPdf(data: ExpensesReportData): Promise<Blob> {
