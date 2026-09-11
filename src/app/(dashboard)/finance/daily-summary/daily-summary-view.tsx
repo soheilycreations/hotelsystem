@@ -110,6 +110,11 @@ export function DailySummaryView({
   const roomBalance = roomRevenueTotal - roomExpenses;
   const restaurantBalance = posTotal - restaurantExpenses;
 
+  const expenseTotalsByMethod = expenses.reduce((acc, e) => {
+    acc[e.paymentMethod] = (acc[e.paymentMethod] ?? 0) + e.amount;
+    return acc;
+  }, {} as Partial<Record<PaymentMethod, number>>);
+
   function toDateKey(d: Date): string {
     // Build YYYY-MM-DD from LOCAL date parts — toISOString() would convert to
     // UTC first and silently shift the date by a day in +5:30 timezones.
@@ -418,6 +423,23 @@ export function DailySummaryView({
               )}
             </TableBody>
           </Table>
+          {expenses.length > 0 && (
+            <div className="flex flex-wrap items-center justify-end gap-x-5 gap-y-1 border-t px-4 py-3 text-sm">
+              {(Object.keys(PAYMENT_LABEL) as PaymentMethod[])
+                .filter((m) => expenseTotalsByMethod[m])
+                .map((m) => (
+                  <span key={m} className="text-muted-foreground">
+                    {t(PAYMENT_LABEL[m])}:{" "}
+                    <span className="font-medium text-foreground tabular-nums">
+                      {formatLKR(expenseTotalsByMethod[m] ?? 0)}
+                    </span>
+                  </span>
+                ))}
+              <span className="font-semibold">
+                {t("Expenses total (all)")}: <span className="tabular-nums">{formatLKR(expensesTotal)}</span>
+              </span>
+            </div>
+          )}
         </CardContent>
       </Card>
 
