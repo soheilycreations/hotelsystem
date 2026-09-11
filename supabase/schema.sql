@@ -567,7 +567,7 @@ begin
      and (old.quantity_in_stock is null or old.quantity_in_stock >= old.reorder_level) then
     insert into public.system_logs (event_type, severity, message, ref_table, ref_id)
     values ('LOW_STOCK',
-            case when new.quantity_in_stock <= 0 then 'critical' else 'warning' end,
+            (case when new.quantity_in_stock <= 0 then 'critical' else 'warning' end)::log_severity,
             format('"%s" is low: %s %s remaining (reorder level %s %s).',
                    new.name, new.quantity_in_stock, new.unit, new.reorder_level, new.unit),
             'inventory_items', new.id);
