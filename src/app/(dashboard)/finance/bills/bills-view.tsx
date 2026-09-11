@@ -24,6 +24,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Bank Transfer",
   complimentary: "Complimentary",
   credit: "Credit",
+  owner_paid: "Owner / Boss",
 };
 
 function formatTime(iso: string): string {

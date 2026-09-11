@@ -252,7 +252,10 @@ async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Bl
       true
     );
     for (const e of data.expenses) {
-      const bankNote = e.paymentMethod === "bank_transfer" ? ` (${T("owner bank transfer")})` : "";
+      const bankNote =
+        e.paymentMethod === "bank_transfer" || e.paymentMethod === "owner_paid"
+          ? ` (${T("owner funded")})`
+          : "";
       l.row([
         { text: e.category, x: MARGIN },
         { text: `${(e.description ?? "—").slice(0, 40)}${bankNote}`.slice(0, 45), x: MARGIN + 45 },
@@ -271,11 +274,12 @@ async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Bl
   );
 
   // Room and Restaurant are two separate cash pools — never combined into
-  // one blended revenue/balance figure. Bank-transfer expenses are the
-  // owner's own direct funds, not money spent out of the hotel's revenue,
-  // so they're excluded from both balances (noted below, not subtracted).
+  // one blended revenue/balance figure. Bank-transfer and owner-paid
+  // expenses are the owner's own direct funds, not money spent out of the
+  // hotel's revenue, so they're excluded from both balances (noted below,
+  // not subtracted).
   const expensesAgainstRevenue = data.expenses
-    .filter((e) => e.paymentMethod !== "bank_transfer")
+    .filter((e) => e.paymentMethod !== "bank_transfer" && e.paymentMethod !== "owner_paid")
     .reduce((sum, e) => sum + e.amount, 0);
   const bankTransferTotal = data.expensesTotal - expensesAgainstRevenue;
   const roomBalance = data.roomRevenueTotal - data.roomExpenses;
@@ -284,7 +288,7 @@ async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Bl
   l.sectionHeader(T("Room vs Restaurant"));
   if (bankTransferTotal > 0) {
     l.row(
-      [{ text: `${T("Owner bank transfers excluded from both balances")}: ${fmt(bankTransferTotal)}`, x: MARGIN }],
+      [{ text: `${T("Owner-funded expenses excluded from both balances")}: ${fmt(bankTransferTotal)}`, x: MARGIN }],
       8
     );
   }
@@ -495,7 +499,7 @@ async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob
     m === "bank_transfer" ? T("Bank Transfer") : m === "card" ? T("Card") : m === "complimentary" ? T("Complimentary") : T("Cash");
 
   const expensesAgainstRevenue = data.expenses
-    .filter((e) => e.paymentMethod !== "bank_transfer")
+    .filter((e) => e.paymentMethod !== "bank_transfer" && e.paymentMethod !== "owner_paid")
     .reduce((sum, e) => sum + e.amount, 0);
   const bankTransferTotal = data.expensesTotal - expensesAgainstRevenue;
   const roomBalance = data.roomRevenueTotal - data.roomExpenses;
@@ -548,7 +552,9 @@ async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob
       data.expenses.map((e) => [
         escapeHtml(e.category),
         escapeHtml(
-          `${(e.description ?? "—").slice(0, 40)}${e.paymentMethod === "bank_transfer" ? ` (${T("owner bank transfer")})` : ""}`
+          `${(e.description ?? "—").slice(0, 40)}${
+            e.paymentMethod === "bank_transfer" || e.paymentMethod === "owner_paid" ? ` (${T("owner funded")})` : ""
+          }`
         ),
         fmt(e.amount),
       ])
@@ -560,7 +566,7 @@ async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob
   html += htmlSectionHeader(T("Room vs Restaurant"));
   if (bankTransferTotal > 0) {
     html += `<p style="font-size:11px;color:#666;margin:0 0 6px;">${escapeHtml(
-      T("Owner bank transfers excluded from both balances")
+      T("Owner-funded expenses excluded from both balances")
     )}: ${fmt(bankTransferTotal)}</p>`;
   }
   html += `<div style="display:flex;justify-content:flex-end;gap:0;padding:2px 6px;font-size:12px;font-weight:700;"><span style="flex:1;"></span><span style="width:90px;text-align:right;">${escapeHtml(

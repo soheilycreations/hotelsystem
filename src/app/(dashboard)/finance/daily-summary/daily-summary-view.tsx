@@ -37,6 +37,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   bank_transfer: "Bank Transfer",
   complimentary: "Complimentary",
   credit: "Credit",
+  owner_paid: "Owner / Boss",
 };
 
 interface RoomSaleRow {
@@ -390,10 +391,16 @@ export function DailySummaryView({
                     {e.description ?? "—"}
                   </TableCell>
                   <TableCell>
-                    <Badge variant={e.paymentMethod === "bank_transfer" ? "warning" : "secondary"}>
+                    <Badge
+                      variant={
+                        e.paymentMethod === "bank_transfer" || e.paymentMethod === "owner_paid"
+                          ? "warning"
+                          : "secondary"
+                      }
+                    >
                       {t(PAYMENT_LABEL[e.paymentMethod])}
                     </Badge>
-                    {e.paymentMethod === "bank_transfer" && (
+                    {(e.paymentMethod === "bank_transfer" || e.paymentMethod === "owner_paid") && (
                       <p className="mt-0.5 text-[10px] leading-tight text-muted-foreground">
                         {t("Owner-funded — excluded below")}
                       </p>
@@ -465,7 +472,7 @@ export function DailySummaryView({
           <CardTitle className="text-base">{t("Room vs Restaurant")}</CardTitle>
           {bankTransferTotal > 0 && (
             <p className="text-xs text-muted-foreground">
-              {t("Owner bank transfers excluded from both balances")}: {formatLKR(bankTransferTotal)}
+              {t("Owner-funded expenses excluded from both balances")}: {formatLKR(bankTransferTotal)}
             </p>
           )}
         </CardHeader>

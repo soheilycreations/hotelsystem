@@ -10,7 +10,7 @@ export type RatePlanKind = "per_night" | "block";
 export type TableStatus = "vacant" | "occupied" | "reserved" | "billed";
 export type ChannelType = "dine_in" | "room_service" | "takeaway" | "delivery" | "banquet";
 export type KitchenStation = "kitchen" | "bar";
-export type PaymentMethod = "cash" | "card" | "bank_transfer" | "complimentary" | "credit";
+export type PaymentMethod = "cash" | "card" | "bank_transfer" | "complimentary" | "credit" | "owner_paid";
 export type ExpenseDivision = "restaurant" | "room";
 
 export interface CreditAccount {

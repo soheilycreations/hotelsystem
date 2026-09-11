@@ -229,13 +229,15 @@ export default async function DailySummaryPage({
     .map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue }))
     .sort((a, b) => b.revenue - a.revenue);
 
-  // Bank-transfer expenses are the owner's own direct funds, not money spent
-  // out of the hotel's revenue — they're shown for the record (in the full
-  // total below) but don't reduce the Net Cash Balance the way cash/card
-  // expenses do. Room/Restaurant expenses are split out for the divisional
-  // balance, same rule as the P&L Report.
+  // Bank-transfer and owner-paid expenses are the owner's own direct funds,
+  // not money spent out of the hotel's revenue — they're shown for the
+  // record (in the full total below) but don't reduce the Net Cash Balance
+  // the way cash/card expenses do. Room/Restaurant expenses are split out
+  // for the divisional balance, same rule as the P&L Report.
   const expensesTotal = (expenses ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
-  const cashExpenses = (expenses ?? []).filter((e) => e.payment_method !== "bank_transfer");
+  const cashExpenses = (expenses ?? []).filter(
+    (e) => e.payment_method !== "bank_transfer" && e.payment_method !== "owner_paid"
+  );
   const expensesAgainstRevenue = cashExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const roomExpenses = cashExpenses
     .filter((e) => e.division === "room")
