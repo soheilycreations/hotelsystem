@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useState, useTransition } from "react";
-import { ArrowLeft, PlusCircle, Receipt, ShieldAlert } from "lucide-react";
+import { Fragment, useState, useTransition } from "react";
+import { ArrowLeft, ChevronDown, PlusCircle, Receipt, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,7 +25,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatDate, formatLKR } from "@/lib/utils";
+import { cn, formatDate, formatLKR } from "@/lib/utils";
 import type { CreditAccount } from "@/lib/types";
 import { addCreditAdjustment } from "../actions";
 
@@ -48,6 +48,7 @@ export function CreditAccountDetailView({
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
 
   return (
     <div className="space-y-6">
@@ -109,22 +110,77 @@ export function CreditAccountDetailView({
               </TableRow>
             </TableHeader>
             <TableBody>
-              {entries.map((e, i) => (
-                <TableRow key={i}>
-                  <TableCell className="whitespace-nowrap text-sm">{formatDate(e.date)}</TableCell>
-                  <TableCell>
-                    <Badge variant={KIND_BADGE[e.kind].variant}>{KIND_BADGE[e.kind].label}</Badge>
-                  </TableCell>
-                  <TableCell className="text-sm text-muted-foreground">{e.description}</TableCell>
-                  <TableCell
-                    className={`text-right tabular-nums ${e.amount >= 0 ? "" : "text-emerald-500"}`}
-                  >
-                    {e.amount >= 0 ? "+" : "−"}
-                    {formatLKR(Math.abs(e.amount))}
-                  </TableCell>
-                  <TableCell className="text-right font-medium tabular-nums">{formatLKR(e.balance)}</TableCell>
-                </TableRow>
-              ))}
+              {entries.map((e, i) => {
+                const expandable = Boolean(e.orderId);
+                const isOpen = expandable && expandedIdx === i;
+                return (
+                  <Fragment key={i}>
+                    <TableRow
+                      className={expandable ? "cursor-pointer" : undefined}
+                      onClick={expandable ? () => setExpandedIdx(isOpen ? null : i) : undefined}
+                    >
+                      <TableCell className="whitespace-nowrap text-sm">{formatDate(e.date)}</TableCell>
+                      <TableCell>
+                        <Badge variant={KIND_BADGE[e.kind].variant}>{KIND_BADGE[e.kind].label}</Badge>
+                      </TableCell>
+                      <TableCell className="text-sm text-muted-foreground">
+                        <span className="inline-flex items-center gap-1.5">
+                          {e.description}
+                          {expandable && (
+                            <ChevronDown
+                              className={cn("h-3.5 w-3.5 shrink-0 transition-transform", isOpen && "rotate-180")}
+                            />
+                          )}
+                        </span>
+                      </TableCell>
+                      <TableCell
+                        className={`text-right tabular-nums ${e.amount >= 0 ? "" : "text-emerald-500"}`}
+                      >
+                        {e.amount >= 0 ? "+" : "−"}
+                        {formatLKR(Math.abs(e.amount))}
+                      </TableCell>
+                      <TableCell className="text-right font-medium tabular-nums">{formatLKR(e.balance)}</TableCell>
+                    </TableRow>
+                    {isOpen && (
+                      <TableRow>
+                        <TableCell colSpan={5} className="bg-muted/30 px-6 py-3">
+                          <div className="space-y-1.5">
+                            {(e.items ?? []).map((it, j) => (
+                              <div key={j} className="flex items-center justify-between gap-2 text-sm">
+                                <span className="truncate">
+                                  {it.name} <span className="text-muted-foreground">×{it.qty}</span>
+                                </span>
+                                <span className="shrink-0 tabular-nums text-muted-foreground">
+                                  {formatLKR(it.unitPrice)} each · {formatLKR(it.lineTotal)}
+                                </span>
+                              </div>
+                            ))}
+                            {(e.items ?? []).length === 0 && (
+                              <p className="text-sm text-muted-foreground">No items on this bill.</p>
+                            )}
+                          </div>
+                          <div className="mt-3 space-y-1 border-t pt-2 text-sm">
+                            <div className="flex items-center justify-between">
+                              <span className="text-muted-foreground">Subtotal</span>
+                              <span className="tabular-nums">{formatLKR(e.subtotal ?? 0)}</span>
+                            </div>
+                            {(e.serviceCharge ?? 0) > 0 && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Service charge</span>
+                                <span className="tabular-nums">{formatLKR(e.serviceCharge ?? 0)}</span>
+                              </div>
+                            )}
+                            <div className="flex items-center justify-between font-semibold">
+                              <span>Total</span>
+                              <span className="tabular-nums">{formatLKR(e.amount)}</span>
+                            </div>
+                          </div>
+                        </TableCell>
+                      </TableRow>
+                    )}
+                  </Fragment>
+                );
+              })}
               {entries.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">

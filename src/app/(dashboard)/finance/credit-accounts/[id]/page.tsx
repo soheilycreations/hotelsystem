@@ -12,6 +12,12 @@ export interface CreditLedgerEntry {
   kind: "charge" | "adjustment" | "repayment";
   description: string;
   amount: number; // positive = adds to balance owed, negative = reduces it
+  /** Present only for a restaurant-order charge — lets the ledger row
+   * expand to show the item breakdown, same as the Bills page. */
+  orderId?: string;
+  items?: { name: string; qty: number; unitPrice: number; lineTotal: number }[];
+  subtotal?: number;
+  serviceCharge?: number;
 }
 
 export default async function CreditAccountDetailPage({
@@ -33,7 +39,9 @@ export default async function CreditAccountDetailPage({
         .eq("payment_method", "credit"),
       supabase
         .from("restaurant_orders")
-        .select("order_number, channel_type, total_amount, business_date")
+        .select(
+          "id, order_number, channel_type, total_amount, business_date, subtotal, service_charge, order_items(quantity, unit_price, line_total, is_custom, custom_description, menu_items(name))"
+        )
         .eq("credit_account_id", id)
         .eq("payment_method", "credit"),
       supabase.from("credit_adjustments").select("*").eq("credit_account_id", id).order("date"),
@@ -55,11 +63,24 @@ export default async function CreditAccountDetailPage({
     });
   }
   for (const o of orders ?? []) {
+    const items = (o.order_items ?? []).map((it) => {
+      const menuItem = it.menu_items as unknown as { name: string } | null;
+      return {
+        name: it.is_custom ? (it.custom_description as string | null) ?? "Item" : menuItem?.name ?? "Item",
+        qty: Number(it.quantity),
+        unitPrice: Number(it.unit_price),
+        lineTotal: Number(it.line_total),
+      };
+    });
     entries.push({
       date: o.business_date,
       kind: "charge",
       description: `Bill #${formatOrderNumber(o.business_date, o.order_number)} — ${String(o.channel_type).replace("_", " ")}`,
       amount: Number(o.total_amount),
+      orderId: o.id,
+      items,
+      subtotal: Number(o.subtotal),
+      serviceCharge: Number(o.service_charge),
     });
   }
   for (const a of adjustments ?? []) {
