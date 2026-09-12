@@ -182,9 +182,14 @@ create table public.menu_items (
 );
 
 -- 3.7 Restaurant orders (multi-channel)
+create sequence public.restaurant_orders_order_number_seq;
+
 create table public.restaurant_orders (
   id               uuid primary key default gen_random_uuid(),
-  order_number     serial unique,
+  -- Assigned lazily by rpc_ensure_order_number() the first time a bill is
+  -- printed or the order settled — never at insert time — so a table
+  -- opened and abandoned never burns a number and leaves a gap.
+  order_number     int unique,
   channel_type     channel_type not null,
   table_id         uuid references public.restaurant_tables (id) on delete set null,
   booking_id       uuid references public.bookings (id) on delete set null,
@@ -212,6 +217,8 @@ create table public.restaurant_orders (
   constraint chk_room_service    check (channel_type <> 'room_service' or booking_id is not null),
   constraint chk_delivery_fields check (channel_type <> 'delivery'     or delivery_address is not null)
 );
+
+alter sequence public.restaurant_orders_order_number_seq owned by public.restaurant_orders.order_number;
 
 -- 3.8 Order line items
 create table public.order_items (
@@ -552,6 +559,46 @@ end $$;
 create trigger trg_b_stock_deduct
 after update of order_status on public.restaurant_orders
 for each row execute function public.tg_recipe_stock_deductor();
+
+-- ---------------------------------------------------------------------------
+-- 6b. RPC — lazily assign a bill number
+--     Called the first time a bill is printed or an order is settled, never
+--     at insert time, so an opened-then-abandoned order never burns a
+--     number. Row-locked so a double-click can't hand out two numbers.
+-- ---------------------------------------------------------------------------
+create or replace function public.rpc_ensure_order_number(p_order_id uuid)
+returns int
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_role   staff_role;
+  v_number int;
+begin
+  v_role := public.get_my_role();
+  if v_role is null then
+    raise exception 'Not authorized.';
+  end if;
+
+  select order_number into v_number
+  from public.restaurant_orders
+  where id = p_order_id
+  for update;
+
+  if not found then
+    raise exception 'Order not found.';
+  end if;
+
+  if v_number is null then
+    v_number := nextval('public.restaurant_orders_order_number_seq');
+    update public.restaurant_orders set order_number = v_number where id = p_order_id;
+  end if;
+
+  return v_number;
+end;
+$$;
+
+grant execute on function public.rpc_ensure_order_number(uuid) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 7. TRIGGER C — LOW STOCK ALERT HOOK

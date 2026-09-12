@@ -18,6 +18,7 @@ import { formatDate, formatLKR } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { addBookingCharge, extendOvernightStay, extendShortStay, setBookingStatus, shortenOvernightStay } from "../actions";
+import { ensureOrderNumber } from "../../pos/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -110,10 +111,19 @@ export function BookingList({
     });
   };
 
-  /** Full bill payload — settled folio + still-unsettled room-service orders. */
-  const buildPayload = (b: Booking): FolioPayload => {
+  /** Full bill payload — settled folio + still-unsettled room-service
+   * orders. Printing a folio counts as "issuing a bill" for those pending
+   * sub-orders too, so any still missing a number get one assigned now. */
+  const buildPayload = async (b: Booking): Promise<FolioPayload> => {
     const settled = serviceOrdersByBooking[b.id] ?? [];
-    const pending = pendingServiceByBooking[b.id] ?? [];
+    const pendingRaw = pendingServiceByBooking[b.id] ?? [];
+    const pending = await Promise.all(
+      pendingRaw.map(async (o) => {
+        if (o.orderNumber != null) return o;
+        const res = await ensureOrderNumber(o.id);
+        return res.ok && res.orderNumber ? { ...o, orderNumber: res.orderNumber } : o;
+      })
+    );
     const serviceOrders = [...settled, ...pending];
     const settledTotal = settled.reduce((sum, o) => sum + o.amount, 0);
     const pendingTotal = pending.reduce((sum, o) => sum + o.amount, 0);
@@ -163,7 +173,7 @@ export function BookingList({
 
   const printBill = async (b: Booking) => {
     setNotice(null);
-    const sent = await printFolio(buildPayload(b));
+    const sent = await printFolio(await buildPayload(b));
     if (sent) setNotice(`Room bill for ${b.guest_name} sent to printer.`);
   };
 
@@ -172,7 +182,7 @@ export function BookingList({
     setError(null);
     setBusyId(b.id);
     try {
-      const blob = await generateFolioPdf(buildPayload(b));
+      const blob = await generateFolioPdf(await buildPayload(b));
       openPdf(blob);
     } catch (e) {
       setError(e instanceof Error ? e.message : "Could not generate the PDF.");
@@ -190,7 +200,7 @@ export function BookingList({
     }
     setBusyId(b.id);
     try {
-      const payload = buildPayload(b);
+      const payload = await buildPayload(b);
       const blob = await generateFolioPdf(payload);
       const url = await uploadBillPdf(`room-${b.rooms?.room_number ?? "x"}-${b.id.slice(0, 8)}.pdf`, blob);
       const msg =

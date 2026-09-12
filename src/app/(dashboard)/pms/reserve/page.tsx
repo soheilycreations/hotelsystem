@@ -8,7 +8,10 @@ export const dynamic = "force-dynamic";
 export const metadata = { title: "Bookings" };
 
 export interface ServiceOrderDetail {
-  orderNumber: number;
+  id: string;
+  /** Null until this room-service order has had a bill printed or been
+   * settled — see rpc_ensure_order_number(). */
+  orderNumber: number | null;
   businessDate: string;
   amount: number;
   items: { name: string; quantity: number; lineTotal: number }[];
@@ -44,7 +47,7 @@ export default async function ReservePage() {
     const { data: rsOrders } = await supabase
       .from("restaurant_orders")
       .select(
-        "booking_id, order_number, business_date, total_amount, order_status, order_items(quantity, line_total, is_custom, custom_description, menu_items(name))"
+        "id, booking_id, order_number, business_date, total_amount, order_status, order_items(quantity, line_total, is_custom, custom_description, menu_items(name))"
       )
       .eq("channel_type", "room_service")
       .in("order_status", ["completed", "active"])
@@ -54,6 +57,7 @@ export default async function ReservePage() {
       const bucket =
         o.order_status === "completed" ? serviceOrdersByBooking : pendingServiceByBooking;
       (bucket[o.booking_id] ??= []).push({
+        id: o.id,
         orderNumber: o.order_number,
         businessDate: o.business_date,
         amount: Number(o.total_amount),

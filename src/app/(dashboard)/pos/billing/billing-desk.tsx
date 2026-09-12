@@ -34,7 +34,7 @@ import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { formatDateTime, formatLKR, formatOrderNumber } from "@/lib/utils";
 import type { ChannelType, CreditAccount, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
-import { cancelOrder, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
+import { cancelOrder, ensureOrderNumber, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }> = {
   dine_in: { label: "Dine-in", icon: Armchair },
@@ -100,7 +100,7 @@ export function BillingDesk({
       );
       setFeedback(
         res.ok
-          ? `Bill #${formatOrderNumber(order.business_date, order.order_number)} settled — stock deducted${
+          ? `Bill #${formatOrderNumber(order.business_date, res.orderNumber ?? order.order_number)} settled — stock deducted${
               order.channel_type === "room_service" ? " & charged to guest folio" : ""
             }.`
           : res.error ?? "Could not settle the bill."
@@ -113,10 +113,24 @@ export function BillingDesk({
       const res = await cancelOrder(order.id);
       setFeedback(
         res.ok
-          ? `Bill #${formatOrderNumber(order.business_date, order.order_number)} voided.`
+          ? order.order_number
+            ? `Bill #${formatOrderNumber(order.business_date, order.order_number)} voided.`
+            : "Order voided."
           : res.error ?? "Could not void."
       );
     });
+  }
+
+  /** Resolves the bill number to print/PDF/WhatsApp with, assigning one now
+   * if this order has never had a bill issued before. */
+  async function ensureBillNumber(order: RestaurantOrder): Promise<number | null> {
+    if (order.order_number) return order.order_number;
+    const res = await ensureOrderNumber(order.id);
+    if (!res.ok || !res.orderNumber) {
+      setFeedback(res.error ?? "Could not assign a bill number.");
+      return null;
+    }
+    return res.orderNumber;
   }
 
   function handleMarkBilled(order: RestaurantOrder) {
@@ -151,7 +165,9 @@ export function BillingDesk({
   async function handlePdf(order: RestaurantOrder) {
     setBusy(true);
     try {
-      openPdf(await generateReceiptPdf(receiptPayload(order)));
+      const orderNumber = await ensureBillNumber(order);
+      if (orderNumber == null) return;
+      openPdf(await generateReceiptPdf(receiptPayload({ ...order, order_number: orderNumber })));
     } catch (e) {
       setFeedback(e instanceof Error ? e.message : "Could not generate the PDF.");
     } finally {
@@ -167,11 +183,14 @@ export function BillingDesk({
     }
     setBusy(true);
     try {
-      const blob = await generateReceiptPdf(receiptPayload(order));
-      const url = await uploadBillPdf(`pos-${order.order_number}-${order.id.slice(0, 8)}.pdf`, blob);
+      const orderNumber = await ensureBillNumber(order);
+      if (orderNumber == null) return;
+      const numberedOrder = { ...order, order_number: orderNumber };
+      const blob = await generateReceiptPdf(receiptPayload(numberedOrder));
+      const url = await uploadBillPdf(`pos-${orderNumber}-${order.id.slice(0, 8)}.pdf`, blob);
       const msg =
         `Hello! Thank you for your order at ${hotel?.hotel_name ?? "our restaurant"}. ` +
-        `Your bill #${formatOrderNumber(order.business_date, order.order_number)} (Total: Rs ${Number(order.total_amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
+        `Your bill #${formatOrderNumber(order.business_date, orderNumber)} (Total: Rs ${Number(order.total_amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
       window.open(buildWhatsAppUrl(phone, msg), "_blank", "noopener");
       setFeedback(`Bill link ready — WhatsApp opened.`);
     } catch (e) {
@@ -187,7 +206,9 @@ export function BillingDesk({
       const res = await setOrderBusinessDate(order.id, date);
       setFeedback(
         res.ok
-          ? `Bill #${formatOrderNumber(date, order.order_number)} now counts toward ${date}.`
+          ? order.order_number
+            ? `Bill #${formatOrderNumber(date, order.order_number)} now counts toward ${date}.`
+            : `Order now counts toward ${date}.`
           : res.error ?? "Could not update the date."
       );
     } finally {
@@ -196,9 +217,10 @@ export function BillingDesk({
   }
 
   async function handlePrint(order: RestaurantOrder) {
-    const sent = await print(receiptPayload(order));
-    if (sent)
-      setFeedback(`Receipt for bill #${formatOrderNumber(order.business_date, order.order_number)} sent to printer.`);
+    const orderNumber = await ensureBillNumber(order);
+    if (orderNumber == null) return;
+    const sent = await print(receiptPayload({ ...order, order_number: orderNumber }));
+    if (sent) setFeedback(`Receipt for bill #${formatOrderNumber(order.business_date, orderNumber)} sent to printer.`);
   }
 
   if (orders.length === 0) {
@@ -260,7 +282,7 @@ export function BillingDesk({
                     }
                   >
                     <TableCell className="font-medium">
-                      #{formatOrderNumber(order.business_date, order.order_number)}
+                      {order.order_number ? `#${formatOrderNumber(order.business_date, order.order_number)}` : "Not billed yet"}
                     </TableCell>
                     <TableCell>
                       <span className="inline-flex items-center gap-1.5 text-sm">
@@ -289,7 +311,9 @@ export function BillingDesk({
           <CardHeader className="space-y-1">
             <div className="flex items-center justify-between">
               <CardTitle className="text-base">
-                Bill #{formatOrderNumber(selected.business_date, selected.order_number)}
+                {selected.order_number
+                  ? `Bill #${formatOrderNumber(selected.business_date, selected.order_number)}`
+                  : "Bill (not billed yet)"}
               </CardTitle>
               <div className="flex items-center gap-1.5">
                 {(selected.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom) ? (
