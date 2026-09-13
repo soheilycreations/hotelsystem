@@ -76,7 +76,7 @@ export interface FolioPayload {
   roomCharge: number;
   charges?: { description: string; amount: number }[];
   serviceOrders: {
-    orderNumber: number;
+    orderNumber: number | null;
     businessDate: string;
     amount: number;
     items?: { name: string; quantity: number; lineTotal: number }[];
@@ -298,12 +298,17 @@ export function buildKotTicket({ order, items, station = "kitchen", kotNumber }:
   bytes.push(...line("="));
 
   bytes.push(ESC, 0x61, 0x00); // left
-  bytes.push(
-    ...row(
-      `Order #${formatOrderNumber(order.business_date, order.order_number)}${kotNumber ? ` / ${ticketLabel} ${kotNumber}` : ""}`,
-      order.channel_type.replace("_", " ").toUpperCase()
-    )
-  );
+  // KOT/BOT tickets fire before any bill commitment — order_number is
+  // usually still unassigned at this point (only printing/settling the
+  // bill assigns one) — so lead with the ticket label instead, and only
+  // add the bill number if one already happens to exist (e.g. a reprint).
+  const ticketHeading = [
+    order.order_number ? `Bill #${formatOrderNumber(order.business_date, order.order_number)}` : null,
+    kotNumber ? `${ticketLabel} ${kotNumber}` : null,
+  ]
+    .filter(Boolean)
+    .join(" / ") || ticketLabel;
+  bytes.push(...row(ticketHeading, order.channel_type.replace("_", " ").toUpperCase()));
   if (order.restaurant_tables) bytes.push(...row("Table", order.restaurant_tables.table_number));
   if (order.bookings) bytes.push(...row("Guest", order.bookings.guest_name));
   bytes.push(...row("Time", new Date().toLocaleTimeString("en-GB")));

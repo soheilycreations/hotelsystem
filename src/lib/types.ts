@@ -194,7 +194,9 @@ export function itemStation(item: {
 
 export interface RestaurantOrder {
   id: string;
-  order_number: number;
+  /** Null until a bill is first printed or the order is settled — see
+   * rpc_ensure_order_number(). An order opened and abandoned stays null. */
+  order_number: number | null;
   channel_type: ChannelType;
   table_id: string | null;
   booking_id: string | null;

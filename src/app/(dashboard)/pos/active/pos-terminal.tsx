@@ -40,6 +40,7 @@ import {
   addOrderItem,
   cancelOrder,
   decrementOrderItem,
+  ensureOrderNumber,
   incrementOrderItem,
   markKotPrinted,
   openOrder,
@@ -251,7 +252,16 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
   }
 
   async function handlePrintBill(order: RestaurantOrder) {
-    const sent = await print(receiptPayload(order));
+    let orderNumber = order.order_number;
+    if (!orderNumber) {
+      const res = await ensureOrderNumber(order.id);
+      if (!res.ok || !res.orderNumber) {
+        setError(res.error ?? "Could not assign a bill number.");
+        return;
+      }
+      orderNumber = res.orderNumber;
+    }
+    const sent = await print(receiptPayload({ ...order, order_number: orderNumber }));
     if (sent) setError(null);
   }
 
@@ -607,7 +617,8 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                 >
                   <div>
                     <p className="font-medium">
-                      #{formatOrderNumber(o.business_date, o.order_number)} · {o.channel_type.replace("_", " ")}
+                      {o.order_number ? `#${formatOrderNumber(o.business_date, o.order_number)}` : "Not billed yet"}{" "}
+                      · {o.channel_type.replace("_", " ")}
                     </p>
                     <p className="text-xs text-muted-foreground">
                       {o.event_name ?? o.bookings?.guest_name ?? o.customer_phone ?? "Walk-in"}
@@ -635,7 +646,9 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
               {selectedOrder ? (
                 <>
                   <span>
-                    Order #{formatOrderNumber(selectedOrder.business_date, selectedOrder.order_number)}
+                    {selectedOrder.order_number
+                      ? `Order #${formatOrderNumber(selectedOrder.business_date, selectedOrder.order_number)}`
+                      : "Order (not billed yet)"}
                     {selectedOrder.restaurant_tables
                       ? ` · Table ${selectedOrder.restaurant_tables.table_number}`
                       : ""}

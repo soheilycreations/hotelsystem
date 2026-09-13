@@ -109,7 +109,7 @@ export default async function OverviewPage() {
   const rooms = (roomsRes.data ?? []) as Pick<Room, "id" | "status">[];
   const orders = (ordersRes.data ?? []) as {
     id: string;
-    order_number: number;
+    order_number: number | null;
     total_amount: number;
     order_status: string;
     channel_type: ChannelType;

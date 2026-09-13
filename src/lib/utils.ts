@@ -38,6 +38,7 @@ export function formatDateTime(iso: string): string {
  * prefix is just there so a printed bill reads its own date at a glance.
  * e.g. business_date "2026-09-10", order_number 1 → "20260910-01".
  */
-export function formatOrderNumber(businessDate: string, orderNumber: number): string {
+export function formatOrderNumber(businessDate: string, orderNumber: number | null): string {
+  if (orderNumber == null) return "—"; // not yet billed/settled — see rpc_ensure_order_number()
   return `${businessDate.slice(0, 10).replace(/-/g, "")}-${String(orderNumber).padStart(2, "0")}`;
 }

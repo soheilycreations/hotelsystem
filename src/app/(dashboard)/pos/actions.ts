@@ -8,6 +8,7 @@ interface ActionResult {
   ok: boolean;
   error?: string;
   orderId?: string;
+  orderNumber?: number;
 }
 
 const POS_ROLES = ["admin", "manager", "cashier"];
@@ -27,6 +28,27 @@ async function assertRole(roles: string[]) {
 function revalidatePos(): void {
   revalidatePath("/pos/active");
   revalidatePath("/pos/billing");
+  revalidatePath("/pms/reserve");
+}
+
+/**
+ * Lazily assigns this order's bill number the first time it's actually
+ * needed — a bill is printed, or the order is settled — never at insert
+ * time, so a table opened and abandoned never burns a number and leaves a
+ * gap in the visible sequence. Safe to call repeatedly: a number already
+ * assigned is just returned as-is.
+ */
+export async function ensureOrderNumber(orderId: string): Promise<ActionResult> {
+  try {
+    await assertRole(POS_ROLES);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("rpc_ensure_order_number", { p_order_id: orderId });
+    if (error) return { ok: false, error: error.message };
+    revalidatePos();
+    return { ok: true, orderNumber: data as number };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
 }
 
 export interface OpenOrderInput {
@@ -482,11 +504,19 @@ export async function settleOrder(
       patch = { ...patch, subtotal, service_charge: 0, total_amount: subtotal };
     }
 
+    // Settling is one of the two moments a bill number gets assigned (the
+    // other is printing) — do this before the status flip so Trigger B's
+    // folio-post log line reads the real number, not null.
+    const { data: orderNumber, error: numError } = await supabase.rpc("rpc_ensure_order_number", {
+      p_order_id: orderId,
+    });
+    if (numError) return { ok: false, error: numError.message };
+
     const { error } = await supabase.from("restaurant_orders").update(patch).eq("id", orderId);
     if (error) return { ok: false, error: error.message };
 
     revalidatePath("/", "layout");
-    return { ok: true };
+    return { ok: true, orderNumber: orderNumber as number };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }
