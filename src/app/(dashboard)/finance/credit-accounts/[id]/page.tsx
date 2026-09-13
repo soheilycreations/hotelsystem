@@ -34,7 +34,9 @@ export default async function CreditAccountDetailPage({
       supabase.from("credit_accounts").select("*").eq("id", id).maybeSingle(),
       supabase
         .from("bookings")
-        .select("guest_name, total_folio_amount, actual_check_out, rooms(room_number)")
+        .select(
+          "id, guest_name, total_folio_amount, check_in_date, check_out_date, actual_check_out, rate_plan_name, rooms(room_number), booking_charges(description, amount)"
+        )
         .eq("credit_account_id", id)
         .eq("payment_method", "credit"),
       supabase
@@ -51,16 +53,62 @@ export default async function CreditAccountDetailPage({
 
   if (!account) notFound();
 
+  // Room-service items already folded into these bookings' folios — needed
+  // so a room-checkout charge can show what was actually in the bill, not
+  // just the folio total.
+  const bookingIds = (bookings ?? []).map((b) => b.id);
+  const roomServiceByBooking: Record<
+    string,
+    { name: string; qty: number; unitPrice: number; lineTotal: number }[]
+  > = {};
+  if (bookingIds.length > 0) {
+    const { data: rsOrders } = await supabase
+      .from("restaurant_orders")
+      .select(
+        "booking_id, order_items(quantity, unit_price, line_total, is_custom, custom_description, menu_items(name))"
+      )
+      .eq("channel_type", "room_service")
+      .eq("order_status", "completed")
+      .in("booking_id", bookingIds);
+    for (const o of rsOrders ?? []) {
+      if (!o.booking_id) continue;
+      const items = (o.order_items ?? []).map((it) => {
+        const menuItem = it.menu_items as unknown as { name: string } | null;
+        return {
+          name: it.is_custom ? (it.custom_description as string | null) ?? "Item" : menuItem?.name ?? "Item",
+          qty: Number(it.quantity),
+          unitPrice: Number(it.unit_price),
+          lineTotal: Number(it.line_total),
+        };
+      });
+      (roomServiceByBooking[o.booking_id] ??= []).push(...items);
+    }
+  }
+
   const entries: CreditLedgerEntry[] = [];
 
   for (const b of bookings ?? []) {
     if (!b.actual_check_out) continue;
     const rooms = b.rooms as unknown as { room_number: string } | null;
+    const charges = (b.booking_charges ?? []) as { description: string; amount: number }[];
+    const chargesTotal = charges.reduce((sum, c) => sum + Number(c.amount), 0);
+    const rsItems = roomServiceByBooking[b.id] ?? [];
+    const rsTotal = rsItems.reduce((sum, it) => sum + it.lineTotal, 0);
+    const nights = Math.max(
+      1,
+      Math.round((new Date(b.check_out_date).getTime() - new Date(b.check_in_date).getTime()) / 86_400_000)
+    );
+    const roomCharge = Math.max(0, Number(b.total_folio_amount) - chargesTotal - rsTotal);
     entries.push({
       date: b.actual_check_out.slice(0, 10),
       kind: "charge",
       description: `Room ${rooms?.room_number ?? "—"} checkout — ${b.guest_name}`,
       amount: Number(b.total_folio_amount),
+      items: [
+        { name: `${b.rate_plan_name ?? "Room"} — ${nights} night(s)`, qty: 1, unitPrice: roomCharge, lineTotal: roomCharge },
+        ...charges.map((c) => ({ name: c.description, qty: 1, unitPrice: Number(c.amount), lineTotal: Number(c.amount) })),
+        ...rsItems,
+      ],
     });
   }
   for (const o of orders ?? []) {
