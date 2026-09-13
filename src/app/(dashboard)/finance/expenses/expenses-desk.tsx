@@ -193,11 +193,16 @@ export function ExpensesDesk({
               </div>
               <div className="space-y-1.5">
                 <Label htmlFor="exp-payment">Paid by</Label>
-                <Select id="exp-payment" name="payment_method" defaultValue="cash">
+                <Select
+                  id="exp-payment"
+                  name="payment_method"
+                  defaultValue="cash"
+                  title="Owner / Boss = paid out of pocket, not the cash drawer"
+                >
                   <option value="cash">Cash</option>
                   <option value="card">Card</option>
                   <option value="bank_transfer">Bank Transfer</option>
-                  <option value="owner_paid">Owner / Boss (not cash drawer)</option>
+                  <option value="owner_paid">Owner / Boss</option>
                 </Select>
               </div>
             </div>
@@ -448,11 +453,16 @@ function EditExpenseDialog({
           </div>
           <div className="space-y-1.5">
             <Label htmlFor="ee-payment">Paid by</Label>
-            <Select id="ee-payment" name="payment_method" defaultValue={expense.payment_method}>
+            <Select
+              id="ee-payment"
+              name="payment_method"
+              defaultValue={expense.payment_method}
+              title="Owner / Boss = paid out of pocket, not the cash drawer"
+            >
               <option value="cash">Cash</option>
               <option value="card">Card</option>
               <option value="bank_transfer">Bank Transfer</option>
-              <option value="owner_paid">Owner / Boss (not cash drawer)</option>
+              <option value="owner_paid">Owner / Boss</option>
             </Select>
           </div>
         </div>

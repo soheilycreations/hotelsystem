@@ -2,7 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import type { InventoryUnit, PaymentMethod } from "@/lib/types";
+import type { ExpenseDivision, InventoryUnit, PaymentMethod } from "@/lib/types";
 
 interface ActionResult {
   ok: boolean;
@@ -250,7 +250,8 @@ export async function recordPurchase(
   notes: string,
   paymentMethod: PaymentMethod,
   items: PurchaseLineInput[],
-  date?: string
+  date?: string,
+  division: ExpenseDivision = "restaurant"
 ): Promise<ActionResult> {
   try {
     await assertRole(RECIPE_ROLES);
@@ -277,6 +278,7 @@ export async function recordPurchase(
       })),
       p_payment_method: paymentMethod,
       p_date: date || undefined,
+      p_division: division,
     });
     if (error) return { ok: false, error: error.message };
 

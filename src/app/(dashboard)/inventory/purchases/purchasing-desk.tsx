@@ -10,7 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, formatLKR } from "@/lib/utils";
-import type { InventoryItem, InventoryUnit, PaymentMethod, Purchase } from "@/lib/types";
+import type { ExpenseDivision, InventoryItem, InventoryUnit, PaymentMethod, Purchase } from "@/lib/types";
 import { recordPurchase, type PurchaseLineInput } from "../actions";
 
 /** "Buy in" options per storage unit. The count option (factor 1) is what a
@@ -71,6 +71,7 @@ export function PurchasingDesk({
   const [supplierName, setSupplierName] = useState("");
   const [notes, setNotes] = useState("");
   const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [division, setDivision] = useState<ExpenseDivision>("restaurant");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [lines, setLines] = useState<DraftLine[]>([emptyLine(inventoryItems[0]?.id ?? "")]);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -132,7 +133,7 @@ export function PurchasingDesk({
     }));
 
     startTransition(async () => {
-      const res = await recordPurchase(supplierName, notes, paymentMethod, parsed, date);
+      const res = await recordPurchase(supplierName, notes, paymentMethod, parsed, date, division);
       if (!res.ok) {
         setError(res.error ?? "Could not record the purchase.");
         return;
@@ -158,7 +159,7 @@ export function PurchasingDesk({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-3">
+          <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
             <div className="space-y-1.5">
               <Label htmlFor="p-supplier">Supplier (optional)</Label>
               <Input id="p-supplier" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="e.g. Cargills Wholesale" />
@@ -168,13 +169,25 @@ export function PurchasingDesk({
               <Input id="p-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
+              <Label htmlFor="p-division">Allocate to</Label>
+              <Select id="p-division" value={division} onChange={(e) => setDivision(e.target.value as ExpenseDivision)}>
+                <option value="restaurant">Restaurant</option>
+                <option value="room">Room</option>
+              </Select>
+            </div>
+            <div className="space-y-1.5">
               <Label htmlFor="p-payment">Paid by</Label>
-              <Select id="p-payment" value={paymentMethod} onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}>
+              <Select
+                id="p-payment"
+                value={paymentMethod}
+                onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                title="Owner / Boss = paid out of pocket, not the cash drawer"
+              >
                 <option value="cash">Cash</option>
                 <option value="card">Card</option>
                 <option value="bank_transfer">Bank Transfer</option>
                 <option value="credit">Credit</option>
-                <option value="owner_paid">Owner / Boss (not cash drawer)</option>
+                <option value="owner_paid">Owner / Boss</option>
               </Select>
             </div>
           </div>

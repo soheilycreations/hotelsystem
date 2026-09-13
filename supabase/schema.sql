@@ -637,7 +637,8 @@ create or replace function public.rpc_record_purchase(
   p_notes          text,
   p_items          jsonb, -- [{"inventory_item_id"?,"new_item_name"?,"new_item_unit"?,"quantity","unit_price","pack_size"}, ...]
   p_payment_method payment_method default 'cash',
-  p_date           date default current_date -- lets a bill be entered against a past date, e.g. yesterday's delivery
+  p_date           date default current_date, -- lets a bill be entered against a past date, e.g. yesterday's delivery
+  p_division       expense_division default 'restaurant' -- which P&L this purchase's expense counts against
 )
 returns uuid
 language plpgsql
@@ -736,7 +737,7 @@ begin
     trim('Stock purchase' || case when nullif(trim(coalesce(p_supplier_name, '')), '') is not null
       then ' — ' || trim(p_supplier_name) else '' end),
     p_payment_method,
-    'restaurant',
+    coalesce(p_division, 'restaurant'),
     auth.uid()
   )
   returning id into v_expense_id;
@@ -746,7 +747,7 @@ begin
   return v_purchase_id;
 end $$;
 
-grant execute on function public.rpc_record_purchase(text, text, jsonb, payment_method, date) to authenticated;
+grant execute on function public.rpc_record_purchase(text, text, jsonb, payment_method, date, expense_division) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 8. ORDER TOTAL RECALCULATOR (keeps restaurant_orders.total_amount honest)
