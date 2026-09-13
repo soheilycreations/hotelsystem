@@ -41,7 +41,7 @@ export async function logExpense(formData: FormData): Promise<ActionResult> {
     if (!Number.isFinite(amount) || amount <= 0)
       return { ok: false, error: "Amount must be greater than zero." };
     if (!date) return { ok: false, error: "Pick the expense date." };
-    if (!["cash", "card", "bank_transfer"].includes(paymentMethod))
+    if (!["cash", "card", "bank_transfer", "owner_paid"].includes(paymentMethod))
       return { ok: false, error: "Pick a valid payment method." };
     if (!["restaurant", "room"].includes(division))
       return { ok: false, error: "Pick a valid allocation." };
@@ -80,7 +80,7 @@ export async function updateExpense(expenseId: string, formData: FormData): Prom
     if (!Number.isFinite(amount) || amount <= 0)
       return { ok: false, error: "Amount must be greater than zero." };
     if (!date) return { ok: false, error: "Pick the expense date." };
-    if (!["cash", "card", "bank_transfer"].includes(paymentMethod))
+    if (!["cash", "card", "bank_transfer", "owner_paid"].includes(paymentMethod))
       return { ok: false, error: "Pick a valid payment method." };
     if (!["restaurant", "room"].includes(division))
       return { ok: false, error: "Pick a valid allocation." };
