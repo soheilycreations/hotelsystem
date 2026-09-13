@@ -90,7 +90,7 @@ export async function recordCreditRepayment(formData: FormData): Promise<ActionR
     if (!creditAccountId) return { ok: false, error: "Pick an account." };
     if (!Number.isFinite(amount) || amount <= 0)
       return { ok: false, error: "Amount must be greater than zero." };
-    if (!["cash", "bank_transfer"].includes(paymentMethod))
+    if (!["cash", "card", "bank_transfer"].includes(paymentMethod))
       return { ok: false, error: "Pick how the repayment arrived." };
     if (!date) return { ok: false, error: "Pick a date." };
 
