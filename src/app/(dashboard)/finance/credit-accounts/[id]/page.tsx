@@ -18,6 +18,9 @@ export interface CreditLedgerEntry {
   items?: { name: string; qty: number; unitPrice: number; lineTotal: number }[];
   subtotal?: number;
   serviceCharge?: number;
+  openedAt?: string;
+  settledAt?: string | null;
+  cashierName?: string | null;
 }
 
 export default async function CreditAccountDetailPage({
@@ -35,14 +38,14 @@ export default async function CreditAccountDetailPage({
       supabase
         .from("bookings")
         .select(
-          "id, guest_name, total_folio_amount, check_in_date, check_out_date, actual_check_out, rate_plan_name, rooms(room_number), booking_charges(description, amount)"
+          "id, guest_name, total_folio_amount, check_in_date, check_out_date, actual_check_in, actual_check_out, rate_plan_name, rooms(room_number), booking_charges(description, amount)"
         )
         .eq("credit_account_id", id)
         .eq("payment_method", "credit"),
       supabase
         .from("restaurant_orders")
         .select(
-          "id, order_number, channel_type, total_amount, business_date, subtotal, service_charge, order_items(quantity, unit_price, line_total, is_custom, custom_description, menu_items(name))"
+          "id, order_number, channel_type, total_amount, business_date, created_at, settled_at, subtotal, service_charge, order_items(quantity, unit_price, line_total, is_custom, custom_description, menu_items(name)), staff_profiles!restaurant_orders_settled_by_fkey(full_name)"
         )
         .eq("credit_account_id", id)
         .eq("payment_method", "credit"),
@@ -109,6 +112,8 @@ export default async function CreditAccountDetailPage({
         ...charges.map((c) => ({ name: c.description, qty: 1, unitPrice: Number(c.amount), lineTotal: Number(c.amount) })),
         ...rsItems,
       ],
+      openedAt: b.actual_check_in ?? b.check_in_date,
+      settledAt: b.actual_check_out,
     });
   }
   for (const o of orders ?? []) {
@@ -121,6 +126,8 @@ export default async function CreditAccountDetailPage({
         lineTotal: Number(it.line_total),
       };
     });
+    const cashier = o.staff_profiles as unknown as { full_name: string } | { full_name: string }[] | null;
+    const cashierName = Array.isArray(cashier) ? cashier[0]?.full_name ?? null : cashier?.full_name ?? null;
     entries.push({
       date: o.business_date,
       kind: "charge",
@@ -130,6 +137,9 @@ export default async function CreditAccountDetailPage({
       items,
       subtotal: Number(o.subtotal),
       serviceCharge: Number(o.service_charge),
+      openedAt: o.created_at,
+      settledAt: o.settled_at,
+      cashierName,
     });
   }
   for (const a of adjustments ?? []) {
