@@ -138,6 +138,7 @@ export interface DailySummaryData {
     paymentMethod?: string;
   }[];
   roomRevenueTotal: number;
+  revenueByMethod: Record<string, number>;
   itemSales: { name: string; qty: number; revenue: number }[];
   posSubtotal: number;
   posServiceCharge: number;
@@ -183,6 +184,25 @@ async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Bl
     })}`
   );
   l.divider();
+
+  // Revenue by payment method — Room + POS combined
+  l.sectionHeader(T("Revenue by payment method"));
+  const revenueEntries = Object.entries(data.revenueByMethod).filter(([, amount]) => amount);
+  if (revenueEntries.length === 0) {
+    l.row([{ text: T("No revenue recorded for this date."), x: MARGIN }], 9);
+  } else {
+    l.row(
+      [
+        {
+          text: revenueEntries
+            .map(([method, amount]) => `${T(PAYMENT_LABEL_PDF[method] ?? method)}: ${fmt(amount)}`)
+            .join("   "),
+          x: MARGIN,
+        },
+      ],
+      9
+    );
+  }
 
   // Room sales
   l.sectionHeader(T("Room Sales"));
@@ -543,6 +563,17 @@ async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob
   html += `<h1 style="font-size:22px;font-weight:700;margin:0 0 4px;">${escapeHtml(data.hotelName)}</h1>`;
   html += `<p style="margin:0 0 10px;color:#444;font-size:13px;">${escapeHtml(T("Daily Summary"))} — ${escapeHtml(dateLabel)}</p>`;
   html += `<hr style="border:none;border-top:1px solid #999;margin:10px 0 4px;">`;
+
+  // Revenue by payment method — Room + POS combined
+  html += htmlSectionHeader(T("Revenue by payment method"));
+  const revenueEntries = Object.entries(data.revenueByMethod).filter(([, amount]) => amount);
+  if (revenueEntries.length === 0) {
+    html += `<p style="font-size:12px;color:#666;">${escapeHtml(T("No revenue recorded for this date."))}</p>`;
+  } else {
+    html += `<p style="font-size:12px;margin:0 0 8px;">${escapeHtml(
+      revenueEntries.map(([method, amount]) => `${T(PAYMENT_LABEL_PDF[method] ?? method)}: ${fmt(amount)}`).join("   ")
+    )}</p>`;
+  }
 
   // Room sales
   html += htmlSectionHeader(T("Room Sales"));
