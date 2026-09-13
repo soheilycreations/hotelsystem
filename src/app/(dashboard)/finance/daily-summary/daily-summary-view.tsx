@@ -64,6 +64,7 @@ export function DailySummaryView({
   hotel,
   roomSales,
   roomRevenueTotal,
+  revenueByMethod,
   itemSales,
   posSubtotal,
   posServiceCharge,
@@ -83,6 +84,7 @@ export function DailySummaryView({
   hotel: HotelSettings | null;
   roomSales: RoomSaleRow[];
   roomRevenueTotal: number;
+  revenueByMethod: Record<string, number>;
   itemSales: ItemSaleRow[];
   posSubtotal: number;
   posServiceCharge: number;
@@ -145,6 +147,7 @@ export function DailySummaryView({
         language,
         roomSales,
         roomRevenueTotal,
+        revenueByMethod,
         itemSales,
         posSubtotal,
         posServiceCharge,
@@ -285,6 +288,27 @@ export function DailySummaryView({
           icon={BadgeDollarSign}
         />
       </div>
+
+      {/* Revenue by payment method — Room + POS combined, so "how much cash
+          actually came in today" is one glance instead of adding up rows. */}
+      <Card>
+        <CardHeader>
+          <CardTitle className="text-base">{t("Revenue by payment method")}</CardTitle>
+        </CardHeader>
+        <CardContent className="flex flex-wrap gap-x-6 gap-y-2">
+          {(Object.keys(PAYMENT_LABEL) as PaymentMethod[])
+            .filter((m) => revenueByMethod[m])
+            .map((m) => (
+              <div key={m} className="flex items-baseline gap-2">
+                <Badge variant="secondary">{t(PAYMENT_LABEL[m])}</Badge>
+                <span className="font-semibold tabular-nums">{formatLKR(revenueByMethod[m] ?? 0)}</span>
+              </div>
+            ))}
+          {Object.keys(revenueByMethod).length === 0 && (
+            <p className="text-sm text-muted-foreground">{t("No revenue recorded for this date.")}</p>
+          )}
+        </CardContent>
+      </Card>
 
       {/* Room sales */}
       <Card>

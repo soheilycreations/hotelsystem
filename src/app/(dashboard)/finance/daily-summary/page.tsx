@@ -206,6 +206,18 @@ export default async function DailySummaryPage({
   });
   const roomRevenueTotal = roomSales.reduce((sum, r) => sum + r.amount, 0);
 
+  // Combined Room + POS revenue for the day, split by how the guest paid —
+  // the quick "how much cash actually came in today" answer, at a glance.
+  const revenueByMethod: Record<string, number> = {};
+  for (const r of roomSales) {
+    const method = r.paymentMethod;
+    revenueByMethod[method] = (revenueByMethod[method] ?? 0) + r.amount;
+  }
+  for (const o of orders ?? []) {
+    const method = o.payment_method ?? "cash";
+    revenueByMethod[method] = (revenueByMethod[method] ?? 0) + Number(o.total_amount);
+  }
+
   const itemTotals = new Map<string, { qty: number; revenue: number }>();
   let posSubtotal = 0;
   let posServiceCharge = 0;
@@ -320,6 +332,7 @@ export default async function DailySummaryPage({
       hotel={(hotel as HotelSettings | null) ?? null}
       roomSales={roomSales}
       roomRevenueTotal={roomRevenueTotal}
+      revenueByMethod={revenueByMethod}
       itemSales={itemSales}
       posSubtotal={posSubtotal}
       posServiceCharge={posServiceCharge}

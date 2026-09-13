@@ -100,6 +100,8 @@ export const SI_DICT: Record<string, string> = {
   "Room balance": "කාමර ඉතිරිය",
   "Restaurant balance": "රෙස්ටුරන්ට් ඉතිරිය",
   "Room sales — checkouts today": "කාමර විකුණුම් — අද නික්මුණු අය",
+  "Revenue by payment method": "ගෙවීම් ආකාරය අනුව ආදායම",
+  "No revenue recorded for this date.": "මේ දිනට ආදායමක් වාර්තා වී නැත.",
   "Item sales — restaurant / POS": "අයිතම විකුණුම් — රෙස්ටුරන්ට්",
   "Owner-funded — excluded below": "අයිතිකරු ගෙවූ එක — පහළ ගණන් වලට ඇතුළත් නැත",
   "Balance as of this date — stays here every day until fully repaid, not just the day a bill was added.":
