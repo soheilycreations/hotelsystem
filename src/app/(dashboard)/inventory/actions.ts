@@ -249,7 +249,8 @@ export async function recordPurchase(
   supplierName: string,
   notes: string,
   paymentMethod: PaymentMethod,
-  items: PurchaseLineInput[]
+  items: PurchaseLineInput[],
+  date?: string
 ): Promise<ActionResult> {
   try {
     await assertRole(RECIPE_ROLES);
@@ -260,6 +261,7 @@ export async function recordPurchase(
     if (lines.length === 0) return { ok: false, error: "Add at least one item with a quantity." };
     if (lines.some((l) => !Number.isFinite(l.packSize) || l.packSize <= 0))
       return { ok: false, error: "Pack size must be greater than zero." };
+    if (date && !/^\d{4}-\d{2}-\d{2}$/.test(date)) return { ok: false, error: "Pick a valid date." };
 
     const supabase = await createClient();
     const { error } = await supabase.rpc("rpc_record_purchase", {
@@ -274,6 +276,7 @@ export async function recordPurchase(
         pack_size: l.packSize,
       })),
       p_payment_method: paymentMethod,
+      p_date: date || undefined,
     });
     if (error) return { ok: false, error: error.message };
 
