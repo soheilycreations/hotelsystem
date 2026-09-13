@@ -30,6 +30,10 @@ import type { CreditAccount } from "@/lib/types";
 import { addCreditAdjustment } from "../actions";
 import { generateCreditStatementPdf, openPdfBlob } from "@/lib/report-pdf";
 
+function formatTime(iso: string): string {
+  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+}
+
 const KIND_BADGE = {
   charge: { label: "Bill", variant: "warning" as const },
   adjustment: { label: "Adjustment", variant: "secondary" as const },
@@ -72,6 +76,11 @@ export function CreditAccountDetailView({
             amount: e.amount,
             balance: e.balance,
             items: e.items,
+            subtotal: e.subtotal,
+            serviceCharge: e.serviceCharge,
+            openedAt: e.openedAt,
+            settledAt: e.settledAt,
+            cashierName: e.cashierName,
           })),
       });
       openPdfBlob(blob);
@@ -178,6 +187,17 @@ export function CreditAccountDetailView({
                     {isOpen && (
                       <TableRow>
                         <TableCell colSpan={5} className="bg-muted/30 px-6 py-3">
+                          {(e.openedAt || e.settledAt || e.cashierName) && (
+                            <p className="mb-2 text-xs text-muted-foreground">
+                              {[
+                                e.openedAt ? `Opened ${formatTime(e.openedAt)}` : null,
+                                e.settledAt ? `Settled ${formatTime(e.settledAt)}` : null,
+                                e.cashierName ? `Cashier: ${e.cashierName}` : null,
+                              ]
+                                .filter(Boolean)
+                                .join(" · ")}
+                            </p>
+                          )}
                           <div className="space-y-1.5">
                             {(e.items ?? []).map((it, j) => (
                               <div key={j} className="flex items-center justify-between gap-2 text-sm">

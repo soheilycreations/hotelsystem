@@ -1038,6 +1038,11 @@ export interface CreditStatementEntry {
   amount: number;
   balance: number;
   items?: { name: string; qty: number; unitPrice: number; lineTotal: number }[];
+  subtotal?: number;
+  serviceCharge?: number;
+  openedAt?: string;
+  settledAt?: string | null;
+  cashierName?: string | null;
 }
 
 export interface CreditStatementData {
@@ -1076,44 +1081,86 @@ export async function generateCreditStatementPdf(data: CreditStatementData): Pro
     l.row([{ text: "No activity yet on this account.", x: MARGIN }], 10);
   }
 
-  l.row(
-    [
-      { text: "Date", x: MARGIN },
-      { text: "Type", x: MARGIN + 22 },
-      { text: "Description", x: MARGIN + 50 },
-      { text: "Amount", x: colRight - 45, align: "right" },
-      { text: "Balance", x: colRight, align: "right" },
-    ],
-    9,
-    true
-  );
-  l.divider();
-
   for (const e of data.entries) {
-    doc.setFont("helvetica", "normal");
-    doc.setFontSize(9);
-    const description = fitWidth(doc, e.description, colRight - 45 - 3 - (MARGIN + 50));
-    l.row([
-      { text: new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
-      { text: KIND_LABEL[e.kind], x: MARGIN + 22 },
-      { text: description, x: MARGIN + 50 },
-      { text: `${e.amount >= 0 ? "+" : "-"}${fmt(Math.abs(e.amount))}`, x: colRight - 45, align: "right" },
-      { text: fmt(e.balance), x: colRight, align: "right" },
-    ]);
+    const dateLabel = new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", {
+      day: "2-digit",
+      month: "short",
+      year: "numeric",
+    });
+
+    if (e.kind !== "charge") {
+      // Adjustments/repayments have no items or bill detail — one line.
+      doc.setFont("helvetica", "normal");
+      doc.setFontSize(9);
+      l.row([
+        { text: dateLabel, x: MARGIN },
+        { text: KIND_LABEL[e.kind], x: MARGIN + 25 },
+        { text: fitWidth(doc, e.description, colRight - 45 - 3 - (MARGIN + 55)), x: MARGIN + 55 },
+        { text: `${e.amount >= 0 ? "+" : "-"}${fmt(Math.abs(e.amount))}`, x: colRight - 45, align: "right" },
+        { text: fmt(e.balance), x: colRight, align: "right" },
+      ]);
+      continue;
+    }
+
+    l.sectionHeader(`${dateLabel} — ${e.description}`);
+    const metaParts = [
+      e.openedAt ? `Opened ${fmtTime(e.openedAt)}` : null,
+      e.settledAt ? `Settled ${fmtTime(e.settledAt)}` : null,
+      e.cashierName ? `Cashier: ${e.cashierName}` : null,
+    ].filter(Boolean);
+    if (metaParts.length > 0) {
+      l.row([{ text: metaParts.join("  ·  "), x: MARGIN }], 8.5);
+      l.space(1.5);
+    }
+
     if (e.items && e.items.length > 0) {
+      l.row(
+        [
+          { text: "Item", x: MARGIN + 2 },
+          { text: "Qty", x: MARGIN + 120, align: "right" },
+          { text: "Price", x: MARGIN + 148, align: "right" },
+          { text: "Total", x: colRight, align: "right" },
+        ],
+        8,
+        true
+      );
       for (const it of e.items) {
         doc.setFont("helvetica", "normal");
-        doc.setFontSize(8);
-        const label = fitWidth(doc, `${it.qty} x ${it.name}`, colRight - 32 - (MARGIN + 54));
-        l.row(
-          [
-            { text: label, x: MARGIN + 54 },
-            { text: fmt(it.lineTotal), x: colRight, align: "right" },
-          ],
-          8
-        );
+        doc.setFontSize(9);
+        l.row([
+          { text: fitWidth(doc, it.name, 115), x: MARGIN + 2 },
+          { text: String(it.qty), x: MARGIN + 120, align: "right" },
+          { text: fmt(it.unitPrice), x: MARGIN + 148, align: "right" },
+          { text: fmt(it.lineTotal), x: colRight, align: "right" },
+        ]);
       }
     }
+
+    if (e.subtotal != null) {
+      l.row([
+        { text: "Subtotal", x: MARGIN + 2 },
+        { text: fmt(e.subtotal), x: colRight, align: "right" },
+      ]);
+    }
+    if ((e.serviceCharge ?? 0) > 0) {
+      l.row([
+        { text: "Service charge", x: MARGIN + 2 },
+        { text: fmt(e.serviceCharge ?? 0), x: colRight, align: "right" },
+      ]);
+    }
+    l.row(
+      [
+        { text: "TOTAL", x: MARGIN + 2 },
+        { text: fmt(e.amount), x: colRight, align: "right" },
+      ],
+      10,
+      true
+    );
+    l.row([
+      { text: "Running balance", x: MARGIN + 2 },
+      { text: fmt(e.balance), x: colRight, align: "right" },
+    ]);
+    l.space(4);
   }
 
   l.divider();
