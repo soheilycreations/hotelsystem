@@ -2,7 +2,7 @@
 
 import Link from "next/link";
 import { Fragment, useState, useTransition } from "react";
-import { ArrowLeft, ChevronDown, PlusCircle, Receipt, ShieldAlert } from "lucide-react";
+import { ArrowLeft, ChevronDown, FileDown, Loader2, PlusCircle, Receipt, ShieldAlert } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -28,6 +28,7 @@ import {
 import { cn, formatDate, formatLKR } from "@/lib/utils";
 import type { CreditAccount } from "@/lib/types";
 import { addCreditAdjustment } from "../actions";
+import { generateCreditStatementPdf, openPdfBlob } from "@/lib/report-pdf";
 
 const KIND_BADGE = {
   charge: { label: "Bill", variant: "warning" as const },
@@ -40,15 +41,44 @@ export function CreditAccountDetailView({
   entries,
   balance,
   isAdmin,
+  hotelName,
 }: {
   account: CreditAccount;
   entries: (import("./page").CreditLedgerEntry & { balance: number })[];
   balance: number;
   isAdmin: boolean;
+  hotelName: string;
 }) {
   const [addOpen, setAddOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [expandedIdx, setExpandedIdx] = useState<number | null>(null);
+  const [exporting, setExporting] = useState(false);
+
+  async function exportPdf() {
+    setExporting(true);
+    try {
+      const blob = await generateCreditStatementPdf({
+        hotelName,
+        accountName: account.name,
+        accountNotes: account.notes,
+        balance,
+        entries: entries
+          .slice()
+          .reverse() // oldest first for a statement, same order the ledger builds in
+          .map((e) => ({
+            date: e.date,
+            kind: e.kind,
+            description: e.description,
+            amount: e.amount,
+            balance: e.balance,
+            items: e.items,
+          })),
+      });
+      openPdfBlob(blob);
+    } finally {
+      setExporting(false);
+    }
+  }
 
   return (
     <div className="space-y-6">
@@ -75,6 +105,10 @@ export function CreditAccountDetailView({
             </span>
           </CardContent>
         </Card>
+        <Button variant="outline" onClick={exportPdf} disabled={exporting}>
+          {exporting ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <FileDown className="mr-2 h-4 w-4" />}
+          Export PDF
+        </Button>
         {isAdmin && (
           <Dialog open={addOpen} onOpenChange={setAddOpen}>
             <DialogTrigger asChild>

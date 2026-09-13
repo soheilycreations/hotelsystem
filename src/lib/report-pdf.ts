@@ -1016,3 +1016,95 @@ export async function generateBillsReportPdf(data: BillsReportData): Promise<Blo
 
   return doc.output("blob");
 }
+
+export interface CreditStatementEntry {
+  date: string;
+  kind: "charge" | "adjustment" | "repayment";
+  description: string;
+  amount: number;
+  balance: number;
+  items?: { name: string; qty: number; unitPrice: number; lineTotal: number }[];
+}
+
+export interface CreditStatementData {
+  hotelName: string;
+  accountName: string;
+  accountNotes?: string | null;
+  balance: number;
+  entries: CreditStatementEntry[];
+}
+
+const KIND_LABEL: Record<CreditStatementEntry["kind"], string> = {
+  charge: "Bill",
+  adjustment: "Adjustment",
+  repayment: "Repayment",
+};
+
+/** Statement of account — every charge/adjustment/repayment in order with a
+ * running balance, bill-type entries itemized underneath, for handing to
+ * (or filing against) a credit customer. */
+export async function generateCreditStatementPdf(data: CreditStatementData): Promise<Blob> {
+  const doc = await newDoc();
+  const l = new ReportLayout(doc);
+  const W = A4[0];
+  const colRight = W - MARGIN;
+
+  l.title(data.hotelName);
+  l.subtitle(`Credit Account Statement — ${data.accountName}`);
+  if (data.accountNotes) l.subtitle(data.accountNotes, 9);
+  l.subtitle(
+    `Generated ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`,
+    8.5
+  );
+  l.divider();
+
+  if (data.entries.length === 0) {
+    l.row([{ text: "No activity yet on this account.", x: MARGIN }], 10);
+  }
+
+  l.row(
+    [
+      { text: "Date", x: MARGIN },
+      { text: "Type", x: MARGIN + 22 },
+      { text: "Description", x: MARGIN + 50 },
+      { text: "Amount", x: colRight - 45, align: "right" },
+      { text: "Balance", x: colRight, align: "right" },
+    ],
+    9,
+    true
+  );
+  l.divider();
+
+  for (const e of data.entries) {
+    l.row([
+      { text: new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
+      { text: KIND_LABEL[e.kind], x: MARGIN + 22 },
+      { text: e.description.slice(0, 60), x: MARGIN + 50 },
+      { text: `${e.amount >= 0 ? "+" : "-"}${fmt(Math.abs(e.amount))}`, x: colRight - 45, align: "right" },
+      { text: fmt(e.balance), x: colRight, align: "right" },
+    ]);
+    if (e.items && e.items.length > 0) {
+      for (const it of e.items) {
+        l.row(
+          [
+            { text: `${it.qty} x ${it.name}`.slice(0, 65), x: MARGIN + 54 },
+            { text: fmt(it.lineTotal), x: colRight, align: "right" },
+          ],
+          8
+        );
+      }
+    }
+  }
+
+  l.divider();
+  l.row(
+    [
+      { text: "Currently owes", x: MARGIN },
+      { text: fmt(Math.max(0, data.balance)), x: colRight, align: "right" },
+    ],
+    12,
+    true
+  );
+
+  return doc.output("blob");
+}

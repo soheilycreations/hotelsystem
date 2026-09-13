@@ -29,7 +29,7 @@ export default async function CreditAccountDetailPage({
   const supabase = await createClient();
   const profile = await getSessionProfile();
 
-  const [{ data: account }, { data: bookings }, { data: orders }, { data: adjustments }, { data: repayments }] =
+  const [{ data: account }, { data: bookings }, { data: orders }, { data: adjustments }, { data: repayments }, { data: hotel }] =
     await Promise.all([
       supabase.from("credit_accounts").select("*").eq("id", id).maybeSingle(),
       supabase
@@ -46,6 +46,7 @@ export default async function CreditAccountDetailPage({
         .eq("payment_method", "credit"),
       supabase.from("credit_adjustments").select("*").eq("credit_account_id", id).order("date"),
       supabase.from("credit_repayments").select("*").eq("credit_account_id", id).order("date"),
+      supabase.from("hotel_settings").select("hotel_name").eq("id", 1).maybeSingle(),
     ]);
 
   if (!account) notFound();
@@ -117,6 +118,7 @@ export default async function CreditAccountDetailPage({
         entries={entriesWithBalance.slice().reverse()}
         balance={running}
         isAdmin={profile?.role === "admin"}
+        hotelName={(hotel as { hotel_name?: string } | null)?.hotel_name ?? "Soheily PMS"}
       />
     </div>
   );
