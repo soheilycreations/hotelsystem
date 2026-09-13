@@ -636,7 +636,8 @@ create or replace function public.rpc_record_purchase(
   p_supplier_name  text,
   p_notes          text,
   p_items          jsonb, -- [{"inventory_item_id"?,"new_item_name"?,"new_item_unit"?,"quantity","unit_price","pack_size"}, ...]
-  p_payment_method payment_method default 'cash'
+  p_payment_method payment_method default 'cash',
+  p_date           date default current_date -- lets a bill be entered against a past date, e.g. yesterday's delivery
 )
 returns uuid
 language plpgsql
@@ -676,8 +677,14 @@ begin
     raise exception 'No "Purchasing" expense category found — add one under Finance > Expenses first.';
   end if;
 
-  insert into public.purchases (supplier_name, notes, total_amount, created_by)
-  values (nullif(trim(coalesce(p_supplier_name, '')), ''), nullif(trim(coalesce(p_notes, '')), ''), v_total, auth.uid())
+  insert into public.purchases (supplier_name, notes, total_amount, created_by, purchase_date)
+  values (
+    nullif(trim(coalesce(p_supplier_name, '')), ''),
+    nullif(trim(coalesce(p_notes, '')), ''),
+    v_total,
+    auth.uid(),
+    coalesce(p_date, current_date)
+  )
   returning id into v_purchase_id;
 
   for v_item in select * from jsonb_array_elements(p_items)
@@ -725,7 +732,7 @@ begin
   values (
     v_expense_category,
     v_total,
-    current_date,
+    coalesce(p_date, current_date),
     trim('Stock purchase' || case when nullif(trim(coalesce(p_supplier_name, '')), '') is not null
       then ' — ' || trim(p_supplier_name) else '' end),
     p_payment_method,
@@ -739,7 +746,7 @@ begin
   return v_purchase_id;
 end $$;
 
-grant execute on function public.rpc_record_purchase(text, text, jsonb, payment_method) to authenticated;
+grant execute on function public.rpc_record_purchase(text, text, jsonb, payment_method, date) to authenticated;
 
 -- ---------------------------------------------------------------------------
 -- 8. ORDER TOTAL RECALCULATOR (keeps restaurant_orders.total_amount honest)

@@ -70,6 +70,7 @@ export function PurchasingDesk({
 }) {
   const [supplierName, setSupplierName] = useState("");
   const [notes, setNotes] = useState("");
+  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [lines, setLines] = useState<DraftLine[]>([emptyLine(inventoryItems[0]?.id ?? "")]);
   const [feedback, setFeedback] = useState<string | null>(null);
@@ -131,14 +132,17 @@ export function PurchasingDesk({
     }));
 
     startTransition(async () => {
-      const res = await recordPurchase(supplierName, notes, paymentMethod, parsed);
+      const res = await recordPurchase(supplierName, notes, paymentMethod, parsed, date);
       if (!res.ok) {
         setError(res.error ?? "Could not record the purchase.");
         return;
       }
-      setFeedback(`Purchase recorded — Rs ${total.toLocaleString("en-LK", { minimumFractionDigits: 2 })} added to stock and logged as an expense.`);
+      setFeedback(
+        `Purchase recorded for ${date} — Rs ${total.toLocaleString("en-LK", { minimumFractionDigits: 2 })} added to stock and logged as an expense.`
+      );
       setSupplierName("");
       setNotes("");
+      setDate(new Date().toISOString().slice(0, 10));
       setLines([emptyLine(inventoryItems[0]?.id ?? "")]);
     });
   }
@@ -154,10 +158,14 @@ export function PurchasingDesk({
           </CardTitle>
         </CardHeader>
         <CardContent className="space-y-4">
-          <div className="grid gap-3 sm:grid-cols-2">
+          <div className="grid gap-3 sm:grid-cols-3">
             <div className="space-y-1.5">
               <Label htmlFor="p-supplier">Supplier (optional)</Label>
               <Input id="p-supplier" value={supplierName} onChange={(e) => setSupplierName(e.target.value)} placeholder="e.g. Cargills Wholesale" />
+            </div>
+            <div className="space-y-1.5">
+              <Label htmlFor="p-date">Bill date</Label>
+              <Input id="p-date" type="date" value={date} onChange={(e) => setDate(e.target.value)} />
             </div>
             <div className="space-y-1.5">
               <Label htmlFor="p-payment">Paid by</Label>
