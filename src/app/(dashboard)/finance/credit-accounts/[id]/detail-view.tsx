@@ -145,7 +145,7 @@ export function CreditAccountDetailView({
             </TableHeader>
             <TableBody>
               {entries.map((e, i) => {
-                const expandable = Boolean(e.orderId);
+                const expandable = Boolean(e.items && e.items.length > 0);
                 const isOpen = expandable && expandedIdx === i;
                 return (
                   <Fragment key={i}>
@@ -194,10 +194,12 @@ export function CreditAccountDetailView({
                             )}
                           </div>
                           <div className="mt-3 space-y-1 border-t pt-2 text-sm">
-                            <div className="flex items-center justify-between">
-                              <span className="text-muted-foreground">Subtotal</span>
-                              <span className="tabular-nums">{formatLKR(e.subtotal ?? 0)}</span>
-                            </div>
+                            {e.subtotal != null && (
+                              <div className="flex items-center justify-between">
+                                <span className="text-muted-foreground">Subtotal</span>
+                                <span className="tabular-nums">{formatLKR(e.subtotal)}</span>
+                              </div>
+                            )}
                             {(e.serviceCharge ?? 0) > 0 && (
                               <div className="flex items-center justify-between">
                                 <span className="text-muted-foreground">Service charge</span>

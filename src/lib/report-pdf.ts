@@ -51,6 +51,20 @@ interface PdfDoc {
   line: (x1: number, y1: number, x2: number, y2: number) => void;
   addPage: () => void;
   output: (t: "blob") => Blob;
+  getTextWidth: (t: string) => number;
+}
+
+/** Truncates text (with the doc's currently-set font/size) so it actually
+ * fits maxWidth — jsPDF never wraps or clips text.() on its own, so a long
+ * guest name or item name would otherwise run straight into the next
+ * column instead of stopping at the table's gutter. */
+function fitWidth(doc: PdfDoc, text: string, maxWidth: number): string {
+  if (doc.getTextWidth(text) <= maxWidth) return text;
+  let s = text;
+  while (s.length > 1 && doc.getTextWidth(`${s}…`) > maxWidth) {
+    s = s.slice(0, -1);
+  }
+  return `${s}…`;
 }
 
 async function newDoc(): Promise<PdfDoc> {
@@ -1076,18 +1090,24 @@ export async function generateCreditStatementPdf(data: CreditStatementData): Pro
   l.divider();
 
   for (const e of data.entries) {
+    doc.setFont("helvetica", "normal");
+    doc.setFontSize(9);
+    const description = fitWidth(doc, e.description, colRight - 45 - 3 - (MARGIN + 50));
     l.row([
       { text: new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
       { text: KIND_LABEL[e.kind], x: MARGIN + 22 },
-      { text: e.description.slice(0, 60), x: MARGIN + 50 },
+      { text: description, x: MARGIN + 50 },
       { text: `${e.amount >= 0 ? "+" : "-"}${fmt(Math.abs(e.amount))}`, x: colRight - 45, align: "right" },
       { text: fmt(e.balance), x: colRight, align: "right" },
     ]);
     if (e.items && e.items.length > 0) {
       for (const it of e.items) {
+        doc.setFont("helvetica", "normal");
+        doc.setFontSize(8);
+        const label = fitWidth(doc, `${it.qty} x ${it.name}`, colRight - 32 - (MARGIN + 54));
         l.row(
           [
-            { text: `${it.qty} x ${it.name}`.slice(0, 65), x: MARGIN + 54 },
+            { text: label, x: MARGIN + 54 },
             { text: fmt(it.lineTotal), x: colRight, align: "right" },
           ],
           8
