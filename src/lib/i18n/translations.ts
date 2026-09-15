@@ -83,6 +83,8 @@ export const SI_DICT: Record<string, string> = {
   "- Today's cash out": "- අද ගිය මුදල්",
   "Balance (carries to tomorrow)": "ඉතිරිය (හෙට දක්වා යයි)",
   "Cash movements today": "අද මුදල් හුවමාරු",
+  "Show full details": "සම්පූර්ණ විස්තර පෙන්වන්න",
+  "Hide full details": "සම්පූර්ණ විස්තර සඟවන්න",
   "Credit accounts — still owing": "ණය ගිණුම් — තවම ගෙවීමට ඇති",
   "Account": "ගිණුම",
   "Total outstanding": "ගෙවීමට ඇති මුළු මුදල",

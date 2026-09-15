@@ -6,6 +6,7 @@ import {
   BadgeDollarSign,
   BedDouble,
   CalendarDays,
+  ChevronDown,
   ChevronLeft,
   ChevronRight,
   FileDown,
@@ -26,7 +27,7 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { formatLKR } from "@/lib/utils";
+import { cn, formatLKR } from "@/lib/utils";
 import type { HotelSettings, PaymentMethod } from "@/lib/types";
 import { generateDailySummaryPdf, openPdfBlob } from "@/lib/report-pdf";
 import { useLanguage } from "@/lib/i18n/language-context";
@@ -104,6 +105,7 @@ export function DailySummaryView({
   const { t, language } = useLanguage();
   const [pending, startTransition] = useTransition();
   const [exporting, setExporting] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
 
   // Room and Restaurant are two separate cash pools — never blended into one
   // combined "total revenue" or "net cash" figure. A rupee of room revenue
@@ -210,12 +212,27 @@ export function DailySummaryView({
         </div>
       </div>
 
-      {/* Room & Restaurant Ledger — cash-only, carried forward day to day */}
+      {/* Room & Restaurant Ledger — cash-only, carried forward day to day.
+          This is the whole answer to "how much cash today, how much out,
+          what's the balance" — everything else on the page is optional
+          detail behind the toggle below. */}
       <div className="grid gap-4 sm:grid-cols-2">
         <LedgerCard title={t("Room")} icon={BedDouble} ledger={roomLedger} />
         <LedgerCard title={t("Restaurant")} icon={UtensilsCrossed} ledger={restaurantLedger} />
       </div>
 
+      <Button
+        variant="outline"
+        size="sm"
+        className="w-full sm:w-auto"
+        onClick={() => setShowDetails((v) => !v)}
+      >
+        <ChevronDown className={cn("mr-2 h-4 w-4 transition-transform", showDetails && "rotate-180")} />
+        {showDetails ? t("Hide full details") : t("Show full details")}
+      </Button>
+
+      {showDetails && (
+        <>
       {todayCashMovements.length > 0 && (
         <Card>
           <CardHeader>
@@ -563,6 +580,8 @@ export function DailySummaryView({
           </div>
         </CardContent>
       </Card>
+        </>
+      )}
     </div>
   );
 }
