@@ -246,6 +246,7 @@ function RepaymentDialog({
           <Label htmlFor="rp-method">Received by</Label>
           <Select id="rp-method" name="payment_method" defaultValue="cash">
             <option value="cash">Cash</option>
+            <option value="card">Card</option>
             <option value="bank_transfer">Bank Transfer</option>
           </Select>
         </div>
