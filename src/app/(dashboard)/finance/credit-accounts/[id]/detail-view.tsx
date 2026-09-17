@@ -26,6 +26,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn, formatDate, formatLKR } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 import type { CreditAccount } from "@/lib/types";
 import { addCreditAdjustment } from "../actions";
 import { generateCreditStatementPdf, openPdfBlob } from "@/lib/report-pdf";
@@ -262,7 +263,7 @@ function AdjustmentDialog({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = colomboToday();
 
   function submit(formData: FormData) {
     formData.set("credit_account_id", accountId);

@@ -34,6 +34,7 @@ import type {
 } from "@/lib/types";
 import { itemStation } from "@/lib/types";
 import { cn, formatLKR, formatOrderNumber } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import {
   addCustomOrderItem,
@@ -46,6 +47,7 @@ import {
   openOrder,
   removeOrderItem,
   setDeliveryStatus,
+  setOrderBusinessDate,
   setOrderItemQuantity,
   settleOrder,
 } from "../actions";
@@ -102,8 +104,11 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [creditAccountId, setCreditAccountId] = useState("");
   const [confirmSettle, setConfirmSettle] = useState(false);
+  const [dateConfirmId, setDateConfirmId] = useState<string | null>(null);
+  const [savingDate, setSavingDate] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
+  const today = colomboToday();
   /** Menu item whose card qty box is currently open for typed entry — click
    * the qty number, type a count, press Enter (faster than tapping + N
    * times for a bulk order). */
@@ -270,6 +275,14 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
       setError("Pick a credit account before settling.");
       return;
     }
+    // The bill was opened on an earlier day and never had its date touched
+    // since — settling it silently would post it to that stale date. Make
+    // the cashier pick, rather than have it slip through unnoticed.
+    if (order.business_date !== today && dateConfirmId !== order.id) {
+      setDateConfirmId(order.id);
+      setError(null);
+      return;
+    }
     const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom);
     if (kotPending && !confirmSettle) {
       setConfirmSettle(true);
@@ -277,6 +290,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
       return;
     }
     setConfirmSettle(false);
+    setDateConfirmId(null);
     run(async () => {
       const res = await settleOrder(
         order.id,
@@ -287,6 +301,46 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
       if (res.ok) setSelectedOrderId(null);
       return res;
     });
+  }
+
+  /** Room-service orders settle with no explicit payment method (charged
+   * to the folio, paid for real at checkout) — same date check as
+   * handleSettle, but never routes through it since it mustn't pass along
+   * the paymentMethod state. */
+  function handleChargeToFolio(order: RestaurantOrder) {
+    if (order.business_date !== today && dateConfirmId !== order.id) {
+      setDateConfirmId(order.id);
+      setError(null);
+      return;
+    }
+    setDateConfirmId(null);
+    run(() => settleOrder(order.id));
+    setSelectedOrderId(null);
+  }
+
+  /** Re-dispatches to whichever settle path this order actually needs,
+   * once the settle-time date question (below) has been answered. */
+  function settleAfterDateConfirm(order: RestaurantOrder) {
+    if (order.channel_type === "room_service") {
+      run(() => settleOrder(order.id));
+      setSelectedOrderId(null);
+    } else {
+      handleSettle(order);
+    }
+  }
+
+  /** The "move to today" half of the settle-time date check — updates the
+   * date, then re-runs the settle flow against the corrected order. */
+  async function moveDateToTodayAndSettle(order: RestaurantOrder) {
+    setSavingDate(true);
+    const res = await setOrderBusinessDate(order.id, today);
+    setSavingDate(false);
+    if (!res.ok) {
+      setError(res.error ?? "Could not update the date.");
+      return;
+    }
+    setDateConfirmId(null);
+    settleAfterDateConfirm({ ...order, business_date: today });
   }
 
   const offTableOrders = orders.filter((o) => o.channel_type !== "dine_in");
@@ -966,15 +1020,38 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
                     {printing ? "Printing…" : "Print bill"}
                   </Button>
 
-                  {selectedOrder.channel_type === "room_service" ? (
+                  {dateConfirmId === selectedOrder.id && (
+                    <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                      <p className="font-medium text-amber-500">
+                        This bill was opened on {selectedOrder.business_date}, not today ({today}). Which
+                        date should it count toward?
+                      </p>
+                      <div className="grid grid-cols-2 gap-2">
+                        <Button
+                          variant="outline"
+                          size="sm"
+                          onClick={() => settleAfterDateConfirm(selectedOrder)}
+                          disabled={pending}
+                        >
+                          Keep {selectedOrder.business_date}
+                        </Button>
+                        <Button
+                          size="sm"
+                          onClick={() => moveDateToTodayAndSettle(selectedOrder)}
+                          disabled={pending || savingDate}
+                        >
+                          Move to today
+                        </Button>
+                      </div>
+                    </div>
+                  )}
+
+                  {dateConfirmId === selectedOrder.id ? null : selectedOrder.channel_type === "room_service" ? (
                     <Button
                       variant="secondary"
                       className="w-full"
                       disabled={pending || Number(selectedOrder.total_amount) <= 0}
-                      onClick={() => {
-                        run(() => settleOrder(selectedOrder.id));
-                        setSelectedOrderId(null);
-                      }}
+                      onClick={() => handleChargeToFolio(selectedOrder)}
                     >
                       <ConciergeBell className="mr-2 h-4 w-4" />
                       Charge to room folio

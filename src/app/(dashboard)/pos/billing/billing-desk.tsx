@@ -33,6 +33,7 @@ import {
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { formatDateTime, formatLKR, formatOrderNumber } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 import type { ChannelType, CreditAccount, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
 import { cancelOrder, ensureOrderNumber, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
 
@@ -58,6 +59,8 @@ export function BillingDesk({
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
+  const [dateConfirmId, setDateConfirmId] = useState<string | null>(null);
+  const today = colomboToday();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [creditAccountId, setCreditAccountId] = useState<string>("");
   const [scWaived, setScWaived] = useState(false);
@@ -81,6 +84,15 @@ export function BillingDesk({
       setFeedback("Pick a credit account before settling.");
       return;
     }
+    // The bill was opened on an earlier day and never had its date touched
+    // since — settling it silently would post it to that stale date. Make
+    // the cashier pick, rather than relying on someone having remembered to
+    // fix the "Counts toward" field above.
+    if (order.business_date !== today && dateConfirmId !== order.id) {
+      setDateConfirmId(order.id);
+      setFeedback(null);
+      return;
+    }
     const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom);
     if (kotPending && confirmSettleId !== order.id) {
       // First click with unsent items — warn, but allow settling on the next click.
@@ -91,6 +103,7 @@ export function BillingDesk({
       return;
     }
     setConfirmSettleId(null);
+    setDateConfirmId(null);
     startTransition(async () => {
       const res = await settleOrder(
         order.id,
@@ -214,6 +227,20 @@ export function BillingDesk({
     } finally {
       setSavingDate(false);
     }
+  }
+
+  /** The "move to today" half of the settle-time date check — updates the
+   * date, then re-runs the settle flow against the corrected order. */
+  async function moveDateToTodayAndSettle(order: RestaurantOrder) {
+    setSavingDate(true);
+    const res = await setOrderBusinessDate(order.id, today);
+    setSavingDate(false);
+    if (!res.ok) {
+      setFeedback(res.error ?? "Could not update the date.");
+      return;
+    }
+    setDateConfirmId(null);
+    handleSettle({ ...order, business_date: today });
   }
 
   async function handlePrint(order: RestaurantOrder) {
@@ -460,22 +487,44 @@ export function BillingDesk({
                 />
                 No service charge on this bill
               </label>
-              <Button
-                onClick={() => handleSettle(selected)}
-                disabled={
-                  pending ||
-                  Number(selected.total_amount) <= 0 ||
-                  (paymentMethod === "credit" && !creditAccountId)
-                }
-                variant={confirmSettleId === selected.id ? "destructive" : "default"}
-              >
-                <Wallet className="mr-2 h-4 w-4" />
-                {confirmSettleId === selected.id
-                  ? "Settle anyway (KOT pending)"
-                  : selected.channel_type === "room_service"
-                  ? "Charge to room folio"
-                  : "Settle & complete"}
-              </Button>
+              {dateConfirmId === selected.id && (
+                <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
+                  <p className="font-medium text-amber-500">
+                    This bill was opened on {selected.business_date}, not today ({today}). Which date
+                    should it count toward?
+                  </p>
+                  <div className="grid grid-cols-2 gap-2">
+                    <Button variant="outline" size="sm" onClick={() => handleSettle(selected)} disabled={pending}>
+                      Keep {selected.business_date}
+                    </Button>
+                    <Button
+                      size="sm"
+                      onClick={() => moveDateToTodayAndSettle(selected)}
+                      disabled={pending || savingDate}
+                    >
+                      Move to today
+                    </Button>
+                  </div>
+                </div>
+              )}
+              {dateConfirmId !== selected.id && (
+                <Button
+                  onClick={() => handleSettle(selected)}
+                  disabled={
+                    pending ||
+                    Number(selected.total_amount) <= 0 ||
+                    (paymentMethod === "credit" && !creditAccountId)
+                  }
+                  variant={confirmSettleId === selected.id ? "destructive" : "default"}
+                >
+                  <Wallet className="mr-2 h-4 w-4" />
+                  {confirmSettleId === selected.id
+                    ? "Settle anyway (KOT pending)"
+                    : selected.channel_type === "room_service"
+                    ? "Charge to room folio"
+                    : "Settle & complete"}
+                </Button>
+              )}
               <Button
                 variant="outline"
                 onClick={() => handlePrint(selected)}

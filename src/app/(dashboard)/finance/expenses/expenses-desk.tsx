@@ -29,6 +29,7 @@ import {
 } from "@/components/ui/table";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatLKR } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 import { generateExpensesReportPdf, openPdfBlob } from "@/lib/report-pdf";
 import type { ExpenseCategoryRow, HotelSettings, PaymentMethod } from "@/lib/types";
 import type { ExpenseWithLogger } from "./page";
@@ -134,7 +135,7 @@ export function ExpensesDesk({
     });
   }
 
-  const today = new Date().toISOString().slice(0, 10);
+  const today = colomboToday();
 
   return (
     <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
