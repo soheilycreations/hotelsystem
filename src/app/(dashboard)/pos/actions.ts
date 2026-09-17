@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { ChannelType, DeliveryStatus, PaymentMethod } from "@/lib/types";
+import { colomboToday } from "@/lib/colombo-date";
 
 interface ActionResult {
   ok: boolean;
@@ -289,7 +290,7 @@ export async function addCustomOrderItem(input: CustomOrderItemInput): Promise<A
       const { error: expError } = await supabase.from("expenses").insert({
         category: "function_cost",
         amount: Math.round(expenseAmount * 100) / 100,
-        date: new Date().toISOString().slice(0, 10),
+        date: colomboToday(),
         description: `${description} (billed to customer)`,
         logged_by: profile.id,
       });

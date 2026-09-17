@@ -5,6 +5,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { FolioPayload, ReceiptPayload } from "@/hooks/useThermalPrint";
 import { formatOrderNumber } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 
 const A5: [number, number] = [148, 210]; // mm
 const MARGIN = 14;
@@ -237,7 +238,7 @@ export function openPdf(blob: Blob): void {
 /** Uploads to the public "bills" bucket and returns a shareable URL. */
 export async function uploadBillPdf(fileName: string, blob: Blob): Promise<string> {
   const supabase = createClient();
-  const path = `${new Date().toISOString().slice(0, 10)}/${fileName}`;
+  const path = `${colomboToday()}/${fileName}`;
   const { error } = await supabase.storage
     .from("bills")
     .upload(path, blob, { contentType: "application/pdf", upsert: true });

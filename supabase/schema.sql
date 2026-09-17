@@ -196,7 +196,7 @@ create table public.restaurant_orders (
   customer_phone   varchar(40),
   delivery_address text,
   event_name       varchar(160), -- banquet function name, e.g. "Kamal's Wedding"
-  business_date    date not null default current_date, -- editable at settle time so late-night bills post to the right day
+  business_date    date not null default ((now() at time zone 'Asia/Colombo')::date), -- editable at settle time so late-night bills post to the right day; must be Colombo-aware, not the DB's own (UTC) current_date, or anything opened 00:00-05:29 Colombo time lands on the wrong day
   is_historical    boolean not null default false, -- true for Backfill-created entries — kept out of the real Banquet channel-mix bucket
 
   subtotal         numeric(14,2) not null default 0 check (subtotal >= 0),
@@ -325,7 +325,7 @@ create table public.expenses (
   id          uuid primary key default gen_random_uuid(),
   category_id uuid not null references public.expense_categories (id) on delete restrict,
   amount      numeric(14,2) not null check (amount > 0),
-  date        date not null default current_date,
+  date        date not null default ((now() at time zone 'Asia/Colombo')::date),
   description text,
   payment_method payment_method not null default 'cash',
   division    expense_division not null default 'restaurant', -- which P&L this expense counts against
@@ -341,7 +341,7 @@ create table public.cash_movements (
   category    varchar(60) not null, -- e.g. 'Bank Deposit', 'Owner Withdrawal', 'Float Top-up'
   description text,
   amount      numeric(14,2) not null check (amount > 0),
-  date        date not null default current_date,
+  date        date not null default ((now() at time zone 'Asia/Colombo')::date),
   logged_by   uuid references public.staff_profiles (id),
   created_at  timestamptz not null default now()
 );
@@ -368,7 +368,7 @@ create table public.credit_repayments (
   credit_account_id uuid not null references public.credit_accounts (id) on delete restrict,
   amount            numeric(14,2) not null check (amount > 0),
   payment_method    payment_method not null default 'cash',
-  date              date not null default current_date,
+  date              date not null default ((now() at time zone 'Asia/Colombo')::date),
   description       text,
   logged_by         uuid references public.staff_profiles (id),
   created_at        timestamptz not null default now()
@@ -380,7 +380,7 @@ create table public.credit_adjustments (
   id                uuid primary key default gen_random_uuid(),
   credit_account_id uuid not null references public.credit_accounts (id) on delete restrict,
   amount            numeric(14,2) not null check (amount > 0),
-  date              date not null default current_date,
+  date              date not null default ((now() at time zone 'Asia/Colombo')::date),
   description       text,
   created_by        uuid references public.staff_profiles (id),
   created_at        timestamptz not null default now()
@@ -391,7 +391,7 @@ create table public.credit_adjustments (
 create table public.purchases (
   id            uuid primary key default gen_random_uuid(),
   supplier_name varchar(140),
-  purchase_date date not null default current_date,
+  purchase_date date not null default ((now() at time zone 'Asia/Colombo')::date),
   notes         text,
   total_amount  numeric(14,2) not null default 0,
   expense_id    uuid references public.expenses (id) on delete set null,
@@ -637,7 +637,7 @@ create or replace function public.rpc_record_purchase(
   p_notes          text,
   p_items          jsonb, -- [{"inventory_item_id"?,"new_item_name"?,"new_item_unit"?,"quantity","unit_price","pack_size"}, ...]
   p_payment_method payment_method default 'cash',
-  p_date           date default current_date, -- lets a bill be entered against a past date, e.g. yesterday's delivery
+  p_date           date default ((now() at time zone 'Asia/Colombo')::date), -- lets a bill be entered against a past date, e.g. yesterday's delivery
   p_division       expense_division default 'restaurant' -- which P&L this purchase's expense counts against
 )
 returns uuid
@@ -684,7 +684,7 @@ begin
     nullif(trim(coalesce(p_notes, '')), ''),
     v_total,
     auth.uid(),
-    coalesce(p_date, current_date)
+    coalesce(p_date, (now() at time zone 'Asia/Colombo')::date)
   )
   returning id into v_purchase_id;
 
@@ -733,7 +733,7 @@ begin
   values (
     v_expense_category,
     v_total,
-    coalesce(p_date, current_date),
+    coalesce(p_date, (now() at time zone 'Asia/Colombo')::date),
     trim('Stock purchase' || case when nullif(trim(coalesce(p_supplier_name, '')), '') is not null
       then ' — ' || trim(p_supplier_name) else '' end),
     p_payment_method,

@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { formatDate, formatLKR } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 import type { ExpenseDivision, InventoryItem, InventoryUnit, PaymentMethod, Purchase } from "@/lib/types";
 import { recordPurchase, type PurchaseLineInput } from "../actions";
 
@@ -70,7 +71,7 @@ export function PurchasingDesk({
 }) {
   const [supplierName, setSupplierName] = useState("");
   const [notes, setNotes] = useState("");
-  const [date, setDate] = useState(() => new Date().toISOString().slice(0, 10));
+  const [date, setDate] = useState(colomboToday);
   const [division, setDivision] = useState<ExpenseDivision>("restaurant");
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [lines, setLines] = useState<DraftLine[]>([emptyLine(inventoryItems[0]?.id ?? "")]);
@@ -143,7 +144,7 @@ export function PurchasingDesk({
       );
       setSupplierName("");
       setNotes("");
-      setDate(new Date().toISOString().slice(0, 10));
+      setDate(colomboToday());
       setLines([emptyLine(inventoryItems[0]?.id ?? "")]);
     });
   }

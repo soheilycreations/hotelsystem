@@ -39,6 +39,7 @@ import {
 } from "@/components/ui/table";
 import { StatCard } from "@/components/stat-card";
 import { formatLKR } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 import { generateCashBookPdf, openPdfBlob } from "@/lib/report-pdf";
 import type { CashMovement } from "@/lib/types";
 import type { CashDayRow, CashLedgerEntry } from "./page";
@@ -94,9 +95,8 @@ function DateRangePicker({ fromDate, toDate }: { fromDate: string; toDate: strin
   }
 
   function presetThisMonth() {
-    const now = new Date();
-    const first = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-    const t = now.toISOString().slice(0, 10);
+    const t = colomboToday();
+    const first = `${t.slice(0, 7)}-01`;
     setFrom(first);
     setTo(t);
     apply(first, t);
@@ -386,7 +386,7 @@ export function CashBookView({
 function AddMovementForm({ onDone }: { onDone: (msg: string) => void }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = colomboToday();
 
   function submit(formData: FormData) {
     setError(null);

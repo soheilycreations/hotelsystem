@@ -20,6 +20,7 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import { Textarea } from "@/components/ui/textarea";
 import { formatDate, formatLKR } from "@/lib/utils";
+import { colomboToday } from "@/lib/colombo-date";
 import type { CreditAccountWithBalance } from "./page";
 import { addCreditAdjustment, createCreditAccount, recordCreditRepayment, updateCreditAccount } from "./actions";
 
@@ -211,7 +212,7 @@ function RepaymentDialog({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = colomboToday();
 
   function submit(formData: FormData) {
     formData.set("credit_account_id", account.id);
@@ -275,7 +276,7 @@ function AdjustmentDialog({
 }) {
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const today = new Date().toISOString().slice(0, 10);
+  const today = colomboToday();
 
   function submit(formData: FormData) {
     formData.set("credit_account_id", account.id);
