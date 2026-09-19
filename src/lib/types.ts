@@ -273,6 +273,42 @@ export interface PurchaseItem {
   inventory_items?: Pick<InventoryItem, "name" | "unit">; // joined
 }
 
+export type StoreTransactionType = "IN" | "OUT";
+
+export interface StoreItem {
+  id: string;
+  name: string;
+  unit: string;
+  reorder_level: number;
+  current_stock: number;
+  linked_inventory_item_id: string | null;
+  created_at: string;
+  inventory_items?: Pick<InventoryItem, "name" | "unit"> | null; // joined
+}
+
+export interface StoreDailySnapshot {
+  id: string;
+  store_item_id: string;
+  date: string;
+  opening_stock: number;
+  stock_in: number;
+  stock_out: number;
+  closing_stock: number;
+}
+
+export interface StoreTransaction {
+  id: string;
+  store_item_id: string;
+  type: StoreTransactionType;
+  quantity: number;
+  reason: string | null;
+  issued_to_kitchen: boolean;
+  created_by: string | null;
+  created_at: string;
+  store_items?: Pick<StoreItem, "name" | "unit"> | null; // joined
+  staff_profiles?: Pick<StaffProfile, "full_name"> | null; // joined
+}
+
 export interface MenuRecipeIngredient {
   id: string;
   menu_item_id: string;
@@ -383,6 +419,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/inventory": ["admin", "manager", "kitchen_staff"],
   "/inventory/recipes": ["admin", "manager"],
   "/inventory/purchases": ["admin", "manager"],
+  "/inventory/store": ["admin", "manager", "kitchen_staff"],
   "/finance/expenses": ["admin", "manager"],
   "/finance/reports": ["admin", "manager"],
   "/finance/daily-summary": ["admin", "manager"],

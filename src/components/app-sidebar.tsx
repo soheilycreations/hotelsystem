@@ -27,6 +27,7 @@ import {
   Users,
   FileEdit,
   Wallet,
+  Warehouse,
   X,
   type LucideIcon,
 } from "lucide-react";
@@ -55,6 +56,7 @@ const NAV_ITEMS: NavItem[] = [
   { href: "/pos/billing", label: "Billing", icon: Receipt, group: "Restaurant" },
   { href: "/pos/menu", label: "Menu Items", icon: BookOpen, group: "Restaurant" },
   { href: "/inventory", label: "Inventory", icon: Package, group: "Kitchen" },
+  { href: "/inventory/store", label: "Store", icon: Warehouse, group: "Kitchen" },
   { href: "/inventory/purchases", label: "Purchasing", icon: Truck, group: "Kitchen" },
   { href: "/inventory/recipes", label: "Recipe Costing", icon: ChefHat, group: "Kitchen" },
   { href: "/finance/daily-summary", label: "Daily Summary", icon: CalendarDays, group: "Finance" },
