@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { ChefHat, Plus, Trash2, TrendingDown, TrendingUp } from "lucide-react";
+import { ChefHat, Plus, Search, Trash2, TrendingDown, TrendingUp } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -34,6 +34,8 @@ export function RecipeManager({
   categories: MenuCategoryRow[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(menuItems[0]?.id ?? null);
+  const [search, setSearch] = useState("");
+  const query = search.trim().toLowerCase();
   const selected = useMemo(
     () => menuItems.find((m) => m.id === selectedId) ?? menuItems[0] ?? null,
     [menuItems, selectedId]
@@ -54,15 +56,26 @@ export function RecipeManager({
   }
 
   return (
-    <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
+    <div className="grid gap-6 lg:grid-cols-[380px_1fr] lg:items-start">
       {/* Menu list with margins */}
-      <Card className="h-fit">
-        <CardHeader>
+      <Card className="flex h-fit flex-col lg:sticky lg:top-6 lg:max-h-[calc(100vh-3rem)]">
+        <CardHeader className="space-y-3">
           <CardTitle className="text-base">Menu costing</CardTitle>
+          <div className="relative">
+            <Search className="pointer-events-none absolute left-2.5 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+            <Input
+              placeholder="Search dishes…"
+              value={search}
+              onChange={(e) => setSearch(e.target.value)}
+              className="pl-8"
+            />
+          </div>
         </CardHeader>
-        <CardContent className="space-y-1 px-3 pb-3">
+        <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
           {categories.map((cat) => {
-            const group = menuItems.filter((m) => m.category_id === cat.id);
+            const group = menuItems.filter(
+              (m) => m.category_id === cat.id && (!query || m.name.toLowerCase().includes(query))
+            );
             if (group.length === 0) return null;
             return (
               <div key={cat.id} className="pb-2">
@@ -102,6 +115,9 @@ export function RecipeManager({
               </div>
             );
           })}
+          {query && !categories.some((cat) => menuItems.some((m) => m.category_id === cat.id && m.name.toLowerCase().includes(query))) && (
+            <p className="px-2 py-6 text-center text-sm text-muted-foreground">No dishes match &ldquo;{search}&rdquo;.</p>
+          )}
         </CardContent>
       </Card>
 
@@ -184,7 +200,7 @@ function RecipeEditor({
   }
 
   return (
-    <Card>
+    <Card className="lg:sticky lg:top-6">
       <CardHeader className="space-y-3">
         <div className="flex items-start justify-between">
           <div>
