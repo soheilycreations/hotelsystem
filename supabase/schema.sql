@@ -1109,6 +1109,7 @@ create policy "pms write charges"     on public.booking_charges   for all    usi
 -- 9.5 Finance: admin/manager only
 create policy "finance read expenses" on public.expenses for select using (public.get_my_role() in ('admin','manager'));
 create policy "finance write expenses" on public.expenses for insert with check (public.get_my_role() in ('admin','manager'));
+create policy "finance update expenses" on public.expenses for update using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "admin delete expenses" on public.expenses for delete using (public.get_my_role() = 'admin');
 
 -- 9.6 System logs: management reads, triggers (security definer) write
