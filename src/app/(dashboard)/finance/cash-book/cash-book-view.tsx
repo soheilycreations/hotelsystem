@@ -18,6 +18,7 @@ import {
   ArrowDownCircle,
   ArrowUpCircle,
   CalendarRange,
+  ChevronDown,
   FileDown,
   Loader2,
   Plus,
@@ -38,7 +39,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatCard } from "@/components/stat-card";
-import { formatLKR } from "@/lib/utils";
+import { cn, formatLKR } from "@/lib/utils";
 import { colomboToday } from "@/lib/colombo-date";
 import { generateCashBookPdf, openPdfBlob } from "@/lib/report-pdf";
 import type { CashMovement } from "@/lib/types";
@@ -159,6 +160,7 @@ export function CashBookView({
 }) {
   const [feedback, setFeedback] = useState<string | null>(null);
   const [exporting, setExporting] = useState(false);
+  const [showDetails, setShowDetails] = useState(false);
   const [pending, startTransition] = useTransition();
 
   const totalIn = days.reduce((s, d) => s + d.cashIn, 0);
@@ -224,45 +226,52 @@ export function CashBookView({
         />
       </div>
 
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Daily cash movement &amp; running balance</CardTitle>
-        </CardHeader>
-        <CardContent className="h-[320px]">
-          <ResponsiveContainer width="100%" height="100%">
-            <ComposedChart data={days} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-              <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
-              <XAxis
-                dataKey="label"
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-                axisLine={false}
-                interval="preserveStartEnd"
-                minTickGap={24}
-              />
-              <YAxis
-                tick={{ fontSize: 11 }}
-                tickLine={false}
-                axisLine={false}
-                width={64}
-                tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
-              />
-              <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
-              <Legend wrapperStyle={{ fontSize: 12 }} />
-              <Bar dataKey="cashIn" name="Cash in" fill="#34d399" radius={[3, 3, 0, 0]} />
-              <Bar dataKey="cashOut" name="Cash out" fill="#f87171" radius={[3, 3, 0, 0]} />
-              <Line
-                type="monotone"
-                dataKey="closingBalance"
-                name="Running balance"
-                stroke="#38bdf8"
-                strokeWidth={2}
-                dot={false}
-              />
-            </ComposedChart>
-          </ResponsiveContainer>
-        </CardContent>
-      </Card>
+      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowDetails((v) => !v)}>
+        <ChevronDown className={cn("mr-2 h-4 w-4 transition-transform", showDetails && "rotate-180")} />
+        {showDetails ? "Hide full details" : "Show full details"}
+      </Button>
+
+      {showDetails && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Daily cash movement &amp; running balance</CardTitle>
+          </CardHeader>
+          <CardContent className="h-[320px]">
+            <ResponsiveContainer width="100%" height="100%">
+              <ComposedChart data={days} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
+                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+                <XAxis
+                  dataKey="label"
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  interval="preserveStartEnd"
+                  minTickGap={24}
+                />
+                <YAxis
+                  tick={{ fontSize: 11 }}
+                  tickLine={false}
+                  axisLine={false}
+                  width={64}
+                  tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+                />
+                <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
+                <Legend wrapperStyle={{ fontSize: 12 }} />
+                <Bar dataKey="cashIn" name="Cash in" fill="#34d399" radius={[3, 3, 0, 0]} />
+                <Bar dataKey="cashOut" name="Cash out" fill="#f87171" radius={[3, 3, 0, 0]} />
+                <Line
+                  type="monotone"
+                  dataKey="closingBalance"
+                  name="Running balance"
+                  stroke="#38bdf8"
+                  strokeWidth={2}
+                  dot={false}
+                />
+              </ComposedChart>
+            </ResponsiveContainer>
+          </CardContent>
+        </Card>
+      )}
 
       <div className="grid gap-6 lg:grid-cols-[380px_1fr]">
         <AddMovementForm onDone={setFeedback} />
@@ -334,51 +343,53 @@ export function CashBookView({
       </div>
 
       {/* Room vs Restaurant (cash only, this range) */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Room vs Restaurant (cash, this range)</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-4 sm:grid-cols-2">
-          <div className="rounded-lg border p-3">
-            <p className="text-sm font-medium">Room</p>
-            <div className="mt-2 space-y-1.5 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Cash in</span>
-                <span className="tabular-nums">{formatLKR(roomRevenue)}</span>
-              </div>
-              <div className="flex items-center justify-between text-red-500">
-                <span>Cash out</span>
-                <span className="tabular-nums">−{formatLKR(roomExpenses)}</span>
-              </div>
-              <div className="flex items-center justify-between border-t pt-1.5 font-bold">
-                <span>Balance</span>
-                <span className={roomBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
-                  {formatLKR(roomBalance)}
-                </span>
-              </div>
-            </div>
-          </div>
-          <div className="rounded-lg border p-3">
-            <p className="text-sm font-medium">Restaurant</p>
-            <div className="mt-2 space-y-1.5 text-sm">
-              <div className="flex items-center justify-between">
-                <span className="text-muted-foreground">Cash in</span>
-                <span className="tabular-nums">{formatLKR(restaurantRevenue)}</span>
-              </div>
-              <div className="flex items-center justify-between text-red-500">
-                <span>Cash out</span>
-                <span className="tabular-nums">−{formatLKR(restaurantExpenses)}</span>
-              </div>
-              <div className="flex items-center justify-between border-t pt-1.5 font-bold">
-                <span>Balance</span>
-                <span className={restaurantBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
-                  {formatLKR(restaurantBalance)}
-                </span>
+      {showDetails && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">Room vs Restaurant (cash, this range)</CardTitle>
+          </CardHeader>
+          <CardContent className="grid gap-4 sm:grid-cols-2">
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Room</p>
+              <div className="mt-2 space-y-1.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Cash in</span>
+                  <span className="tabular-nums">{formatLKR(roomRevenue)}</span>
+                </div>
+                <div className="flex items-center justify-between text-red-500">
+                  <span>Cash out</span>
+                  <span className="tabular-nums">−{formatLKR(roomExpenses)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t pt-1.5 font-bold">
+                  <span>Balance</span>
+                  <span className={roomBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
+                    {formatLKR(roomBalance)}
+                  </span>
+                </div>
               </div>
             </div>
-          </div>
-        </CardContent>
-      </Card>
+            <div className="rounded-lg border p-3">
+              <p className="text-sm font-medium">Restaurant</p>
+              <div className="mt-2 space-y-1.5 text-sm">
+                <div className="flex items-center justify-between">
+                  <span className="text-muted-foreground">Cash in</span>
+                  <span className="tabular-nums">{formatLKR(restaurantRevenue)}</span>
+                </div>
+                <div className="flex items-center justify-between text-red-500">
+                  <span>Cash out</span>
+                  <span className="tabular-nums">−{formatLKR(restaurantExpenses)}</span>
+                </div>
+                <div className="flex items-center justify-between border-t pt-1.5 font-bold">
+                  <span>Balance</span>
+                  <span className={restaurantBalance >= 0 ? "text-emerald-500" : "text-red-500"}>
+                    {formatLKR(restaurantBalance)}
+                  </span>
+                </div>
+              </div>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   );
 }

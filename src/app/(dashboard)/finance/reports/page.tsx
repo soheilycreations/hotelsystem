@@ -1,12 +1,8 @@
-import { Banknote, BedDouble, TrendingDown, TrendingUp, UtensilsCrossed } from "lucide-react";
 import { createClient } from "@/lib/supabase/server";
 import { colomboDateKey, colomboToday } from "@/lib/colombo-date";
-import { StatCard } from "@/components/stat-card";
-import { formatLKR } from "@/lib/utils";
 import type { ChannelType } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
-import { ReportCharts } from "./report-charts";
-import { DivisionalPnl } from "./divisional-pnl";
+import { ReportsView } from "./reports-view";
 
 export const dynamic = "force-dynamic";
 
@@ -169,55 +165,25 @@ export default async function ReportsPage({
   const points = Array.from(series.values());
   for (const p of points) p.profit = p.room + p.food - p.expenses;
 
-  const totalRevenue = posRevenue + roomRevenue;
-  const netProfit = totalRevenue - expensesAgainstRevenue;
   const roomBalance = roomRevenue - roomExpenses;
   const restaurantBalance = posRevenue - restaurantExpenses;
 
   return (
     <div className="space-y-6">
       <LiveRefresher tables={["restaurant_orders", "expenses", "bookings", "expense_categories"]} />
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">P&amp;L Report</h1>
-        <p className="text-sm text-muted-foreground">
-          {new Date(`${fromDate}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-          {" – "}
-          {new Date(`${toDate}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-          {" — POS sales, room folios, and logged expenses combined."}
-        </p>
-      </div>
-
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard title="Total revenue" value={formatLKR(totalRevenue)} hint="POS + room folios" icon={Banknote} />
-        <StatCard title="POS revenue" value={formatLKR(posRevenue)} hint="All channels" icon={UtensilsCrossed} />
-        <StatCard title="Room revenue" value={formatLKR(roomRevenue)} hint="Checked-out folios (excl. room service)" icon={BedDouble} />
-        <StatCard
-          title="Net profit"
-          value={formatLKR(netProfit)}
-          hint={
-            ownerFundedTotal > 0
-              ? `Expenses: ${formatLKR(expensesAgainstRevenue)} (+${formatLKR(ownerFundedTotal)} owner-funded, excluded)`
-              : `Expenses: ${formatLKR(expensesAgainstRevenue)}`
-          }
-          icon={netProfit >= 0 ? TrendingUp : TrendingDown}
-        />
-      </div>
-
-      <ReportCharts
-        points={points}
-        channelTotals={channelTotals}
-        expenseTotals={expenseTotals}
+      <ReportsView
         fromDate={fromDate}
         toDate={toDate}
-      />
-
-      <DivisionalPnl
         roomRevenue={roomRevenue}
         roomExpenses={roomExpenses}
         roomBalance={roomBalance}
         restaurantRevenue={posRevenue}
         restaurantExpenses={restaurantExpenses}
         restaurantBalance={restaurantBalance}
+        ownerFundedTotal={ownerFundedTotal}
+        points={points}
+        channelTotals={channelTotals}
+        expenseTotals={expenseTotals}
       />
     </div>
   );
