@@ -20,6 +20,7 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { formatLKR } from "@/lib/utils";
+import { colomboDaysAgo, colomboToday } from "@/lib/colombo-date";
 import type { DailyPnlPoint } from "./page";
 
 const CHANNEL_LABEL: Record<string, string> = {
@@ -66,7 +67,7 @@ function ChartTooltip({
   );
 }
 
-function DateRangePicker({ fromDate, toDate }: { fromDate: string; toDate: string }) {
+export function DateRangePicker({ fromDate, toDate }: { fromDate: string; toDate: string }) {
   const router = useRouter();
   const [pending, startTransition] = useTransition();
   const [from, setFrom] = useState(fromDate);
@@ -79,18 +80,16 @@ function DateRangePicker({ fromDate, toDate }: { fromDate: string; toDate: strin
   }
 
   function presetThisMonth() {
-    const now = new Date();
-    const first = `${now.getFullYear()}-${String(now.getMonth() + 1).padStart(2, "0")}-01`;
-    const today = now.toISOString().slice(0, 10);
+    const today = colomboToday();
+    const first = `${today.slice(0, 7)}-01`;
     setFrom(first);
     setTo(today);
     apply(first, today);
   }
 
   function presetLast30() {
-    const now = new Date();
-    const start = new Date(now.getTime() - 29 * 86_400_000).toISOString().slice(0, 10);
-    const today = now.toISOString().slice(0, 10);
+    const today = colomboToday();
+    const start = colomboDaysAgo(29);
     setFrom(start);
     setTo(today);
     apply(start, today);
@@ -131,14 +130,10 @@ export function ReportCharts({
   points,
   channelTotals,
   expenseTotals,
-  fromDate,
-  toDate,
 }: {
   points: DailyPnlPoint[];
   channelTotals: Record<string, number>;
   expenseTotals: Record<string, number>;
-  fromDate: string;
-  toDate: string;
 }) {
   const [showRoom, setShowRoom] = useState(true);
   const [showFood, setShowFood] = useState(true);
@@ -156,9 +151,8 @@ export function ReportCharts({
     <div className="grid gap-6">
       {/* Daily room / food / expenses */}
       <Card>
-        <CardHeader className="flex-col items-start gap-3 space-y-0 sm:flex-row sm:items-center sm:justify-between">
+        <CardHeader>
           <CardTitle className="text-base">Room, food &amp; expenses — daily</CardTitle>
-          <DateRangePicker fromDate={fromDate} toDate={toDate} />
         </CardHeader>
         <CardContent className="space-y-3">
           <div className="flex flex-wrap gap-4 text-sm">
