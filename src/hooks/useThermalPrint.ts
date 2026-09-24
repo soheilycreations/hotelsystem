@@ -311,7 +311,7 @@ export function buildKotTicket({ order, items, station = "kitchen", kotNumber }:
   bytes.push(...row(ticketHeading, order.channel_type.replace("_", " ").toUpperCase()));
   if (order.restaurant_tables) bytes.push(...row("Table", order.restaurant_tables.table_number));
   if (order.bookings) bytes.push(...row("Guest", order.bookings.guest_name));
-  bytes.push(...row("Time", new Date().toLocaleTimeString("en-GB")));
+  bytes.push(...row("Printed", new Date().toLocaleString("en-GB")));
   bytes.push(...line());
 
   // Big, price-free lines the kitchen can read from a distance
