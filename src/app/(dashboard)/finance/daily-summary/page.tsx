@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { colomboToday } from "@/lib/colombo-date";
 import type { HotelSettings } from "@/lib/types";
 import { formatOrderNumber } from "@/lib/utils";
+import { LiveRefresher } from "../../live-refresher";
 import { DailySummaryView } from "./daily-summary-view";
 
 export const dynamic = "force-dynamic";
@@ -272,6 +273,16 @@ export default async function DailySummaryPage({
     revenueByMethod[a.paymentMethod] = (revenueByMethod[a.paymentMethod] ?? 0) + a.amount;
   }
 
+  // Restaurant revenue today, split by how it was paid — shown next to the
+  // Restaurant cash ledger so it's obvious at a glance how much of today's
+  // revenue is NOT cash (card/bank/credit), i.e. why "revenue" and "cash in
+  // hand" aren't the same number.
+  const posRevenueByMethod: Record<string, number> = {};
+  for (const o of orders ?? []) {
+    const method = o.payment_method ?? "cash";
+    posRevenueByMethod[method] = (posRevenueByMethod[method] ?? 0) + Number(o.total_amount);
+  }
+
   const itemTotals = new Map<string, { qty: number; revenue: number }>();
   let posSubtotal = 0;
   let posServiceCharge = 0;
@@ -381,32 +392,46 @@ export default async function DailySummaryPage({
     .sort((a, b) => b.balance - a.balance);
 
   return (
-    <DailySummaryView
-      date={date}
-      hotel={(hotel as HotelSettings | null) ?? null}
-      roomSales={roomSales}
-      roomRevenueTotal={roomRevenueTotal}
-      revenueByMethod={revenueByMethod}
-      itemSales={itemSales}
-      posSubtotal={posSubtotal}
-      posServiceCharge={posServiceCharge}
-      posTotal={posTotal}
-      expenses={(expenses ?? []).map((e) => ({
-        category: (e.expense_categories as { name?: string } | null)?.name ?? "Uncategorised",
-        description: e.description,
-        amount: Number(e.amount),
-        paymentMethod: e.payment_method,
-      }))}
-      expensesTotal={expensesTotal}
-      expensesAgainstRevenue={expensesAgainstRevenue}
-      roomExpenses={roomExpenses}
-      restaurantExpenses={restaurantExpenses}
-      creditSales={creditSales}
-      creditAccountBalances={creditAccountBalances}
-      advancePaymentsToday={advancePaymentsToday}
-      roomLedger={roomLedger}
-      todayCashMovements={todayCashMovements}
-      restaurantLedger={restaurantLedger}
-    />
+    <>
+      <LiveRefresher
+        tables={[
+          "bookings",
+          "restaurant_orders",
+          "expenses",
+          "booking_advance_payments",
+          "cash_movements",
+          "credit_repayments",
+          "credit_adjustments",
+        ]}
+      />
+      <DailySummaryView
+        date={date}
+        hotel={(hotel as HotelSettings | null) ?? null}
+        roomSales={roomSales}
+        roomRevenueTotal={roomRevenueTotal}
+        revenueByMethod={revenueByMethod}
+        itemSales={itemSales}
+        posSubtotal={posSubtotal}
+        posServiceCharge={posServiceCharge}
+        posTotal={posTotal}
+        posRevenueByMethod={posRevenueByMethod}
+        expenses={(expenses ?? []).map((e) => ({
+          category: (e.expense_categories as { name?: string } | null)?.name ?? "Uncategorised",
+          description: e.description,
+          amount: Number(e.amount),
+          paymentMethod: e.payment_method,
+        }))}
+        expensesTotal={expensesTotal}
+        expensesAgainstRevenue={expensesAgainstRevenue}
+        roomExpenses={roomExpenses}
+        restaurantExpenses={restaurantExpenses}
+        creditSales={creditSales}
+        creditAccountBalances={creditAccountBalances}
+        advancePaymentsToday={advancePaymentsToday}
+        roomLedger={roomLedger}
+        todayCashMovements={todayCashMovements}
+        restaurantLedger={restaurantLedger}
+      />
+    </>
   );
 }
