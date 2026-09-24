@@ -70,6 +70,7 @@ export function DailySummaryView({
   posSubtotal,
   posServiceCharge,
   posTotal,
+  posRevenueByMethod,
   expenses,
   expensesTotal,
   expensesAgainstRevenue,
@@ -91,6 +92,7 @@ export function DailySummaryView({
   posSubtotal: number;
   posServiceCharge: number;
   posTotal: number;
+  posRevenueByMethod: Record<string, number>;
   expenses: ExpenseRow[];
   expensesTotal: number;
   expensesAgainstRevenue: number;
@@ -115,6 +117,9 @@ export function DailySummaryView({
   const bankTransferTotal = expensesTotal - expensesAgainstRevenue;
   const roomBalance = roomRevenueTotal - roomExpenses;
   const restaurantBalance = posTotal - restaurantExpenses;
+
+  const nonCashPosTotal =
+    (posRevenueByMethod.card ?? 0) + (posRevenueByMethod.bank_transfer ?? 0) + (posRevenueByMethod.credit ?? 0);
 
   const expenseTotalsByMethod = expenses.reduce((acc, e) => {
     acc[e.paymentMethod] = (acc[e.paymentMethod] ?? 0) + e.amount;
@@ -220,7 +225,20 @@ export function DailySummaryView({
           detail behind the toggle below. */}
       <div className="grid gap-4 sm:grid-cols-2">
         <LedgerCard title={t("Room")} icon={BedDouble} ledger={roomLedger} />
-        <LedgerCard title={t("Restaurant")} icon={UtensilsCrossed} ledger={restaurantLedger} />
+        <LedgerCard
+          title={t("Restaurant")}
+          icon={UtensilsCrossed}
+          ledger={restaurantLedger}
+          note={
+            posTotal > 0
+              ? `${t("Restaurant revenue today")}: ${formatLKR(posTotal)}${
+                  nonCashPosTotal > 0
+                    ? ` (${t("of which")} ${formatLKR(nonCashPosTotal)} ${t("was Card/Bank/Credit — not cash")})`
+                    : ""
+                }`
+              : undefined
+          }
+        />
       </div>
 
       <Button
@@ -618,10 +636,12 @@ function LedgerCard({
   title,
   icon: Icon,
   ledger,
+  note,
 }: {
   title: string;
   icon: typeof BedDouble;
   ledger: { opening: number; todayIn: number; todayOut: number; closing: number };
+  note?: string;
 }) {
   const { t } = useLanguage();
   return (
@@ -651,6 +671,7 @@ function LedgerCard({
             {formatLKR(ledger.closing)}
           </span>
         </div>
+        {note && <p className="border-t pt-2 text-xs text-muted-foreground">{note}</p>}
       </CardContent>
     </Card>
   );
