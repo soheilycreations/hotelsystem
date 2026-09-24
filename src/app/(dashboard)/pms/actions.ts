@@ -483,6 +483,63 @@ export async function shortenOvernightStay(
 }
 
 /** Add a custom charge (overtime, minibar, laundry…) — the trigger updates the folio. */
+/** Records money a guest pays up front, before checkout — kept separate
+ * from total_folio_amount so revenue is still recognised in full at
+ * checkout, but the cash is counted on the day it's actually received. */
+export async function recordAdvancePayment(
+  bookingId: string,
+  amount: number,
+  paymentMethod: PaymentMethod,
+  notes: string
+): Promise<ActionResult> {
+  try {
+    const profile = await assertPmsRole();
+    if (!Number.isFinite(amount) || amount <= 0)
+      return { ok: false, error: "Amount must be greater than zero." };
+    if (!["cash", "card", "bank_transfer"].includes(paymentMethod))
+      return { ok: false, error: "Pick a valid payment method." };
+
+    const supabase = await createClient();
+    const { data: b } = await supabase
+      .from("bookings")
+      .select("id, status, total_folio_amount")
+      .eq("id", bookingId)
+      .single();
+    if (!b) return { ok: false, error: "Booking not found." };
+    if (b.status !== "checked_in" && b.status !== "pending")
+      return { ok: false, error: "Advance payments can only be logged for open bookings." };
+
+    const { data: existing } = await supabase
+      .from("booking_advance_payments")
+      .select("amount")
+      .eq("booking_id", bookingId);
+    const alreadyPaid = (existing ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
+    if (alreadyPaid + amount > Number(b.total_folio_amount) + 0.01) {
+      return {
+        ok: false,
+        error: `That would exceed the current folio (${Number(b.total_folio_amount).toFixed(2)}) — already paid ${alreadyPaid.toFixed(2)}.`,
+      };
+    }
+
+    const { error } = await supabase.from("booking_advance_payments").insert({
+      booking_id: bookingId,
+      amount: Math.round(amount * 100) / 100,
+      payment_method: paymentMethod,
+      notes: notes.trim() || null,
+      received_by: profile.id,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/pms/reserve");
+    revalidatePath("/pms/rooms");
+    revalidatePath("/finance/cash-book");
+    revalidatePath("/finance/daily-summary");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 export async function addBookingCharge(
   bookingId: string,
   amount: number,

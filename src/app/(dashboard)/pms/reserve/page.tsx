@@ -24,7 +24,7 @@ export default async function ReservePage() {
     supabase.from("rooms").select("*, room_types(*)").order("room_number"),
     supabase
       .from("bookings")
-      .select("*, rooms(room_number, room_types(name)), booking_charges(*)")
+      .select("*, rooms(room_number, room_types(name)), booking_charges(*), booking_advance_payments(*)")
       .in("status", ["pending", "checked_in"])
       .order("check_in_date"),
     supabase.from("room_rate_plans").select("*").eq("is_active", true).order("name"),

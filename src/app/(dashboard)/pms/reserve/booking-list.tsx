@@ -11,13 +11,21 @@ import {
   MessageCircle,
   Printer,
   Timer,
+  Wallet,
   XCircle,
 } from "lucide-react";
 import type { Booking, CreditAccount, HotelSettings, PaymentMethod } from "@/lib/types";
 import { formatDate, formatLKR } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
-import { addBookingCharge, extendOvernightStay, extendShortStay, setBookingStatus, shortenOvernightStay } from "../actions";
+import {
+  addBookingCharge,
+  extendOvernightStay,
+  extendShortStay,
+  recordAdvancePayment,
+  setBookingStatus,
+  shortenOvernightStay,
+} from "../actions";
 import { ensureOrderNumber } from "../../pos/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -35,6 +43,14 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
 import type { ServiceOrderDetail } from "./page";
+
+function advancePaidOf(b: Booking): number {
+  return (b.booking_advance_payments ?? []).reduce((sum, a) => sum + Number(a.amount), 0);
+}
+
+function balanceDueOf(b: Booking): number {
+  return Math.max(0, Number(b.total_folio_amount) - advancePaidOf(b));
+}
 
 /** Live countdown for a time-block stay. Re-renders every 30s. */
 export function StayCountdown({ booking }: { booking: Booking }) {
@@ -96,6 +112,7 @@ export function BookingList({
   const [extending, setExtending] = useState<Booking | null>(null);
   const [shortening, setShortening] = useState<Booking | null>(null);
   const [charging, setCharging] = useState<Booking | null>(null);
+  const [advancing, setAdvancing] = useState<Booking | null>(null);
   const [checkingOut, setCheckingOut] = useState<Booking | null>(null);
   const [, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
@@ -270,12 +287,21 @@ export function BookingList({
                     : ""}
                   {b.contact_number ? ` · ${b.contact_number}` : ""}
                 </p>
+                {advancePaidOf(b) > 0 && (
+                  <p className="text-xs text-muted-foreground">
+                    Advance paid: <span className="font-medium text-emerald-500">{formatLKR(advancePaidOf(b))}</span>
+                    {" · "}Balance due: <span className="font-medium text-foreground">{formatLKR(balanceDueOf(b))}</span>
+                  </p>
+                )}
               </div>
               <div className="flex flex-wrap gap-2 border-t pt-3">
                 {b.status === "pending" ? (
                   <>
                     <Button size="sm" disabled={pendingId === b.id} onClick={() => update(b.id, "checked_in")}>
                       {pendingId === b.id ? <Loader2 className="animate-spin" /> : <LogIn />} Check in
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setAdvancing(b)}>
+                      <Wallet /> Advance payment
                     </Button>
                     <Button
                       size="sm"
@@ -300,6 +326,9 @@ export function BookingList({
                     )}
                     <Button size="sm" variant="outline" onClick={() => setCharging(b)}>
                       <BadgePlus /> Charge
+                    </Button>
+                    <Button size="sm" variant="outline" onClick={() => setAdvancing(b)}>
+                      <Wallet /> Advance payment
                     </Button>
                     <Button
                       size="sm"
@@ -385,6 +414,19 @@ export function BookingList({
             booking={charging}
             onDone={(msg) => {
               setCharging(null);
+              setNotice(msg);
+            }}
+          />
+        )}
+      </Dialog>
+
+      {/* Advance payment dialog */}
+      <Dialog open={advancing !== null} onOpenChange={(open) => !open && setAdvancing(null)}>
+        {advancing && (
+          <AdvancePaymentDialog
+            booking={advancing}
+            onDone={(msg) => {
+              setAdvancing(null);
               setNotice(msg);
             }}
           />
@@ -593,6 +635,85 @@ function ChargeDialog({ booking, onDone }: { booking: Booking; onDone: (msg: str
   );
 }
 
+function AdvancePaymentDialog({ booking, onDone }: { booking: Booking; onDone: (msg: string) => void }) {
+  const [amount, setAmount] = useState("");
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  const [notes, setNotes] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const balanceDue = balanceDueOf(booking);
+
+  function submit() {
+    const value = Number(amount);
+    if (!Number.isFinite(value) || value <= 0) {
+      setError("Enter a positive amount.");
+      return;
+    }
+    startTransition(async () => {
+      const res = await recordAdvancePayment(booking.id, value, paymentMethod, notes);
+      if (res.ok) onDone(`${formatLKR(value)} advance logged for ${booking.guest_name}.`);
+      else setError(res.error ?? "Could not save.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Advance payment — {booking.guest_name}</DialogTitle>
+        <DialogDescription>
+          For money the guest pays now, before checkout. Doesn&apos;t change the folio total —
+          it&apos;s deducted from the balance due at checkout instead, and counts as cash-in-hand
+          today, not at checkout.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 py-2">
+        <div className="flex items-center justify-between rounded-md bg-muted px-3 py-2 text-sm">
+          <span className="text-muted-foreground">Current balance due</span>
+          <span className="font-semibold tabular-nums">{formatLKR(balanceDue)}</span>
+        </div>
+        <div className="grid grid-cols-2 gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="adv-amount">Amount (LKR)</Label>
+            <Input
+              id="adv-amount"
+              type="number"
+              min="0"
+              step="0.01"
+              value={amount}
+              onChange={(e) => setAmount(e.target.value)}
+              placeholder="0.00"
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="adv-method">Paid by</Label>
+            <Select
+              id="adv-method"
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+            >
+              <option value="cash">Cash</option>
+              <option value="card">Card</option>
+              <option value="bank_transfer">Bank Transfer</option>
+            </Select>
+          </div>
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="adv-notes">Notes (optional)</Label>
+          <Input id="adv-notes" value={notes} onChange={(e) => setNotes(e.target.value)} placeholder="e.g. Deposit at booking" />
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+      <DialogFooter>
+        <Button onClick={submit} disabled={pending}>
+          <Wallet className="mr-2 h-4 w-4" />
+          {pending ? "Saving…" : "Log advance payment"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
 function CheckoutDialog({
   booking,
   creditAccounts,
@@ -607,6 +728,9 @@ function CheckoutDialog({
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
+  const advancePaid = advancePaidOf(booking);
+  const balanceDue = balanceDueOf(booking);
+
   function submit() {
     if (paymentMethod === "credit" && !creditAccountId) {
       setError("Pick a credit account.");
@@ -619,7 +743,7 @@ function CheckoutDialog({
         paymentMethod,
         paymentMethod === "credit" ? creditAccountId : undefined
       );
-      if (res.ok) onDone(`${booking.guest_name} checked out — ${formatLKR(Number(booking.total_folio_amount))} (${paymentMethod.replace("_", " ")}).`);
+      if (res.ok) onDone(`${booking.guest_name} checked out — ${formatLKR(balanceDue)} collected (${paymentMethod.replace("_", " ")}).`);
       else setError(res.error ?? "Could not check out.");
     });
   }
@@ -629,11 +753,30 @@ function CheckoutDialog({
       <DialogHeader>
         <DialogTitle>Check out — {booking.guest_name}</DialogTitle>
         <DialogDescription>
-          Folio total: {formatLKR(Number(booking.total_folio_amount))}. Pick how the guest paid —
-          this feeds the Cash Book so cash-in-hand stays accurate.
+          {advancePaid > 0
+            ? `Folio total: ${formatLKR(Number(booking.total_folio_amount))}, minus ${formatLKR(advancePaid)} already paid as an advance — balance due: ${formatLKR(balanceDue)}.`
+            : `Folio total: ${formatLKR(Number(booking.total_folio_amount))}.`}{" "}
+          Pick how the guest paid the balance — this feeds the Cash Book so cash-in-hand stays
+          accurate.
         </DialogDescription>
       </DialogHeader>
       <div className="grid gap-4 py-2">
+        {advancePaid > 0 && (
+          <div className="space-y-1 rounded-md bg-muted px-3 py-2 text-sm">
+            <div className="flex items-center justify-between">
+              <span className="text-muted-foreground">Folio total</span>
+              <span className="tabular-nums">{formatLKR(Number(booking.total_folio_amount))}</span>
+            </div>
+            <div className="flex items-center justify-between text-emerald-500">
+              <span>Advance already paid</span>
+              <span className="tabular-nums">−{formatLKR(advancePaid)}</span>
+            </div>
+            <div className="flex items-center justify-between border-t pt-1 font-semibold">
+              <span>Balance due now</span>
+              <span className="tabular-nums">{formatLKR(balanceDue)}</span>
+            </div>
+          </div>
+        )}
         <div className="space-y-1.5">
           <Label htmlFor="checkout-payment">Paid by</Label>
           <Select
