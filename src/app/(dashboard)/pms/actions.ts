@@ -502,24 +502,16 @@ export async function recordAdvancePayment(
     const supabase = await createClient();
     const { data: b } = await supabase
       .from("bookings")
-      .select("id, status, total_folio_amount")
+      .select("id, status")
       .eq("id", bookingId)
       .single();
     if (!b) return { ok: false, error: "Booking not found." };
     if (b.status !== "checked_in" && b.status !== "pending")
       return { ok: false, error: "Advance payments can only be logged for open bookings." };
 
-    const { data: existing } = await supabase
-      .from("booking_advance_payments")
-      .select("amount")
-      .eq("booking_id", bookingId);
-    const alreadyPaid = (existing ?? []).reduce((sum, r) => sum + Number(r.amount), 0);
-    if (alreadyPaid + amount > Number(b.total_folio_amount) + 0.01) {
-      return {
-        ok: false,
-        error: `That would exceed the current folio (${Number(b.total_folio_amount).toFixed(2)}) — already paid ${alreadyPaid.toFixed(2)}.`,
-      };
-    }
+    // Deliberately no cap against the current folio total — a deposit is
+    // often taken up front for a stay that will grow (extended nights, room
+    // service, extra charges), so it can legitimately exceed today's folio.
 
     const { error } = await supabase.from("booking_advance_payments").insert({
       booking_id: bookingId,
