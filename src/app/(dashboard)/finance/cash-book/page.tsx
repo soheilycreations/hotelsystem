@@ -50,7 +50,7 @@ export default async function CashBookPage({
   // opening balance for `from` (everything before it nets into one number),
   // plus enough detail (guest name, bill number, category) to print a proper
   // ledger, not just daily totals.
-  const [{ data: checkouts }, { data: orders }, { data: expenses }, { data: movements }, { data: hotel }] =
+  const [{ data: checkouts }, { data: orders }, { data: expenses }, { data: movements }, { data: hotel }, { data: advances }] =
     await Promise.all([
       supabase
         .from("bookings")
@@ -77,6 +77,13 @@ export default async function CashBookPage({
         .order("date", { ascending: true })
         .order("created_at", { ascending: true }),
       supabase.from("hotel_settings").select("hotel_name").eq("id", 1).maybeSingle(),
+      // ALL advance payments (any method) up to `to` — needed so a
+      // checkout's cash-in isn't double-counted for whatever was already
+      // collected earlier, in cash or otherwise (see recordAdvancePayment).
+      supabase
+        .from("booking_advance_payments")
+        .select("booking_id, amount, payment_method, date, bookings(guest_name, rooms(room_number))")
+        .lte("date", toDate),
     ]);
 
   type CheckoutRow = {
@@ -99,11 +106,29 @@ export default async function CashBookPage({
     division: string;
     expense_categories: { name: string } | { name: string }[] | null;
   };
+  type AdvanceRoomRef = { room_number: string } | { room_number: string }[] | null;
+  type AdvanceBookingRef = { guest_name: string; rooms: AdvanceRoomRef } | { guest_name: string; rooms: AdvanceRoomRef }[] | null;
+  type AdvanceRow = {
+    booking_id: string;
+    amount: number;
+    payment_method: string;
+    date: string;
+    bookings: AdvanceBookingRef;
+  };
 
   const roomNumberOf = (r: CheckoutRow["rooms"]): string =>
     (Array.isArray(r) ? r[0]?.room_number : r?.room_number) ?? "—";
   const categoryNameOf = (c: ExpenseRow["expense_categories"]): string =>
     (Array.isArray(c) ? c[0]?.name : c?.name) ?? "Uncategorised";
+  const advanceBookingOf = (b: AdvanceBookingRef) => (Array.isArray(b) ? b[0] : b) ?? null;
+
+  // Every advance payment for a booking (any method) — subtracted from that
+  // booking's checkout-day cash-in below, so money already collected as an
+  // advance isn't counted again in full when the guest finally checks out.
+  const advanceTotalByBooking = new Map<string, number>();
+  for (const a of (advances ?? []) as AdvanceRow[]) {
+    advanceTotalByBooking.set(a.booking_id, (advanceTotalByBooking.get(a.booking_id) ?? 0) + Number(a.amount));
+  }
 
   // Build one transaction-level entry per cash event (undated running
   // balance added after sorting).
@@ -112,11 +137,23 @@ export default async function CashBookPage({
 
   for (const b of (checkouts ?? []) as CheckoutRow[]) {
     if (!b.actual_check_out) continue;
+    const balance = Number(b.total_folio_amount) - (advanceTotalByBooking.get(b.id) ?? 0);
+    if (balance <= 0) continue; // fully covered by advance(s) already counted on their own date
     raw.push({
       date: colomboDateKey(new Date(b.actual_check_out).getTime()),
       description: `Room ${roomNumberOf(b.rooms)} checkout — ${b.guest_name}`,
       direction: "in",
-      amount: Number(b.total_folio_amount),
+      amount: balance,
+    });
+  }
+  for (const a of (advances ?? []) as AdvanceRow[]) {
+    if (a.payment_method !== "cash") continue;
+    const booking = advanceBookingOf(a.bookings);
+    raw.push({
+      date: String(a.date).slice(0, 10),
+      description: `Advance payment — Room ${roomNumberOf(booking?.rooms ?? null)} — ${booking?.guest_name ?? "guest"}`,
+      direction: "in",
+      amount: Number(a.amount),
     });
   }
   for (const o of (orders ?? []) as OrderRow[]) {
@@ -223,8 +260,16 @@ export default async function CashBookPage({
   let roomServiceCashRevenue = 0;
   for (const b of checkoutsInRange) {
     const rs = roomServiceByBooking.get(b.id) ?? 0;
-    roomCashRevenue += Math.max(0, Number(b.total_folio_amount) - rs);
+    const advance = advanceTotalByBooking.get(b.id) ?? 0;
+    roomCashRevenue += Math.max(0, Number(b.total_folio_amount) - rs - advance);
     roomServiceCashRevenue += rs;
+  }
+  // Cash advances received in-range are Room money too — just collected
+  // ahead of checkout instead of on the checkout day itself.
+  for (const a of (advances ?? []) as AdvanceRow[]) {
+    if (a.payment_method !== "cash") continue;
+    const d = String(a.date).slice(0, 10);
+    if (d >= fromDate && d <= toDate) roomCashRevenue += Number(a.amount);
   }
 
   const ordersInRange = (orders ?? []).filter(

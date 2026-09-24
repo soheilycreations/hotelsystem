@@ -104,6 +104,7 @@ export interface Booking {
   updated_at: string;
   rooms?: Room; // joined
   booking_charges?: BookingCharge[]; // joined
+  booking_advance_payments?: BookingAdvancePayment[]; // joined
 }
 
 export interface Guest {
@@ -146,6 +147,17 @@ export interface BookingCharge {
   description: string;
   amount: number;
   created_by: string | null;
+  created_at: string;
+}
+
+export interface BookingAdvancePayment {
+  id: string;
+  booking_id: string;
+  amount: number;
+  payment_method: PaymentMethod;
+  date: string;
+  notes: string | null;
+  received_by: string | null;
   created_at: string;
 }
 

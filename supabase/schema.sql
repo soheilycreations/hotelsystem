@@ -312,6 +312,23 @@ create table public.booking_charges (
 );
 create index idx_booking_charges_booking on public.booking_charges (booking_id);
 
+-- 3.10c Advance payments — money a guest pays up front, before checkout.
+-- Kept separate from total_folio_amount: revenue is still recognised in
+-- full at checkout, but the cash itself is counted on the day it was
+-- actually received (see migration-036 for the full rationale).
+create table public.booking_advance_payments (
+  id             uuid primary key default gen_random_uuid(),
+  booking_id     uuid not null references public.bookings (id) on delete cascade,
+  amount         numeric(12,2) not null check (amount > 0),
+  payment_method payment_method not null default 'cash',
+  date           date not null default ((now() at time zone 'Asia/Colombo')::date),
+  notes          text,
+  received_by    uuid references public.staff_profiles (id),
+  created_at     timestamptz not null default now()
+);
+create index idx_booking_advance_payments_booking on public.booking_advance_payments (booking_id);
+create index idx_booking_advance_payments_date on public.booking_advance_payments (date);
+
 create or replace function public.tg_apply_booking_charge()
 returns trigger
 language plpgsql
@@ -1042,6 +1059,7 @@ alter table public.credit_adjustments      enable row level security;
 alter table public.hotel_settings         enable row level security;
 alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
+alter table public.booking_advance_payments enable row level security;
 alter table public.expenses               enable row level security;
 alter table public.system_logs            enable row level security;
 alter table public.purchases              enable row level security;
@@ -1105,6 +1123,9 @@ create policy "staff read rate plans" on public.room_rate_plans   for select usi
 create policy "mgmt write rate plans" on public.room_rate_plans   for all    using (public.get_my_role() in ('admin','manager')) with check (public.get_my_role() in ('admin','manager'));
 create policy "staff read charges"    on public.booking_charges   for select using (public.get_my_role() is not null);
 create policy "pms write charges"     on public.booking_charges   for all    using (public.get_my_role() in ('admin','manager','receptionist')) with check (public.get_my_role() in ('admin','manager','receptionist'));
+create policy "staff read advance payments" on public.booking_advance_payments for select using (public.get_my_role() is not null);
+create policy "pms write advance payments"  on public.booking_advance_payments for insert with check (public.get_my_role() in ('admin','manager','receptionist'));
+create policy "pms delete advance payments" on public.booking_advance_payments for delete using (public.get_my_role() in ('admin','manager','receptionist'));
 
 -- 9.5 Finance: admin/manager only
 create policy "finance read expenses" on public.expenses for select using (public.get_my_role() in ('admin','manager'));
@@ -1136,6 +1157,7 @@ create policy "staff read store transactions" on public.store_transactions for s
 alter publication supabase_realtime add table public.rooms;
 alter publication supabase_realtime add table public.bookings;
 alter publication supabase_realtime add table public.booking_charges;
+alter publication supabase_realtime add table public.booking_advance_payments;
 alter publication supabase_realtime add table public.room_rate_plans;
 alter publication supabase_realtime add table public.hotel_settings;
 alter publication supabase_realtime add table public.restaurant_tables;

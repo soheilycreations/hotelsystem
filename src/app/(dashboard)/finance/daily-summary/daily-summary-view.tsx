@@ -77,6 +77,7 @@ export function DailySummaryView({
   restaurantExpenses,
   creditSales,
   creditAccountBalances,
+  advancePaymentsToday,
   roomLedger,
   restaurantLedger,
   todayCashMovements,
@@ -97,6 +98,7 @@ export function DailySummaryView({
   restaurantExpenses: number;
   creditSales: { source: string; accountName: string; amount: number }[];
   creditAccountBalances: { accountName: string; balance: number }[];
+  advancePaymentsToday: { guestName: string; roomNumber: string; amount: number; paymentMethod: string }[];
   roomLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   restaurantLedger: { opening: number; todayIn: number; todayOut: number; closing: number };
   todayCashMovements: { direction: string; category: string; description: string | null; amount: number }[];
@@ -370,6 +372,32 @@ export function DailySummaryView({
           </Table>
         </CardContent>
       </Card>
+
+      {/* Advance payments — collected today, for a stay that may check out
+          much later. Already folded into the ledger/revenue numbers above;
+          this is just the "who paid what" detail. */}
+      {advancePaymentsToday.length > 0 && (
+        <Card>
+          <CardHeader>
+            <CardTitle className="text-base">{t("Advance payments received today")}</CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-2">
+            {advancePaymentsToday.map((a, i) => (
+              <div key={i} className="flex items-center justify-between gap-2 rounded-md border px-3 py-2 text-sm">
+                <span className="truncate">
+                  {t("Room")} {a.roomNumber} — {a.guestName}
+                </span>
+                <span className="shrink-0 tabular-nums font-medium">
+                  {formatLKR(a.amount)}{" "}
+                  <span className="text-xs text-muted-foreground">
+                    ({t(PAYMENT_LABEL[a.paymentMethod as PaymentMethod] ?? a.paymentMethod)})
+                  </span>
+                </span>
+              </div>
+            ))}
+          </CardContent>
+        </Card>
+      )}
 
       {/* Item sales */}
       <Card>

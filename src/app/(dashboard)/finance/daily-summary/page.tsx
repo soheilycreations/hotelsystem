@@ -25,7 +25,7 @@ export default async function DailySummaryPage({
 
   const supabase = await createClient();
 
-  const [{ data: hotel }, { data: checkouts }, { data: orders }, { data: expenses }] =
+  const [{ data: hotel }, { data: checkouts }, { data: orders }, { data: expenses }, { data: advancesToday }] =
     await Promise.all([
       supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),
       supabase
@@ -50,6 +50,13 @@ export default async function DailySummaryPage({
         .select("category_id, description, amount, payment_method, division, expense_categories(name)")
         .eq("date", date)
         .order("category_id"),
+      // Advance payments collected TODAY (regardless of whether that
+      // booking has checked out yet) — counted as cash-in-hand today, not
+      // deferred to checkout. See recordAdvancePayment for the rationale.
+      supabase
+        .from("booking_advance_payments")
+        .select("booking_id, amount, payment_method, bookings(guest_name, rooms(room_number))")
+        .eq("date", date),
     ]);
 
   // ----- Room & Restaurant Ledger (cash-only, carried forward day to day) -----
@@ -57,7 +64,7 @@ export default async function DailySummaryPage({
   // and evaluated for this one day: Inhand (everything before today, netted
   // into one opening figure) + today's cash in − today's cash out = balance,
   // which becomes tomorrow's Inhand automatically.
-  const [{ data: allCashCheckouts }, { data: allCashOrders }, { data: allCashExpenses }, { data: allCashMovements }] =
+  const [{ data: allCashCheckouts }, { data: allCashOrders }, { data: allCashExpenses }, { data: allCashMovements }, { data: allAdvances }] =
     await Promise.all([
       supabase
         .from("bookings")
@@ -83,7 +90,16 @@ export default async function DailySummaryPage({
       // Without this, real cash the Cash Book already counts (like a float
       // top-up) would silently disappear from this page's numbers.
       supabase.from("cash_movements").select("direction, category, description, amount, date").lte("date", date),
+      // ALL advance payments (any method) up to today — needed so a
+      // checkout's cash-in isn't double-counted for whatever was already
+      // collected earlier as an advance.
+      supabase.from("booking_advance_payments").select("booking_id, amount, payment_method, date").lte("date", date),
     ]);
+
+  const advanceTotalByBooking = new Map<string, number>();
+  for (const a of allAdvances ?? []) {
+    advanceTotalByBooking.set(a.booking_id, (advanceTotalByBooking.get(a.booking_id) ?? 0) + Number(a.amount));
+  }
 
   const allCheckoutIds = (allCashCheckouts ?? []).map((b) => b.id);
   const rsByBookingAllTime = new Map<string, number>();
@@ -110,7 +126,8 @@ export default async function DailySummaryPage({
   for (const b of allCashCheckouts ?? []) {
     if (!b.actual_check_out) continue;
     const rs = rsByBookingAllTime.get(b.id) ?? 0;
-    const roomPortion = Math.max(0, Number(b.total_folio_amount) - rs);
+    const advance = advanceTotalByBooking.get(b.id) ?? 0;
+    const roomPortion = Math.max(0, Number(b.total_folio_amount) - rs - advance);
     const checkoutDate = b.actual_check_out.slice(0, 10);
     if (checkoutDate === date) {
       roomTodayIn += roomPortion;
@@ -119,6 +136,15 @@ export default async function DailySummaryPage({
       roomOpening += roomPortion;
       restaurantOpening += rs;
     }
+  }
+  // Cash advances land in the Room ledger on the day they were actually
+  // collected — ahead of checkout, not deferred to it.
+  for (const a of allAdvances ?? []) {
+    if (a.payment_method !== "cash") continue;
+    const advanceDate = String(a.date).slice(0, 10);
+    const amount = Number(a.amount);
+    if (advanceDate === date) roomTodayIn += amount;
+    else if (advanceDate < date) roomOpening += amount;
   }
   for (const o of allCashOrders ?? []) {
     const orderDate = String(o.business_date).slice(0, 10);
@@ -190,10 +216,13 @@ export default async function DailySummaryPage({
     }
   }
 
+  // Amount here is the BALANCE actually collected at checkout today — any
+  // advance already paid earlier (see recordAdvancePayment) is netted out,
+  // since that cash was already counted on the day it was received.
   const roomSales = (checkouts ?? []).map((b) => {
     const amount = Math.max(
       0,
-      Number(b.total_folio_amount) - (rsByBooking[b.id] ?? 0)
+      Number(b.total_folio_amount) - (rsByBooking[b.id] ?? 0) - (advanceTotalByBooking.get(b.id) ?? 0)
     );
     const rooms = b.rooms as unknown as { room_number: string } | null;
     return {
@@ -206,8 +235,30 @@ export default async function DailySummaryPage({
   });
   const roomRevenueTotal = roomSales.reduce((sum, r) => sum + r.amount, 0);
 
+  type AdvanceTodayRoom = { room_number: string } | { room_number: string }[] | null;
+  type AdvanceTodayBooking = { guest_name: string; rooms: AdvanceTodayRoom } | { guest_name: string; rooms: AdvanceTodayRoom }[] | null;
+  const advanceBookingOf = (b: AdvanceTodayBooking) => (Array.isArray(b) ? b[0] : b) ?? null;
+  const advanceRoomOf = (r: AdvanceTodayRoom) => (Array.isArray(r) ? r[0]?.room_number : r?.room_number) ?? "—";
+
+  const advancePaymentsToday = ((advancesToday ?? []) as unknown as {
+    booking_id: string;
+    amount: number;
+    payment_method: string;
+    bookings: AdvanceTodayBooking;
+  }[]).map((a) => {
+    const booking = advanceBookingOf(a.bookings);
+    return {
+      guestName: booking?.guest_name ?? "Guest",
+      roomNumber: advanceRoomOf(booking?.rooms ?? null),
+      amount: Number(a.amount),
+      paymentMethod: a.payment_method,
+    };
+  });
+
   // Combined Room + POS revenue for the day, split by how the guest paid —
   // the quick "how much cash actually came in today" answer, at a glance.
+  // Advance payments count here too, under their own method, regardless of
+  // whether that booking checks out today or weeks from now.
   const revenueByMethod: Record<string, number> = {};
   for (const r of roomSales) {
     const method = r.paymentMethod;
@@ -216,6 +267,9 @@ export default async function DailySummaryPage({
   for (const o of orders ?? []) {
     const method = o.payment_method ?? "cash";
     revenueByMethod[method] = (revenueByMethod[method] ?? 0) + Number(o.total_amount);
+  }
+  for (const a of advancePaymentsToday) {
+    revenueByMethod[a.paymentMethod] = (revenueByMethod[a.paymentMethod] ?? 0) + a.amount;
   }
 
   const itemTotals = new Map<string, { qty: number; revenue: number }>();
@@ -349,6 +403,7 @@ export default async function DailySummaryPage({
       restaurantExpenses={restaurantExpenses}
       creditSales={creditSales}
       creditAccountBalances={creditAccountBalances}
+      advancePaymentsToday={advancePaymentsToday}
       roomLedger={roomLedger}
       todayCashMovements={todayCashMovements}
       restaurantLedger={restaurantLedger}
