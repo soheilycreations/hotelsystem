@@ -350,7 +350,7 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
     settleAfterDateConfirm({ ...order, business_date: today });
   }
 
-  const offTableOrders = orders.filter((o) => o.channel_type !== "dine_in");
+  const channelOrders = orders.filter((o) => o.channel_type === channel);
 
   return (
     <div className="grid gap-6 xl:grid-cols-5">
@@ -497,6 +497,44 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
             </p>
           </TabsContent>
         </Tabs>
+
+        {/* Active orders for the channel currently selected above — shown
+            right here (not buried below the whole menu grid) so switching
+            to e.g. Takeaway immediately shows what's already open on it. */}
+        {channel !== "dine_in" && channelOrders.length > 0 && (
+          <div className="space-y-1.5">
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">
+              Active {channel.replace("_", " ")} orders
+            </p>
+            <div className="grid gap-2 sm:grid-cols-2">
+              {channelOrders.map((o) => (
+                <button
+                  key={o.id}
+                  onClick={() => setSelectedOrderId(o.id)}
+                  className={cn(
+                    "flex items-center justify-between rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent",
+                    selectedOrderId === o.id && "ring-2 ring-ring"
+                  )}
+                >
+                  <div>
+                    <p className="font-medium">
+                      {o.order_number ? `#${formatOrderNumber(o.business_date, o.order_number)}` : "Not billed yet"}
+                    </p>
+                    <p className="text-xs text-muted-foreground">
+                      {o.event_name ?? o.bookings?.guest_name ?? o.customer_phone ?? "Walk-in"}
+                    </p>
+                  </div>
+                  <div className="text-right">
+                    <p className="font-semibold tabular-nums">{formatLKR(Number(o.total_amount))}</p>
+                    {o.delivery_status ? (
+                      <Badge variant="info" className="mt-1 capitalize">{o.delivery_status}</Badge>
+                    ) : null}
+                  </div>
+                </button>
+              ))}
+            </div>
+          </div>
+        )}
 
         {/* Search + categories — part of the sticky header, right above the
             (non-sticky) item grid so only the items scroll underneath. */}
@@ -677,42 +715,6 @@ export function PosTerminal({ tables, categories, menu, orders, guests, canVoid,
           </div>
         </div>
 
-        {/* Non-table active orders */}
-        {offTableOrders.length > 0 ? (
-          <div className="space-y-2">
-            <h2 className="text-sm font-semibold uppercase tracking-wider text-muted-foreground">
-              Active off-table orders
-            </h2>
-            <div className="grid gap-2 sm:grid-cols-2">
-              {offTableOrders.map((o) => (
-                <button
-                  key={o.id}
-                  onClick={() => setSelectedOrderId(o.id)}
-                  className={cn(
-                    "flex items-center justify-between rounded-lg border p-3 text-left text-sm transition-colors hover:bg-accent",
-                    selectedOrderId === o.id && "ring-2 ring-ring"
-                  )}
-                >
-                  <div>
-                    <p className="font-medium">
-                      {o.order_number ? `#${formatOrderNumber(o.business_date, o.order_number)}` : "Not billed yet"}{" "}
-                      · {o.channel_type.replace("_", " ")}
-                    </p>
-                    <p className="text-xs text-muted-foreground">
-                      {o.event_name ?? o.bookings?.guest_name ?? o.customer_phone ?? "Walk-in"}
-                    </p>
-                  </div>
-                  <div className="text-right">
-                    <p className="font-semibold tabular-nums">{formatLKR(Number(o.total_amount))}</p>
-                    {o.delivery_status ? (
-                      <Badge variant="info" className="mt-1 capitalize">{o.delivery_status}</Badge>
-                    ) : null}
-                  </div>
-                </button>
-              ))}
-            </div>
-          </div>
-        ) : null}
       </div>
 
       {/* RIGHT: order pad — everything needed to fire, print and settle a bill
