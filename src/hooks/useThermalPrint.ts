@@ -385,10 +385,107 @@ export async function buildEscPosReceipt({
   return new Uint8Array(bytes);
 }
 
+export interface CashierStatementLine {
+  label: string;
+  amount: number;
+}
+
+/** The restaurant cashier's simple end-of-day cash reconciliation — float
+ * (petty cash) + revenue, minus the non-cash portions and cash expenses,
+ * down to the cash that should physically be in the drawer. Matches the
+ * hotel's own paper-ledger format line for line. */
+export interface CashierStatementPayload {
+  hotelName?: string;
+  hotel?: HotelHeader;
+  date: string; // yyyy-mm-dd
+  pettyCash: number;
+  restaurantRevenue: number;
+  cardPayment: number;
+  bankTransfer: number; // only printed if > 0
+  creditBills: number;
+  cashExpenses: number;
+  creditBillLines: CashierStatementLine[];
+  advancePayments: (CashierStatementLine & { method: string })[];
+}
+
+function moneyC(value: number): string {
+  return value.toLocaleString("en-LK", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+export function buildCashierStatement(payload: CashierStatementPayload): Uint8Array {
+  const bytes: number[] = [];
+  bytes.push(ESC, 0x40); // initialize
+  bytes.push(ESC, 0x61, 0x01); // center
+  bytes.push(ESC, 0x21, 0x10); // emphasized
+  bytes.push(...encode(`${payload.hotel?.name ?? payload.hotelName ?? "SOHEILY PMS"}\n`));
+  bytes.push(ESC, 0x21, 0x00);
+  bytes.push(...encode("DAILY CASHIER REPORT\n"));
+  bytes.push(...encode(`${payload.date}\n\n`));
+  bytes.push(ESC, 0x61, 0x00); // left
+
+  let running = payload.pettyCash + payload.restaurantRevenue;
+  bytes.push(...row("Petty Cash", moneyC(payload.pettyCash)));
+  bytes.push(...row("Restaurant Revenue", moneyC(payload.restaurantRevenue)));
+  bytes.push(...line());
+  bytes.push(...row("Total", moneyC(running)));
+  bytes.push(...encode("\n"));
+
+  bytes.push(...row("Card Payment", `(${moneyC(payload.cardPayment)})`));
+  running -= payload.cardPayment;
+  bytes.push(...line());
+  bytes.push(...row("", moneyC(running)));
+
+  if (payload.bankTransfer > 0) {
+    bytes.push(...row("Bank Transfer", `(${moneyC(payload.bankTransfer)})`));
+    running -= payload.bankTransfer;
+    bytes.push(...line());
+    bytes.push(...row("", moneyC(running)));
+  }
+
+  bytes.push(...row("Credit Bills", `(${moneyC(payload.creditBills)})`));
+  running -= payload.creditBills;
+  bytes.push(...line());
+  bytes.push(...row("", moneyC(running)));
+
+  bytes.push(...row("Expenses (Cash)", `(${moneyC(payload.cashExpenses)})`));
+  running -= payload.cashExpenses;
+  bytes.push(...line());
+
+  bytes.push(ESC, 0x21, 0x10); // emphasized
+  bytes.push(...row("Cash Balance Today", moneyC(running)));
+  bytes.push(ESC, 0x21, 0x00);
+  bytes.push(...line("="));
+
+  if (payload.creditBillLines.length > 0) {
+    bytes.push(...encode("\n"));
+    bytes.push(...line());
+    bytes.push(ESC, 0x61, 0x01);
+    bytes.push(...encode("Credit Bills\n"));
+    bytes.push(ESC, 0x61, 0x00);
+    bytes.push(...line());
+    for (const l of payload.creditBillLines) bytes.push(...row(l.label, moneyC(l.amount)));
+  }
+
+  if (payload.advancePayments.length > 0) {
+    bytes.push(...encode("\n"));
+    bytes.push(...line());
+    bytes.push(ESC, 0x61, 0x01);
+    bytes.push(...encode("Advance Payments\n"));
+    bytes.push(ESC, 0x61, 0x00);
+    bytes.push(...line());
+    for (const a of payload.advancePayments) bytes.push(...row(`${a.label} (${a.method})`, moneyC(a.amount)));
+  }
+
+  bytes.push(...encode("\n"));
+  bytes.push(GS, 0x56, 0x42, 0x10); // partial cut with feed
+  return new Uint8Array(bytes);
+}
+
 interface UseThermalPrintResult {
   print: (payload: ReceiptPayload) => Promise<boolean>;
   printKot: (payload: KotPayload) => Promise<boolean>;
   printFolio: (payload: FolioPayload) => Promise<boolean>;
+  printStatement: (payload: CashierStatementPayload) => Promise<boolean>;
   printing: boolean;
   error: string | null;
 }
@@ -455,7 +552,12 @@ export function useThermalPrint(): UseThermalPrintResult {
     [spool]
   );
 
-  return { print, printKot, printFolio, printing, error };
+  const printStatement = useCallback(
+    (payload: CashierStatementPayload) => spool(buildCashierStatement(payload)),
+    [spool]
+  );
+
+  return { print, printKot, printFolio, printStatement, printing, error };
 }
 
 // Minimal WebUSB typing (kept local to avoid a global lib dependency)

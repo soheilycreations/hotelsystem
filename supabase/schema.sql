@@ -329,6 +329,23 @@ create table public.booking_advance_payments (
 create index idx_booking_advance_payments_booking on public.booking_advance_payments (booking_id);
 create index idx_booking_advance_payments_date on public.booking_advance_payments (date);
 
+-- 3.10d Cashier float ("petty cash") — the restaurant cashier's starting
+-- cash for the day, entered once at shift-open. Its own tiny table, NOT a
+-- cash_movements row, since the float is the same fixed amount handed
+-- over shift to shift, not new money — feeding it into the accumulating
+-- Cash Book/Daily Summary ledgers would make the running balance grow by
+-- the float amount every single day, which is wrong. Used only by the
+-- Simple Report (finance/simple-report).
+create table public.cashier_float (
+  id         uuid primary key default gen_random_uuid(),
+  date       date not null unique default ((now() at time zone 'Asia/Colombo')::date),
+  amount     numeric(12,2) not null default 0 check (amount >= 0),
+  set_by     uuid references public.staff_profiles (id),
+  created_at timestamptz not null default now(),
+  updated_at timestamptz not null default now()
+);
+create index idx_cashier_float_date on public.cashier_float (date);
+
 create or replace function public.tg_apply_booking_charge()
 returns trigger
 language plpgsql
@@ -1060,6 +1077,7 @@ alter table public.hotel_settings         enable row level security;
 alter table public.room_rate_plans        enable row level security;
 alter table public.booking_charges        enable row level security;
 alter table public.booking_advance_payments enable row level security;
+alter table public.cashier_float          enable row level security;
 alter table public.expenses               enable row level security;
 alter table public.system_logs            enable row level security;
 alter table public.purchases              enable row level security;
@@ -1126,6 +1144,9 @@ create policy "pms write charges"     on public.booking_charges   for all    usi
 create policy "staff read advance payments" on public.booking_advance_payments for select using (public.get_my_role() is not null);
 create policy "pms write advance payments"  on public.booking_advance_payments for insert with check (public.get_my_role() in ('admin','manager','receptionist'));
 create policy "pms delete advance payments" on public.booking_advance_payments for delete using (public.get_my_role() in ('admin','manager','receptionist'));
+create policy "staff read cashier float" on public.cashier_float for select using (public.get_my_role() is not null);
+create policy "cashier write float"      on public.cashier_float for insert with check (public.get_my_role() in ('admin','manager','cashier'));
+create policy "cashier update float"     on public.cashier_float for update using (public.get_my_role() in ('admin','manager','cashier')) with check (public.get_my_role() in ('admin','manager','cashier'));
 
 -- 9.5 Finance: admin/manager only
 create policy "finance read expenses" on public.expenses for select using (public.get_my_role() in ('admin','manager'));
@@ -1158,6 +1179,7 @@ alter publication supabase_realtime add table public.rooms;
 alter publication supabase_realtime add table public.bookings;
 alter publication supabase_realtime add table public.booking_charges;
 alter publication supabase_realtime add table public.booking_advance_payments;
+alter publication supabase_realtime add table public.cashier_float;
 alter publication supabase_realtime add table public.room_rate_plans;
 alter publication supabase_realtime add table public.hotel_settings;
 alter publication supabase_realtime add table public.restaurant_tables;

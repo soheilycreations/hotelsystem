@@ -435,6 +435,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/finance/expenses": ["admin", "manager"],
   "/finance/reports": ["admin", "manager"],
   "/finance/daily-summary": ["admin", "manager"],
+  "/finance/simple-report": ["admin", "manager", "cashier"],
   "/finance/bills": ["admin", "manager"],
   "/finance/cash-book": ["admin", "manager"],
   "/finance/credit-accounts": ["admin", "manager", "receptionist", "cashier"],
