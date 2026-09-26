@@ -569,3 +569,31 @@ export async function addBookingCharge(
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }
 }
+
+/**
+ * Move a room-service bill that was charged to the wrong room onto another
+ * in-house guest. The RPC re-points the order and, if it's already settled,
+ * shifts its amount between the two folios in one transaction.
+ */
+export async function moveRoomServiceOrder(
+  orderId: string,
+  targetBookingId: string
+): Promise<ActionResult> {
+  try {
+    await assertPmsRole();
+    const supabase = await createClient();
+    const { error } = await supabase.rpc("rpc_move_room_service_order", {
+      p_order_id: orderId,
+      p_target_booking_id: targetBookingId,
+    });
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePath("/pms/reserve");
+    revalidatePath("/pms/rooms");
+    revalidatePath("/pos/billing");
+    revalidatePath("/finance/bills");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}

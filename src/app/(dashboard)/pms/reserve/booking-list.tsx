@@ -2,6 +2,7 @@
 
 import { useEffect, useState, useTransition } from "react";
 import {
+  ArrowRightLeft,
   BadgePlus,
   Clock,
   DoorOpen,
@@ -22,6 +23,7 @@ import {
   addBookingCharge,
   extendOvernightStay,
   extendShortStay,
+  moveRoomServiceOrder,
   recordAdvancePayment,
   setBookingStatus,
   shortenOvernightStay,
@@ -114,6 +116,7 @@ export function BookingList({
   const [charging, setCharging] = useState<Booking | null>(null);
   const [advancing, setAdvancing] = useState<Booking | null>(null);
   const [checkingOut, setCheckingOut] = useState<Booking | null>(null);
+  const [moving, setMoving] = useState<Booking | null>(null);
   const [, startTransition] = useTransition();
   const [busyId, setBusyId] = useState<string | null>(null);
   const { printFolio, printing, error: printError } = useThermalPrint();
@@ -330,6 +333,18 @@ export function BookingList({
                     <Button size="sm" variant="outline" onClick={() => setAdvancing(b)}>
                       <Wallet /> Advance payment
                     </Button>
+                    {(serviceOrdersByBooking[b.id] ?? []).length +
+                      (pendingServiceByBooking[b.id] ?? []).length >
+                      0 && (
+                      <Button
+                        size="sm"
+                        variant="outline"
+                        onClick={() => setMoving(b)}
+                        title="Room-service bill charged to the wrong room? Move it to the right guest."
+                      >
+                        <ArrowRightLeft /> Move RS bill
+                      </Button>
+                    )}
                     <Button
                       size="sm"
                       variant="outline"
@@ -427,6 +442,24 @@ export function BookingList({
             booking={advancing}
             onDone={(msg) => {
               setAdvancing(null);
+              setNotice(msg);
+            }}
+          />
+        )}
+      </Dialog>
+
+      {/* Move a room-service bill to another room */}
+      <Dialog open={moving !== null} onOpenChange={(open) => !open && setMoving(null)}>
+        {moving && (
+          <MoveServiceOrderDialog
+            booking={moving}
+            orders={[
+              ...(serviceOrdersByBooking[moving.id] ?? []).map((o) => ({ ...o, settled: true })),
+              ...(pendingServiceByBooking[moving.id] ?? []).map((o) => ({ ...o, settled: false })),
+            ]}
+            targets={bookings.filter((t) => t.id !== moving.id)}
+            onDone={(msg) => {
+              setMoving(null);
               setNotice(msg);
             }}
           />
@@ -572,6 +605,94 @@ function ShortenDialog({ booking, onDone }: { booking: Booking; onDone: (msg: st
         <Button onClick={submit} disabled={pending} variant="destructive">
           <Clock className="mr-2 h-4 w-4 rotate-180" />
           {pending ? "Shortening…" : "Shorten stay"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
+  );
+}
+
+function MoveServiceOrderDialog({
+  booking,
+  orders,
+  targets,
+  onDone,
+}: {
+  booking: Booking;
+  orders: (ServiceOrderDetail & { settled: boolean })[];
+  targets: Booking[];
+  onDone: (msg: string) => void;
+}) {
+  const [orderId, setOrderId] = useState(orders[0]?.id ?? "");
+  const [targetId, setTargetId] = useState(targets[0]?.id ?? "");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  const order = orders.find((o) => o.id === orderId);
+  const target = targets.find((t) => t.id === targetId);
+
+  function submit() {
+    if (!order || !target) return;
+    setError(null);
+    startTransition(async () => {
+      const res = await moveRoomServiceOrder(order.id, target.id);
+      if (res.ok)
+        onDone(
+          `Room-service bill ${order.orderNumber != null ? `#${order.orderNumber} ` : ""}(${formatLKR(order.amount)}) moved from room ${
+            booking.rooms?.room_number ?? "—"
+          } to room ${target.rooms?.room_number ?? "—"} (${target.guest_name}).`
+        );
+      else setError(res.error ?? "Could not move the bill.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Move room-service bill — Room {booking.rooms?.room_number ?? "—"}</DialogTitle>
+        <DialogDescription>
+          Charged to the wrong room? Move it to the right guest. A settled bill&apos;s amount comes off{" "}
+          {booking.guest_name}&apos;s folio and goes onto the new guest&apos;s folio.
+        </DialogDescription>
+      </DialogHeader>
+      <div className="grid gap-4 py-2">
+        <div className="space-y-1.5">
+          <Label htmlFor="mv-order">Bill</Label>
+          <Select id="mv-order" value={orderId} onChange={(e) => setOrderId(e.target.value)}>
+            {orders.map((o) => (
+              <option key={o.id} value={o.id}>
+                {o.orderNumber != null ? `#${o.orderNumber}` : "(no number)"} · {formatDate(o.businessDate)} ·{" "}
+                {formatLKR(o.amount)}
+                {o.settled ? "" : " · not settled"}
+              </option>
+            ))}
+          </Select>
+          {order && order.items.length > 0 && (
+            <p className="text-xs text-muted-foreground">
+              {order.items.map((it) => `${it.quantity}× ${it.name}`).join(", ")}
+            </p>
+          )}
+        </div>
+        <div className="space-y-1.5">
+          <Label htmlFor="mv-target">Move to</Label>
+          {targets.length === 0 ? (
+            <p className="text-sm text-muted-foreground">No other in-house or pending guests to move it to.</p>
+          ) : (
+            <Select id="mv-target" value={targetId} onChange={(e) => setTargetId(e.target.value)}>
+              {targets.map((t) => (
+                <option key={t.id} value={t.id}>
+                  Room {t.rooms?.room_number ?? "—"} · {t.guest_name}
+                  {t.status === "pending" ? " (pending)" : ""}
+                </option>
+              ))}
+            </Select>
+          )}
+        </div>
+        {error && <p className="text-sm text-destructive">{error}</p>}
+      </div>
+      <DialogFooter>
+        <Button onClick={submit} disabled={pending || !order || !target}>
+          <ArrowRightLeft className="mr-2 h-4 w-4" />
+          {pending ? "Moving…" : "Move bill"}
         </Button>
       </DialogFooter>
     </DialogContent>
