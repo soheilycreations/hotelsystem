@@ -33,6 +33,7 @@ import {
 } from "lucide-react";
 import { canAccess, type StaffProfile } from "@/lib/types";
 import { cn } from "@/lib/utils";
+import { useActiveOrderCount } from "@/hooks/useActiveOrderCount";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
 import { ThemeToggle } from "@/components/theme-toggle";
@@ -91,6 +92,7 @@ export function AppSidebar({
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const { t } = useLanguage();
+  const activeOrderCount = useActiveOrderCount();
 
   const visible = NAV_ITEMS.filter((item) => canAccess(profile.role, item.href));
   const groups = Array.from(new Set(visible.map((i) => i.group)));
@@ -127,7 +129,15 @@ export function AppSidebar({
                         : "text-muted-foreground hover:bg-accent hover:text-accent-foreground"
                     )}
                   >
-                    <item.icon className="h-4 w-4 shrink-0" />
+                    <span className="relative shrink-0">
+                      <item.icon className="h-4 w-4" />
+                      {item.href === "/pos/active" && activeOrderCount > 0 && (
+                        <span
+                          className="absolute -right-1 -top-1 h-2 w-2 rounded-full bg-red-500 ring-2 ring-background"
+                          title={`${activeOrderCount} open bill${activeOrderCount > 1 ? "s" : ""}`}
+                        />
+                      )}
+                    </span>
                     <span
                       className={cn(
                         "whitespace-nowrap transition-opacity duration-150",
