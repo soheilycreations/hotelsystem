@@ -312,6 +312,35 @@ export async function updateSettledBookingCharge(
   }
 }
 
+/** Undoes an accidental checkout — puts the booking back to "checked_in"
+ * (room flips back to occupied via the housekeeping trigger), and clears
+ * the checkout-only fields (actual_check_out, payment_method,
+ * credit_account_id) since nothing was really settled. Deliberately leaves
+ * actual_check_in untouched — the guest never actually left. */
+export async function reopenCheckedOutBooking(bookingId: string): Promise<ActionResult> {
+  try {
+    await assertAdmin();
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("bookings")
+      .update({
+        status: "checked_in",
+        actual_check_out: null,
+        payment_method: null,
+        credit_account_id: null,
+      })
+      .eq("id", bookingId)
+      .eq("status", "checked_out"); // guard: only ever reopen an actually-checked-out booking
+    if (error) return { ok: false, error: error.message };
+
+    revalidateAll();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
 export async function deleteSettledBookingCharge(chargeId: string): Promise<ActionResult> {
   try {
     await assertAdmin();

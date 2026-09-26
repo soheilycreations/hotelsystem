@@ -2,7 +2,7 @@
 
 import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
-import { BedDouble, CalendarRange, Loader2, Pencil, Plus, Trash2, UtensilsCrossed } from "lucide-react";
+import { BedDouble, CalendarRange, Loader2, Pencil, Plus, RotateCcw, Trash2, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent } from "@/components/ui/card";
@@ -34,6 +34,7 @@ import {
   addSettledOrderItemFromMenu,
   deleteSettledBookingCharge,
   deleteSettledOrderItem,
+  reopenCheckedOutBooking,
   updateSettledBooking,
   updateSettledBookingCharge,
   updateSettledOrder,
@@ -101,6 +102,7 @@ export function SettledRecordsView({
   const [tab, setTab] = useState<"bills" | "bookings">("bills");
   const [editingOrder, setEditingOrder] = useState<SettledOrderRow | null>(null);
   const [editingBooking, setEditingBooking] = useState<SettledBookingRow | null>(null);
+  const [reopening, setReopening] = useState<SettledBookingRow | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
 
   return (
@@ -192,9 +194,20 @@ export function SettledRecordsView({
                     </TableCell>
                     <TableCell className="text-right tabular-nums">{formatLKR(b.total_folio_amount)}</TableCell>
                     <TableCell>
-                      <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingBooking(b)}>
-                        <Pencil className="h-3.5 w-3.5" />
-                      </Button>
+                      <div className="flex justify-end gap-1">
+                        <Button
+                          size="icon"
+                          variant="ghost"
+                          className="h-8 w-8"
+                          title="Undo checkout — put the guest back in house"
+                          onClick={() => setReopening(b)}
+                        >
+                          <RotateCcw className="h-3.5 w-3.5" />
+                        </Button>
+                        <Button size="icon" variant="ghost" className="h-8 w-8" onClick={() => setEditingBooking(b)}>
+                          <Pencil className="h-3.5 w-3.5" />
+                        </Button>
+                      </div>
                     </TableCell>
                   </TableRow>
                 ))}
@@ -237,7 +250,60 @@ export function SettledRecordsView({
           />
         )}
       </Dialog>
+
+      <Dialog open={reopening !== null} onOpenChange={(open) => !open && setReopening(null)}>
+        {reopening && (
+          <ReopenBookingDialog
+            booking={reopening}
+            onDone={(msg) => {
+              setReopening(null);
+              setFeedback(msg);
+            }}
+          />
+        )}
+      </Dialog>
     </div>
+  );
+}
+
+function ReopenBookingDialog({
+  booking,
+  onDone,
+}: {
+  booking: SettledBookingRow;
+  onDone: (msg: string) => void;
+}) {
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function submit() {
+    startTransition(async () => {
+      const res = await reopenCheckedOutBooking(booking.id);
+      if (res.ok) onDone(`${booking.guest_name} (Room ${booking.room_number}) is back in house — checkout undone.`);
+      else setError(res.error ?? "Could not undo the checkout.");
+    });
+  }
+
+  return (
+    <DialogContent>
+      <DialogHeader>
+        <DialogTitle>Undo checkout — {booking.guest_name}</DialogTitle>
+        <DialogDescription>
+          For a booking checked out by mistake while the guest is still in the room. Puts Room{" "}
+          {booking.room_number} back to <span className="font-medium">Occupied</span> and the
+          booking back to <span className="font-medium">In house</span> — clears the payment
+          method so checkout can be redone properly later. The original check-in time isn&apos;t
+          touched.
+        </DialogDescription>
+      </DialogHeader>
+      {error && <p className="text-sm text-destructive">{error}</p>}
+      <DialogFooter>
+        <Button onClick={submit} disabled={pending}>
+          <RotateCcw className="mr-2 h-4 w-4" />
+          {pending ? "Undoing…" : "Undo checkout"}
+        </Button>
+      </DialogFooter>
+    </DialogContent>
   );
 }
 
