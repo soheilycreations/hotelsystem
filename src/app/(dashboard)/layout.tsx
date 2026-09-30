@@ -17,13 +17,14 @@ export default async function DashboardLayout({ children }: { children: React.Re
   const settings = (hotel as HotelSettings | null) ?? null;
 
   return (
-    <div className="min-h-dvh">
+    <div className="min-h-dvh bg-rw-page">
       <AppSidebar
         profile={profile}
         hotelName={settings?.hotel_name ?? "Soheily PMS"}
         logoUrl={settings?.logo_url ?? null}
       />
-      <div className="md:pl-20">
+      {/* Offsets match the sidebar: icon rail (76px) on tablet, full 248px on desktop */}
+      <div className="md:pl-[76px] lg:pl-[248px]">
         <RouteGuard role={profile.role}>
           <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 xl:p-8">{children}</main>
         </RouteGuard>

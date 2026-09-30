@@ -61,6 +61,40 @@
   }
 }
 
+/* Rawana owner-console design tokens (sidebar + Overview). Stored as RGB
+   channels so Tailwind opacity modifiers (bg-rw-lime/20) work. The sidebar,
+   hero card and lime accent are fixed brand colours in both themes; page,
+   card and text tokens get a deep-green variant in dark mode. */
+@layer base {
+  :root {
+    --rw-sidebar: 15 61 46; /* #0F3D2E */
+    --rw-sidebar-text: 213 227 219; /* #D5E3DB */
+    --rw-hero: 15 61 46; /* #0F3D2E */
+    --rw-lime: 181 229 80; /* #B5E550 */
+    --rw-on-lime: 15 61 46; /* #0F3D2E — always the text colour on lime */
+    --rw-green: 31 107 74; /* #1F6B4A */
+    --rw-page: 244 246 242; /* #F4F6F2 */
+    --rw-card: 255 255 255; /* #FFFFFF */
+    --rw-border: 230 234 228; /* #E6EAE4 */
+    --rw-soft: 240 243 238; /* tile / pill fill */
+    --rw-ink: 20 35 28; /* #14231C */
+    --rw-muted: 94 107 100; /* #5E6B64 */
+    --rw-chart-rev: 15 61 46; /* #0F3D2E */
+    --rw-chart-exp: 181 229 80; /* #B5E550 */
+  }
+
+  .dark {
+    --rw-page: 9 20 15;
+    --rw-card: 16 32 25;
+    --rw-border: 32 52 42;
+    --rw-soft: 24 44 35;
+    --rw-ink: 232 240 234;
+    --rw-muted: 147 165 155;
+    --rw-green: 111 191 145;
+    --rw-chart-rev: 111 191 145;
+  }
+}
+
 @layer base {
   * {
     @apply border-border;

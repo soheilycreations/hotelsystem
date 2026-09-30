@@ -1,50 +1,13 @@
-import Link from "next/link";
-import {
-  AlertTriangle,
-  ArrowRight,
-  BadgeDollarSign,
-  BedDouble,
-  ChefHat,
-  CircleAlert,
-  DoorOpen,
-  LogIn,
-  ReceiptText,
-  TrendingUp,
-  UtensilsCrossed,
-  Wallet,
-} from "lucide-react";
+import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { colomboDateKey, colomboDaysAgo, colomboToday } from "@/lib/colombo-date";
-import { formatLKR, formatDateTime, formatOrderNumber } from "@/lib/utils";
+import { formatDateTime, formatOrderNumber } from "@/lib/utils";
 import type { Booking, ChannelType, Expense, Room } from "@/lib/types";
-import { StatCard } from "@/components/stat-card";
-import { Badge } from "@/components/ui/badge";
-import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { RevenueChart } from "./revenue-chart";
 import { LiveRefresher } from "./live-refresher";
+import { OverviewView, type ActivityItem, type ActivityKind, type OverviewData } from "./overview-view";
+import { OverviewSkeleton } from "./overview-skeleton";
 
 export const dynamic = "force-dynamic";
-
-type ActivityKind = "check_in" | "check_out" | "bill" | "expense" | "housekeeping" | "low_stock" | "system";
-
-interface ActivityItem {
-  kind: ActivityKind;
-  message: string;
-  at: string;
-}
-
-const ACTIVITY_META: Record<
-  ActivityKind,
-  { label: string; variant: "info" | "success" | "warning" | "danger" | "secondary" }
-> = {
-  check_in: { label: "CHECK-IN", variant: "info" },
-  check_out: { label: "CHECK-OUT", variant: "secondary" },
-  bill: { label: "BILL", variant: "success" },
-  expense: { label: "EXPENSE", variant: "warning" },
-  housekeeping: { label: "HOUSEKEEPING", variant: "warning" },
-  low_stock: { label: "LOW STOCK", variant: "danger" },
-  system: { label: "SYSTEM", variant: "secondary" },
-};
 
 function activityKindForLog(eventType: string): ActivityKind {
   if (eventType === "HOUSEKEEPING") return "housekeeping";
@@ -52,7 +15,30 @@ function activityKindForLog(eventType: string): ActivityKind {
   return "system"; // FOLIO_POST, stock_adjustment, and anything else
 }
 
-export default async function OverviewPage() {
+/** "30 Sept" style label for a Colombo YYYY-MM-DD key. */
+function dayLabel(key: string, withYear = false): string {
+  return new Date(`${key}T00:00:00Z`).toLocaleDateString("en-GB", {
+    day: "numeric",
+    month: "short",
+    ...(withYear ? { year: "numeric" } : {}),
+    timeZone: "UTC",
+  });
+}
+
+export default function OverviewPage() {
+  return (
+    <>
+      <LiveRefresher
+        tables={["restaurant_orders", "rooms", "system_logs", "bookings", "expenses", "inventory_items"]}
+      />
+      <Suspense fallback={<OverviewSkeleton />}>
+        <OverviewContent />
+      </Suspense>
+    </>
+  );
+}
+
+async function OverviewContent() {
   const supabase = await createClient();
   const today = colomboToday();
   const sinceDate = colomboDaysAgo(13);
@@ -128,7 +114,8 @@ export default async function OverviewPage() {
   const posRevenue = completed.reduce((sum, o) => sum + Number(o.total_amount), 0);
   const activeOrders = orders.filter((o) => o.order_status === "active").length;
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
-  const openFolios = (folioRes.data ?? []).reduce((sum, b) => sum + Number(b.total_folio_amount), 0);
+  const folioRows = folioRes.data ?? [];
+  const openFolios = folioRows.reduce((sum, b) => sum + Number(b.total_folio_amount), 0);
 
   // Room revenue for the chart — room-service orders are counted in POS
   // revenue AND posted onto folios by Trigger B, so subtract them per
@@ -212,6 +199,26 @@ export default async function OverviewPage() {
   }[];
   const lowStockItems = inventory.filter((i) => Number(i.quantity_in_stock) < Number(i.reorder_level));
 
+  // Channel mix (14 days) — same split as before: historical banquet
+  // backfills are shown separately rather than under "banquet".
+  const channels = (["dine_in", "room_service", "takeaway", "delivery", "banquet"] as ChannelType[]).map(
+    (channel) => {
+      const channelOrders = completed.filter(
+        (o) => o.channel_type === channel && !(channel === "banquet" && o.is_historical)
+      );
+      return {
+        channel,
+        value: channelOrders.reduce((s, o) => s + Number(o.total_amount), 0),
+        count: channelOrders.length,
+      };
+    }
+  );
+  const historicalOrders = completed.filter((o) => o.is_historical);
+  const historical = {
+    value: historicalOrders.reduce((s, o) => s + Number(o.total_amount), 0),
+    count: historicalOrders.length,
+  };
+
   // Unified activity feed — merge check-ins/outs, settled bills, expenses and
   // system alerts into one timeline, most recent first, top 10.
   const recentBookings = (recentBookingsRes.data ?? []) as {
@@ -221,244 +228,81 @@ export default async function OverviewPage() {
     status: string;
   }[];
 
-  const activity: ActivityItem[] = [];
+  const activity: (ActivityItem & { sortAt: string })[] = [];
   for (const b of recentBookings) {
     if (b.actual_check_in) {
-      activity.push({ kind: "check_in", message: `${b.guest_name} checked in.`, at: b.actual_check_in });
+      activity.push({ kind: "check_in", name: b.guest_name, sortAt: b.actual_check_in, at: "" });
     }
     if (b.actual_check_out) {
-      activity.push({ kind: "check_out", message: `${b.guest_name} checked out.`, at: b.actual_check_out });
+      activity.push({ kind: "check_out", name: b.guest_name, sortAt: b.actual_check_out, at: "" });
     }
   }
   for (const o of completed) {
     activity.push({
       kind: "bill",
-      message: `Bill #${formatOrderNumber(o.business_date, o.order_number)} settled — ${formatLKR(Number(o.total_amount))} (${o.channel_type.replace("_", " ")}).`,
-      at: o.business_date,
+      name: formatOrderNumber(o.business_date, o.order_number),
+      channel: o.channel_type,
+      amount: Number(o.total_amount),
+      sortAt: o.business_date,
+      at: "",
     });
   }
   for (const e of expenses) {
     activity.push({
       kind: "expense",
-      message: `Expense logged — ${formatLKR(Number(e.amount))} (${
+      name:
         (Array.isArray(e.expense_categories) ? e.expense_categories[0]?.name : e.expense_categories?.name) ??
-        "Uncategorised"
-      }${e.description ? `: ${e.description}` : ""}).`,
-      at: e.created_at,
+        "Uncategorised",
+      detail: e.description || undefined,
+      amount: Number(e.amount),
+      sortAt: e.created_at,
+      at: "",
     });
   }
   for (const log of (logsRes.data ?? []) as { event_type: string; message: string; created_at: string }[]) {
     activity.push({
       kind: activityKindForLog(log.event_type),
-      message: log.message,
-      at: log.created_at,
+      name: log.message,
+      sortAt: log.created_at,
+      at: "",
     });
   }
-  activity.sort((a, b) => new Date(b.at).getTime() - new Date(a.at).getTime());
-  const recentActivity = activity.slice(0, 10);
+  activity.sort((a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime());
+  const recentActivity: ActivityItem[] = activity
+    .slice(0, 10)
+    .map(({ sortAt, ...item }) => ({ ...item, at: formatDateTime(sortAt) }));
 
-  return (
-    <div className="space-y-6">
-      <LiveRefresher
-        tables={["restaurant_orders", "rooms", "system_logs", "bookings", "expenses", "inventory_items"]}
-      />
+  // Greeting follows the Colombo clock, not the server's.
+  const colomboHour = new Date(Date.now() + 5.5 * 3600 * 1000).getUTCHours();
+  const greeting: OverviewData["greeting"] =
+    colomboHour < 12 ? "morning" : colomboHour < 17 ? "afternoon" : "evening";
 
-      <div>
-        <h1 className="text-2xl font-semibold tracking-tight">Overview</h1>
-        <p className="text-sm text-muted-foreground">
-          Property, restaurant and finance at a glance — last 14 days.
-        </p>
-      </div>
+  const data: OverviewData = {
+    greeting,
+    todayLabel: dayLabel(today),
+    rangeLabel: `${dayLabel(sinceDate)} – ${dayLabel(today, true)}`,
+    todayRevenue,
+    revenueDelta,
+    posRevenue,
+    roomRevenue: roomRevenue14d,
+    totalExpenses,
+    openFolios,
+    openFolioCount: folioRows.length,
+    settledBillCount: completed.length,
+    todayCheckIns,
+    todayCheckOuts,
+    occupied,
+    vacant: rooms.filter((r) => r.status === "vacant").length,
+    totalRooms: rooms.length,
+    occupancyPct,
+    activeOrders,
+    kotPendingCount,
+    lowStockCount: lowStockItems.length,
+    days,
+    channels,
+    historical,
+    activity: recentActivity,
+  };
 
-      <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-4">
-        <StatCard
-          title="Occupancy"
-          value={`${occupancyPct}%`}
-          hint={`${occupied} of ${rooms.length} rooms occupied`}
-          icon={BedDouble}
-        />
-        <StatCard
-          title="Restaurant / POS (14d)"
-          value={formatLKR(posRevenue)}
-          hint={`${completed.length} settled bills · Rooms: ${formatLKR(roomRevenue14d)}`}
-          icon={TrendingUp}
-        />
-        <StatCard
-          title="Active orders"
-          value={String(activeOrders)}
-          hint="Currently in the kitchen"
-          icon={UtensilsCrossed}
-        />
-        <StatCard
-          title="Expenses (14d)"
-          value={formatLKR(totalExpenses)}
-          hint={`Open guest folios: ${formatLKR(openFolios)}`}
-          icon={Wallet}
-        />
-      </div>
-
-      {/* Today's snapshot */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Today&apos;s snapshot</CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
-          <div className="flex items-center gap-3 rounded-lg border p-3">
-            <LogIn className="h-5 w-5 text-emerald-500" />
-            <div>
-              <p className="text-lg font-semibold tabular-nums">{todayCheckIns}</p>
-              <p className="text-xs text-muted-foreground">Check-ins today</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg border p-3">
-            <DoorOpen className="h-5 w-5 text-sky-500" />
-            <div>
-              <p className="text-lg font-semibold tabular-nums">{todayCheckOuts}</p>
-              <p className="text-xs text-muted-foreground">Check-outs today</p>
-            </div>
-          </div>
-          <div className="flex items-center gap-3 rounded-lg border p-3">
-            <BadgeDollarSign className="h-5 w-5 text-emerald-500" />
-            <div>
-              <p className="text-lg font-semibold tabular-nums">{formatLKR(todayRevenue)}</p>
-              <p className={`text-xs ${revenueDelta >= 0 ? "text-emerald-500" : "text-red-500"}`}>
-                {revenueDelta >= 0 ? "+" : ""}
-                {formatLKR(revenueDelta)} vs yesterday
-              </p>
-            </div>
-          </div>
-          <Link
-            href="/finance/daily-summary"
-            className="flex items-center justify-between gap-2 rounded-lg border p-3 transition-colors hover:bg-accent"
-          >
-            <span className="text-sm font-medium">Open Daily Summary</span>
-            <ArrowRight className="h-4 w-4 text-muted-foreground" />
-          </Link>
-        </CardContent>
-      </Card>
-
-      <div className="grid gap-4 lg:grid-cols-3">
-        <Card className="lg:col-span-2">
-          <CardHeader>
-            <CardTitle>Total revenue vs expenses</CardTitle>
-            <CardDescription>Room checkouts + settled POS bills, against logged expenses, per day.</CardDescription>
-          </CardHeader>
-          <CardContent className="pl-0">
-            <RevenueChart data={days} />
-          </CardContent>
-        </Card>
-
-        <Card>
-          <CardHeader>
-            <CardTitle className="flex items-center gap-2">
-              <CircleAlert className="h-4 w-4" /> Activity feed
-            </CardTitle>
-            <CardDescription>Check-ins, check-outs, bills and expenses — last 10.</CardDescription>
-          </CardHeader>
-          <CardContent className="space-y-3">
-            {recentActivity.length === 0 ? (
-              <p className="text-sm text-muted-foreground">
-                Nothing yet — activity appears here as guests and bills move.
-              </p>
-            ) : (
-              recentActivity.map((item, i) => (
-                <div key={i} className="flex items-start gap-2">
-                  <Badge variant={ACTIVITY_META[item.kind].variant} className="mt-0.5 shrink-0">
-                    {ACTIVITY_META[item.kind].label}
-                  </Badge>
-                  <div className="min-w-0">
-                    <p className="text-sm leading-snug">{item.message}</p>
-                    <p className="text-xs text-muted-foreground">{formatDateTime(item.at)}</p>
-                  </div>
-                </div>
-              ))
-            )}
-          </CardContent>
-        </Card>
-      </div>
-
-      {/* Quick action shortcuts + KOT/low-stock counters */}
-      <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-4">
-        <Link href="/pos/billing">
-          <Card className="h-full transition-colors hover:bg-accent">
-            <CardContent className="flex items-center gap-3 p-4">
-              <ChefHat className={kotPendingCount > 0 ? "h-6 w-6 text-amber-500" : "h-6 w-6 text-muted-foreground"} />
-              <div>
-                <p className="text-lg font-semibold tabular-nums">{kotPendingCount}</p>
-                <p className="text-xs text-muted-foreground">Bill(s) — KOT pending</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/inventory">
-          <Card className="h-full transition-colors hover:bg-accent">
-            <CardContent className="flex items-center gap-3 p-4">
-              <AlertTriangle
-                className={lowStockItems.length > 0 ? "h-6 w-6 text-red-500" : "h-6 w-6 text-muted-foreground"}
-              />
-              <div>
-                <p className="text-lg font-semibold tabular-nums">{lowStockItems.length}</p>
-                <p className="text-xs text-muted-foreground">Item(s) — low stock</p>
-              </div>
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/pms/reserve">
-          <Card className="h-full transition-colors hover:bg-accent">
-            <CardContent className="flex items-center justify-between gap-3 p-4">
-              <span className="text-sm font-medium">Bookings desk</span>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        </Link>
-        <Link href="/pos/active">
-          <Card className="h-full transition-colors hover:bg-accent">
-            <CardContent className="flex items-center justify-between gap-3 p-4">
-              <span className="text-sm font-medium">POS terminal</span>
-              <ArrowRight className="h-4 w-4 text-muted-foreground" />
-            </CardContent>
-          </Card>
-        </Link>
-      </div>
-
-      <Card>
-        <CardHeader>
-          <CardTitle className="flex items-center gap-2">
-            <ReceiptText className="h-4 w-4" /> Channel mix (14 days)
-          </CardTitle>
-        </CardHeader>
-        <CardContent className="grid gap-3 sm:grid-cols-3 lg:grid-cols-6">
-          {(["dine_in", "room_service", "takeaway", "delivery", "banquet"] as ChannelType[]).map((channel) => {
-            const channelOrders = completed.filter(
-              (o) => o.channel_type === channel && !(channel === "banquet" && o.is_historical)
-            );
-            const value = channelOrders.reduce((s, o) => s + Number(o.total_amount), 0);
-            return (
-              <div key={channel} className="rounded-lg border p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  {channel.replace("_", " ")}
-                </p>
-                <p className="mt-1 text-lg font-semibold tabular-nums">{formatLKR(value)}</p>
-                <p className="text-xs text-muted-foreground">{channelOrders.length} bills</p>
-              </div>
-            );
-          })}
-          {(() => {
-            const historicalOrders = completed.filter((o) => o.is_historical);
-            const value = historicalOrders.reduce((s, o) => s + Number(o.total_amount), 0);
-            if (historicalOrders.length === 0) return null;
-            return (
-              <div className="rounded-lg border border-dashed p-3">
-                <p className="text-xs font-medium uppercase tracking-wide text-muted-foreground">
-                  historical entries
-                </p>
-                <p className="mt-1 text-lg font-semibold tabular-nums">{formatLKR(value)}</p>
-                <p className="text-xs text-muted-foreground">{historicalOrders.length} backfilled</p>
-              </div>
-            );
-          })()}
-        </CardContent>
-      </Card>
-    </div>
-  );
+  return <OverviewView data={data} />;
 }
