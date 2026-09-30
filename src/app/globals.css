@@ -14,50 +14,53 @@
   font-display: block;
 }
 
+/* shadcn theme variables — mapped onto the Rawana owner-console palette so
+   every page (cards, buttons, inputs, dialogs, tables) picks up the same
+   look as the Overview without per-page changes. */
 @layer base {
   :root {
-    --background: 0 0% 100%;
-    --foreground: 222.2 84% 4.9%;
+    --background: 90 18.2% 95.7%; /* #F4F6F2 page */
+    --foreground: 152 27.3% 10.8%; /* #14231C ink */
     --card: 0 0% 100%;
-    --card-foreground: 222.2 84% 4.9%;
+    --card-foreground: 152 27.3% 10.8%;
     --popover: 0 0% 100%;
-    --popover-foreground: 222.2 84% 4.9%;
-    --primary: 222.2 47.4% 11.2%;
-    --primary-foreground: 210 40% 98%;
-    --secondary: 210 40% 96.1%;
-    --secondary-foreground: 222.2 47.4% 11.2%;
-    --muted: 210 40% 96.1%;
-    --muted-foreground: 215.4 16.3% 46.9%;
-    --accent: 210 40% 96.1%;
-    --accent-foreground: 222.2 47.4% 11.2%;
-    --destructive: 0 84.2% 60.2%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 214.3 31.8% 91.4%;
-    --input: 214.3 31.8% 91.4%;
-    --ring: 222.2 84% 4.9%;
-    --radius: 0.625rem;
+    --popover-foreground: 152 27.3% 10.8%;
+    --primary: 160 60.5% 14.9%; /* #0F3D2E */
+    --primary-foreground: 0 0% 100%;
+    --secondary: 96 17.2% 94.3%; /* #F0F3EE */
+    --secondary-foreground: 152 27.3% 10.8%;
+    --muted: 96 17.2% 94.3%;
+    --muted-foreground: 148 6.5% 39.4%; /* #5E6B64 */
+    --accent: 95 28.6% 91.8%; /* soft green hover */
+    --accent-foreground: 152 27.3% 10.8%;
+    --destructive: 0 72% 51%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 100 12.5% 90.6%; /* #E6EAE4 */
+    --input: 100 12.5% 90.6%;
+    --ring: 154 55.1% 27.1%; /* #1F6B4A */
+    --radius: 0.875rem;
   }
 
   .dark {
-    --background: 222.2 84% 4.9%;
-    --foreground: 210 40% 98%;
-    --card: 222.2 47.4% 7.5%;
-    --card-foreground: 210 40% 98%;
-    --popover: 222.2 47.4% 7.5%;
-    --popover-foreground: 210 40% 98%;
-    --primary: 210 40% 98%;
-    --primary-foreground: 222.2 47.4% 11.2%;
-    --secondary: 217.2 32.6% 17.5%;
-    --secondary-foreground: 210 40% 98%;
-    --muted: 217.2 32.6% 17.5%;
-    --muted-foreground: 215 20.2% 65.1%;
-    --accent: 217.2 32.6% 17.5%;
-    --accent-foreground: 210 40% 98%;
-    --destructive: 0 62.8% 30.6%;
-    --destructive-foreground: 210 40% 98%;
-    --border: 217.2 32.6% 17.5%;
-    --input: 217.2 32.6% 17.5%;
-    --ring: 212.7 26.8% 83.9%;
+    --background: 153 37.9% 5.7%;
+    --foreground: 135 21.1% 92.5%;
+    --card: 154 33.3% 9.4%;
+    --card-foreground: 135 21.1% 92.5%;
+    --popover: 154 33.3% 9.4%;
+    --popover-foreground: 135 21.1% 92.5%;
+    --primary: 79 74.1% 60.6%; /* lime — always with dark text */
+    --primary-foreground: 160 60.5% 14.9%;
+    --secondary: 153 29.4% 13.3%;
+    --secondary-foreground: 135 21.1% 92.5%;
+    --muted: 153 29.4% 13.3%;
+    --muted-foreground: 147 9.1% 61.2%;
+    --accent: 151 29.1% 15.5%;
+    --accent-foreground: 135 21.1% 92.5%;
+    --destructive: 0 62.8% 45%;
+    --destructive-foreground: 0 0% 100%;
+    --border: 150 23.8% 16.5%;
+    --input: 150 23.8% 16.5%;
+    --ring: 79 74.1% 60.6%;
   }
 }
 
