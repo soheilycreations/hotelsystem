@@ -1,13 +1,19 @@
 "use client";
 
-import { useState } from "react";
+import { useState, useTransition } from "react";
+import { useRouter } from "next/navigation";
 import { ChevronDown } from "lucide-react";
-import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
-import { DateRangePicker } from "./report-charts";
+import { useLanguage } from "@/lib/i18n/language-context";
+import { PageHeader } from "@/components/ui/page-header";
+import { DateRangeBar, LAST_30_DAYS, THIS_MONTH } from "@/components/ui/date-range-bar";
 import { ReportCharts } from "./report-charts";
 import { DivisionalPnl } from "./divisional-pnl";
 import type { DailyPnlPoint } from "./page";
+
+function formatDay(key: string): string {
+  return new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+}
 
 export function ReportsView({
   fromDate,
@@ -36,21 +42,34 @@ export function ReportsView({
   channelTotals: Record<string, number>;
   expenseTotals: Record<string, number>;
 }) {
+  const { t } = useLanguage();
+  const router = useRouter();
+  const [pending, startTransition] = useTransition();
   const [showDetails, setShowDetails] = useState(false);
 
+  // Same navigation as before: the server page reads ?from=&to=.
+  function apply(nextFrom: string, nextTo: string) {
+    startTransition(() => {
+      router.push(`/finance/reports?from=${nextFrom}&to=${nextTo}`);
+    });
+  }
+
   return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-center justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">P&amp;L Report</h1>
-          <p className="text-sm text-muted-foreground">
-            {new Date(`${fromDate}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-            {" – "}
-            {new Date(`${toDate}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" })}
-          </p>
-        </div>
-        <DateRangePicker fromDate={fromDate} toDate={toDate} />
-      </div>
+    <div className="space-y-6 text-rw-ink">
+      <PageHeader
+        title={t("P&L Report")}
+        subtitle={`${formatDay(fromDate)} – ${formatDay(toDate)}`}
+        stackUntil="xl"
+        actions={
+          <DateRangeBar
+            fromDate={fromDate}
+            toDate={toDate}
+            onApply={apply}
+            presets={[THIS_MONTH, LAST_30_DAYS]}
+            pending={pending}
+          />
+        }
+      />
 
       {/* Room, Restaurant, Overall — Revenue / Expenses / Balance. This is
           the whole answer to "how are we doing" — everything else is
@@ -65,10 +84,18 @@ export function ReportsView({
         ownerFundedTotal={ownerFundedTotal}
       />
 
-      <Button variant="outline" size="sm" className="w-full sm:w-auto" onClick={() => setShowDetails((v) => !v)}>
-        <ChevronDown className={cn("mr-2 h-4 w-4 transition-transform", showDetails && "rotate-180")} />
-        {showDetails ? "Hide full details" : "Show full details"}
-      </Button>
+      <button
+        type="button"
+        onClick={() => setShowDetails((v) => !v)}
+        aria-expanded={showDetails}
+        className="inline-flex h-10 w-full items-center justify-center gap-2 rounded-full border border-rw-border bg-rw-card px-5 text-sm font-semibold text-rw-ink transition-colors hover:bg-rw-soft sm:w-auto"
+      >
+        {showDetails ? t("Hide full details") : t("Show full details")}
+        <ChevronDown
+          className={cn("h-4 w-4 text-rw-muted transition-transform", showDetails && "rotate-180")}
+          strokeWidth={1.8}
+        />
+      </button>
 
       {showDetails && (
         <ReportCharts points={points} channelTotals={channelTotals} expenseTotals={expenseTotals} />

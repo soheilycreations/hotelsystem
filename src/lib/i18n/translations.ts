@@ -230,4 +230,28 @@ export const SI_DICT: Record<string, string> = {
   "HOUSEKEEPING": "පිරිසිදු කිරීම",
   "LOW STOCK": "තොගය අඩුයි",
   "SYSTEM": "පද්ධතිය",
+
+  // Shared report components (date range bar, charts)
+  "From": "සිට",
+  "To": "දක්වා",
+  "Loading": "පූරණය වෙමින්",
+  "This month": "මේ මාසය",
+  "Last 30 days": "පසුගිය දින 30",
+  "Tap a series to show or hide it": "පෙන්වීමට හෝ සැඟවීමට ඔබන්න",
+
+  // P&L Report
+  "P&L Report": "ලාභ අලාභ වාර්තාව",
+  "Overall": "සමස්ත",
+  "Margin": "ලාභ අනුපාතය",
+  "Profit": "ලාභය",
+  "Loss": "අලාභය",
+  "owner-funded, excluded": "අයිතිකරු ගෙවූ, ඇතුළත් නැත",
+  "Room sales": "කාමර විකුණුම්",
+  "Food / POS sales": "ආහාර / රෙස්ටුරන්ට් විකුණුම්",
+  "Room, food & expenses — daily": "කාමර, ආහාර සහ වියදම් — දිනපතා",
+  "No sales or expenses in this period yet.": "මේ කාලයේ විකුණුම් හෝ වියදම් තවම නැත.",
+  "Revenue by channel": "ඇණවුම් ආකාරය අනුව ආදායම",
+  "No completed orders in this period.": "මේ කාලයේ සම්පූර්ණ කළ ඇණවුම් නැත.",
+  "Expenses by category": "වර්ගය අනුව වියදම්",
+  "No expenses logged in this period.": "මේ කාලයේ වියදම් ලියා නැත.",
 };

@@ -1,13 +1,11 @@
 "use client";
 
-import { useState, useTransition } from "react";
-import { useRouter } from "next/navigation";
+import { useState } from "react";
 import {
   Bar,
   BarChart,
   CartesianGrid,
   Cell,
-  Legend,
   Pie,
   PieChart,
   ResponsiveContainer,
@@ -15,115 +13,40 @@ import {
   XAxis,
   YAxis,
 } from "recharts";
-import { CalendarRange, Loader2 } from "lucide-react";
-import { Button } from "@/components/ui/button";
-import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { formatLKR } from "@/lib/utils";
-import { colomboDaysAgo, colomboToday } from "@/lib/colombo-date";
+import { useLanguage } from "@/lib/i18n/language-context";
+import { ChartCard, ChartTooltipCard, LegendToggle } from "@/components/ui/chart-card";
+import { EmptyState } from "@/components/ui/empty-state";
 import type { DailyPnlPoint } from "./page";
 
 const CHANNEL_LABEL: Record<string, string> = {
-  dine_in: "Dine-in",
-  room_service: "Room Service",
+  dine_in: "Dine in",
+  room_service: "Room service",
   takeaway: "Takeaway",
   delivery: "Delivery",
   banquet: "Banquet",
-  historical: "Historical Entries",
+  historical: "Historical entries",
 };
 
-const PIE_COLORS = ["#38bdf8", "#a78bfa", "#fbbf24", "#34d399", "#f87171", "#818cf8", "#fb923c"];
+// Series colours differ in lightness as well as hue, so they stay
+// distinguishable for colour-blind staff and in greyscale printouts.
+// Room uses the theme token (#0F3D2E light / lighter green in dark mode).
+const ROOM_COLOR = "rgb(var(--rw-chart-rev))";
+const FOOD_COLOR = "#7FB33D";
+const EXPENSE_COLOR = "#E8833A";
+const GRID_COLOR = "rgb(var(--rw-grid))";
+const AXIS_TICK = { fontSize: 11, fill: "rgb(var(--rw-muted))" };
 
-function Money({ value }: { value: number }) {
-  return <span className="tabular-nums">{formatLKR(value)}</span>;
-}
+const PIE_COLORS = [ROOM_COLOR, FOOD_COLOR, EXPENSE_COLOR, "#4C7BD9", "#B5E550", "#94A39B"];
+
+const kFormat = (v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v));
 
 interface TooltipEntry {
+  dataKey?: string | number;
   name?: string;
   value?: number | string;
   color?: string;
-}
-
-function ChartTooltip({
-  active,
-  payload,
-  label,
-}: {
-  active?: boolean;
-  payload?: TooltipEntry[];
-  label?: string;
-}) {
-  if (!active || !payload?.length) return null;
-  return (
-    <div className="rounded-lg border bg-popover px-3 py-2 text-xs shadow-md">
-      {label && <p className="mb-1 font-medium">{label}</p>}
-      {payload.map((entry, i) => (
-        <p key={i} className="flex items-center gap-1.5">
-          <span className="inline-block h-2 w-2 rounded-full" style={{ backgroundColor: entry.color }} />
-          {entry.name}: <Money value={Number(entry.value ?? 0)} />
-        </p>
-      ))}
-    </div>
-  );
-}
-
-export function DateRangePicker({ fromDate, toDate }: { fromDate: string; toDate: string }) {
-  const router = useRouter();
-  const [pending, startTransition] = useTransition();
-  const [from, setFrom] = useState(fromDate);
-  const [to, setTo] = useState(toDate);
-
-  function apply(nextFrom: string, nextTo: string) {
-    startTransition(() => {
-      router.push(`/finance/reports?from=${nextFrom}&to=${nextTo}`);
-    });
-  }
-
-  function presetThisMonth() {
-    const today = colomboToday();
-    const first = `${today.slice(0, 7)}-01`;
-    setFrom(first);
-    setTo(today);
-    apply(first, today);
-  }
-
-  function presetLast30() {
-    const today = colomboToday();
-    const start = colomboDaysAgo(29);
-    setFrom(start);
-    setTo(today);
-    apply(start, today);
-  }
-
-  return (
-    <div className="flex flex-wrap items-center gap-2">
-      <CalendarRange className="h-4 w-4 text-muted-foreground" />
-      <Input
-        type="date"
-        value={from}
-        onChange={(e) => setFrom(e.target.value)}
-        onBlur={() => apply(from, to)}
-        className="h-8 w-36 text-xs"
-        disabled={pending}
-      />
-      <span className="text-sm text-muted-foreground">to</span>
-      <Input
-        type="date"
-        value={to}
-        onChange={(e) => setTo(e.target.value)}
-        onBlur={() => apply(from, to)}
-        className="h-8 w-36 text-xs"
-        disabled={pending}
-      />
-      <Button size="sm" variant="outline" onClick={presetThisMonth} disabled={pending}>
-        This month
-      </Button>
-      <Button size="sm" variant="outline" onClick={presetLast30} disabled={pending}>
-        Last 30 days
-      </Button>
-      {pending && <Loader2 className="h-4 w-4 animate-spin text-muted-foreground" />}
-    </div>
-  );
+  payload?: { fill?: string };
 }
 
 export function ReportCharts({
@@ -135,157 +58,202 @@ export function ReportCharts({
   channelTotals: Record<string, number>;
   expenseTotals: Record<string, number>;
 }) {
+  const { t } = useLanguage();
   const [showRoom, setShowRoom] = useState(true);
   const [showFood, setShowFood] = useState(true);
   const [showExpenses, setShowExpenses] = useState(true);
 
   const channelData = Object.keys(channelTotals)
-    .map((c) => ({ name: CHANNEL_LABEL[c] ?? c, value: channelTotals[c] ?? 0 }))
+    .map((c) => ({ name: t(CHANNEL_LABEL[c] ?? c), value: channelTotals[c] ?? 0 }))
     .filter((d) => d.value > 0);
+  const channelTotal = channelData.reduce((s, d) => s + d.value, 0);
 
   const expenseData = Object.keys(expenseTotals)
-    .map((c) => ({ name: c, value: expenseTotals[c] ?? 0 }))
+    .map((c) => ({ name: t(c), value: expenseTotals[c] ?? 0 }))
     .filter((d) => d.value > 0);
+
+  const hasDaily = points.some((p) => p.room > 0 || p.food > 0 || p.expenses > 0);
+
+  const seriesName: Record<string, string> = {
+    room: t("Room sales"),
+    food: t("Food / POS sales"),
+    expenses: t("Expenses"),
+  };
 
   return (
     <div className="grid gap-6">
       {/* Daily room / food / expenses */}
-      <Card>
-        <CardHeader>
-          <CardTitle className="text-base">Room, food &amp; expenses — daily</CardTitle>
-        </CardHeader>
-        <CardContent className="space-y-3">
-          <div className="flex flex-wrap gap-4 text-sm">
-            <label className="flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={showRoom}
-                onChange={(e) => setShowRoom(e.target.checked)}
-                className="h-3.5 w-3.5 accent-emerald-500"
-              />
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-emerald-500" />
-              Room sales
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={showFood}
-                onChange={(e) => setShowFood(e.target.checked)}
-                className="h-3.5 w-3.5 accent-sky-500"
-              />
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-sky-500" />
-              Food / POS sales
-            </label>
-            <label className="flex items-center gap-1.5">
-              <input
-                type="checkbox"
-                checked={showExpenses}
-                onChange={(e) => setShowExpenses(e.target.checked)}
-                className="h-3.5 w-3.5 accent-red-500"
-              />
-              <span className="inline-block h-2.5 w-2.5 rounded-full bg-red-500" />
-              Expenses
-            </label>
-          </div>
+      <ChartCard
+        title={t("Room, food & expenses — daily")}
+        subtitle={t("Tap a series to show or hide it")}
+        legend={
+          <>
+            <LegendToggle
+              color={ROOM_COLOR}
+              label={t("Room sales")}
+              active={showRoom}
+              onToggle={() => setShowRoom((v) => !v)}
+            />
+            <LegendToggle
+              color={FOOD_COLOR}
+              label={t("Food / POS sales")}
+              active={showFood}
+              onToggle={() => setShowFood((v) => !v)}
+            />
+            <LegendToggle
+              color={EXPENSE_COLOR}
+              label={t("Expenses")}
+              active={showExpenses}
+              onToggle={() => setShowExpenses((v) => !v)}
+            />
+          </>
+        }
+      >
+        {!hasDaily ? (
+          <EmptyState className="h-[320px]">{t("No sales or expenses in this period yet.")}</EmptyState>
+        ) : (
           <div className="h-[320px]">
             <ResponsiveContainer width="100%" height="100%">
-              <BarChart data={points} margin={{ top: 4, right: 8, bottom: 0, left: 8 }}>
-                <CartesianGrid strokeDasharray="3 3" className="stroke-border" vertical={false} />
+              <BarChart data={points} margin={{ top: 4, right: 4, bottom: 0, left: 0 }} barGap={2}>
+                <CartesianGrid stroke={GRID_COLOR} vertical={false} />
                 <XAxis
                   dataKey="label"
-                  tick={{ fontSize: 11 }}
+                  tick={AXIS_TICK}
                   tickLine={false}
                   axisLine={false}
                   interval="preserveStartEnd"
                   minTickGap={24}
                 />
-                <YAxis
-                  tick={{ fontSize: 11 }}
-                  tickLine={false}
-                  axisLine={false}
-                  width={64}
-                  tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+                <YAxis tick={AXIS_TICK} tickLine={false} axisLine={false} width={48} tickFormatter={kFormat} />
+                <Tooltip
+                  cursor={{ fill: "rgb(var(--rw-soft))" }}
+                  content={({ active, payload, label }) => {
+                    if (!active || !payload?.length) return null;
+                    return (
+                      <ChartTooltipCard
+                        label={label}
+                        rows={(payload as TooltipEntry[]).map((p) => ({
+                          key: String(p.dataKey),
+                          color: p.color,
+                          name: seriesName[String(p.dataKey)] ?? p.name,
+                          value: formatLKR(Number(p.value ?? 0)),
+                        }))}
+                      />
+                    );
+                  }}
                 />
-                <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
-                <Legend wrapperStyle={{ fontSize: 12 }} />
-                {showRoom && <Bar dataKey="room" name="Room sales" fill="#34d399" radius={[3, 3, 0, 0]} />}
-                {showFood && <Bar dataKey="food" name="Food / POS sales" fill="#38bdf8" radius={[3, 3, 0, 0]} />}
-                {showExpenses && <Bar dataKey="expenses" name="Expenses" fill="#f87171" radius={[3, 3, 0, 0]} />}
+                {showRoom && <Bar dataKey="room" fill={ROOM_COLOR} radius={[4, 4, 0, 0]} maxBarSize={16} />}
+                {showFood && <Bar dataKey="food" fill={FOOD_COLOR} radius={[4, 4, 0, 0]} maxBarSize={16} />}
+                {showExpenses && <Bar dataKey="expenses" fill={EXPENSE_COLOR} radius={[4, 4, 0, 0]} maxBarSize={16} />}
               </BarChart>
             </ResponsiveContainer>
           </div>
-        </CardContent>
-      </Card>
+        )}
+      </ChartCard>
 
       <div className="grid gap-6 lg:grid-cols-2">
         {/* Channel mix */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Revenue by channel</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[280px]">
-            {channelData.length === 0 ? (
-              <EmptyChart label="No completed orders in this period." />
-            ) : (
-              <ResponsiveContainer width="100%" height="100%">
-                <PieChart>
-                  <Pie
-                    data={channelData}
-                    dataKey="value"
-                    nameKey="name"
-                    innerRadius={56}
-                    outerRadius={92}
-                    paddingAngle={3}
-                    strokeWidth={0}
-                  >
-                    {channelData.map((_, i) => (
-                      <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
-                    ))}
-                  </Pie>
-                  <Tooltip content={<ChartTooltip />} />
-                  <Legend wrapperStyle={{ fontSize: 12 }} />
-                </PieChart>
-              </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+        <ChartCard title={t("Revenue by channel")}>
+          {channelData.length === 0 ? (
+            <EmptyState className="h-[260px]">{t("No completed orders in this period.")}</EmptyState>
+          ) : (
+            <div className="grid items-center gap-4 sm:grid-cols-[200px_1fr]">
+              <div className="mx-auto h-[200px] w-[200px]">
+                <ResponsiveContainer width="100%" height="100%">
+                  <PieChart>
+                    <Pie
+                      data={channelData}
+                      dataKey="value"
+                      nameKey="name"
+                      innerRadius={58}
+                      outerRadius={92}
+                      paddingAngle={2}
+                      strokeWidth={0}
+                    >
+                      {channelData.map((_, i) => (
+                        <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                      ))}
+                    </Pie>
+                    <Tooltip
+                      content={({ active, payload }) => {
+                        if (!active || !payload?.length) return null;
+                        const p = payload[0] as TooltipEntry;
+                        return (
+                          <ChartTooltipCard
+                            rows={[
+                              {
+                                key: "v",
+                                color: p.payload?.fill,
+                                name: p.name,
+                                value: formatLKR(Number(p.value ?? 0)),
+                              },
+                            ]}
+                          />
+                        );
+                      }}
+                    />
+                  </PieChart>
+                </ResponsiveContainer>
+              </div>
+              <ul className="space-y-2.5 text-sm">
+                {channelData.map((d, i) => (
+                  <li key={d.name} className="flex items-center gap-2">
+                    <span
+                      className="h-2.5 w-2.5 shrink-0 rounded-full"
+                      style={{ background: PIE_COLORS[i % PIE_COLORS.length] }}
+                    />
+                    <span className="min-w-0 flex-1 truncate">{d.name}</span>
+                    <span className="font-semibold tabular-nums">{formatLKR(d.value)}</span>
+                    <span className="w-12 text-right text-xs tabular-nums text-rw-muted">
+                      {channelTotal > 0 ? `${((d.value / channelTotal) * 100).toFixed(0)}%` : ""}
+                    </span>
+                  </li>
+                ))}
+              </ul>
+            </div>
+          )}
+        </ChartCard>
 
         {/* Expense breakdown */}
-        <Card>
-          <CardHeader>
-            <CardTitle className="text-base">Expenses by category</CardTitle>
-          </CardHeader>
-          <CardContent className="h-[280px]">
-            {expenseData.length === 0 ? (
-              <EmptyChart label="No expenses logged in this period." />
-            ) : (
+        <ChartCard title={t("Expenses by category")}>
+          {expenseData.length === 0 ? (
+            <EmptyState className="h-[260px]">{t("No expenses logged in this period.")}</EmptyState>
+          ) : (
+            <div className="h-[260px]">
               <ResponsiveContainer width="100%" height="100%">
-                <BarChart data={expenseData} layout="vertical" margin={{ left: 16, right: 16 }}>
-                  <CartesianGrid strokeDasharray="3 3" className="stroke-border" horizontal={false} />
-                  <XAxis
-                    type="number"
-                    tick={{ fontSize: 11 }}
+                <BarChart data={expenseData} layout="vertical" margin={{ left: 8, right: 16 }}>
+                  <CartesianGrid stroke={GRID_COLOR} horizontal={false} />
+                  <XAxis type="number" tick={AXIS_TICK} tickLine={false} axisLine={false} tickFormatter={kFormat} />
+                  <YAxis
+                    type="category"
+                    dataKey="name"
+                    tick={AXIS_TICK}
                     tickLine={false}
                     axisLine={false}
-                    tickFormatter={(v: number) => (v >= 1000 ? `${Math.round(v / 1000)}k` : String(v))}
+                    width={96}
                   />
-                  <YAxis type="category" dataKey="name" tick={{ fontSize: 11 }} tickLine={false} axisLine={false} width={90} />
-                  <Tooltip content={<ChartTooltip />} cursor={{ fill: "hsl(var(--muted))" }} />
-                  <Bar dataKey="value" name="Amount" fill="#a78bfa" radius={[0, 3, 3, 0]} />
+                  <Tooltip
+                    cursor={{ fill: "rgb(var(--rw-soft))" }}
+                    content={({ active, payload, label }) => {
+                      if (!active || !payload?.length) return null;
+                      const p = payload[0] as TooltipEntry;
+                      return (
+                        <ChartTooltipCard
+                          label={label}
+                          rows={[
+                            { key: "v", color: EXPENSE_COLOR, name: t("Amount"), value: formatLKR(Number(p.value ?? 0)) },
+                          ]}
+                        />
+                      );
+                    }}
+                  />
+                  <Bar dataKey="value" fill={EXPENSE_COLOR} radius={[0, 4, 4, 0]} maxBarSize={18} />
                 </BarChart>
               </ResponsiveContainer>
-            )}
-          </CardContent>
-        </Card>
+            </div>
+          )}
+        </ChartCard>
       </div>
-    </div>
-  );
-}
-
-function EmptyChart({ label }: { label: string }) {
-  return (
-    <div className="flex h-full items-center justify-center text-sm text-muted-foreground">
-      {label}
     </div>
   );
 }

@@ -1,7 +1,6 @@
 "use client";
 
 import Link from "next/link";
-import type { ReactNode } from "react";
 import {
   ArrowRight,
   Banknote,
@@ -13,11 +12,16 @@ import {
   Search,
   TrendingDown,
   TrendingUp,
-  type LucideIcon,
 } from "lucide-react";
 import { cn, formatLKR } from "@/lib/utils";
 import type { ChannelType } from "@/lib/types";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { Panel } from "@/components/ui/panel";
+import { PageHeader } from "@/components/ui/page-header";
+import { StatCard } from "@/components/ui/stat-card";
+import { ChartCard, LegendDot } from "@/components/ui/chart-card";
+import { Pill, Tag, type Tone } from "@/components/ui/pill";
+import { EmptyState } from "@/components/ui/empty-state";
 import { RevenueChart } from "./revenue-chart";
 
 export type ActivityKind = "check_in" | "check_out" | "bill" | "expense" | "housekeeping" | "low_stock" | "system";
@@ -60,17 +64,6 @@ export interface OverviewData {
   activity: ActivityItem[];
 }
 
-type Tone = "neutral" | "green" | "amber" | "red" | "blue" | "orange";
-
-const TONES: Record<Tone, string> = {
-  neutral: "bg-rw-soft text-rw-muted",
-  green: "bg-[#E6F4D2] text-[#2E6A12] dark:bg-rw-lime/15 dark:text-rw-lime",
-  amber: "bg-[#FCF0CF] text-[#8A5A00] dark:bg-amber-400/15 dark:text-amber-300",
-  red: "bg-[#FCE4DF] text-[#B3261E] dark:bg-red-400/15 dark:text-red-300",
-  blue: "bg-[#E2ECFA] text-[#1F4F9A] dark:bg-sky-400/15 dark:text-sky-300",
-  orange: "bg-[#FDE8DA] text-[#B4501A] dark:bg-orange-400/15 dark:text-orange-300",
-};
-
 const ACTIVITY_TAGS: Record<ActivityKind, { label: string; tone: Tone }> = {
   bill: { label: "BILL", tone: "green" },
   check_in: { label: "CHECK-IN", tone: "blue" },
@@ -107,26 +100,29 @@ export function OverviewView({ data }: { data: OverviewData }) {
       {/* Row 1 — hero + KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1fr_1fr]">
         <HeroCard data={data} />
-        <KpiCard
+        <StatCard
           icon={TrendingUp}
           tone="green"
-          title={t("Total revenue")}
+          label={t("Total revenue")}
           value={formatLKR(totalRevenue)}
+          pill={<Pill>{t("14 days")}</Pill>}
           sub={`${t("POS")} ${formatLKR(data.posRevenue)} · ${t("Rooms")} ${formatLKR(data.roomRevenue)}`}
         />
-        <KpiCard
+        <StatCard
           icon={Banknote}
           tone="lime"
-          title={t("Net profit")}
+          label={t("Net profit")}
           value={formatLKR(netProfit)}
           valueClassName={netProfit < 0 ? "text-[#B3261E] dark:text-red-300" : undefined}
+          pill={<Pill>{t("14 days")}</Pill>}
           sub={t("Revenue minus logged expenses")}
         />
-        <KpiCard
+        <StatCard
           icon={ReceiptText}
           tone="orange"
-          title={t("Expenses")}
+          label={t("Expenses")}
           value={formatLKR(data.totalExpenses)}
+          pill={<Pill>{t("14 days")}</Pill>}
           sub={`${t("Open guest folios")} ${formatLKR(data.openFolios)}`}
         />
       </div>
@@ -139,25 +135,22 @@ export function OverviewView({ data }: { data: OverviewData }) {
         </div>
 
         <div className="space-y-4">
-          <Panel>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div>
-                <h2 className="text-lg font-bold">{t("Revenue vs expenses")}</h2>
-                <p className="mt-0.5 text-sm text-rw-muted">{t("Room checkouts + settled POS bills, per day")}</p>
-              </div>
-              <div className="flex items-center gap-4 text-xs text-rw-muted">
-                <LegendDot className="bg-[rgb(var(--rw-chart-rev))]" label={t("Revenue")} />
-                <LegendDot className="bg-[rgb(var(--rw-chart-exp))]" label={t("Expenses")} />
-              </div>
-            </div>
-            <div className="mt-4">
-              {data.days.every((d) => d.revenue === 0 && d.expenses === 0) ? (
-                <EmptyState>{t("No revenue or expenses recorded in the last 14 days yet.")}</EmptyState>
-              ) : (
-                <RevenueChart data={data.days} />
-              )}
-            </div>
-          </Panel>
+          <ChartCard
+            title={t("Revenue vs expenses")}
+            subtitle={t("Room checkouts + settled POS bills, per day")}
+            legend={
+              <>
+                <LegendDot color="rgb(var(--rw-chart-rev))" label={t("Revenue")} />
+                <LegendDot color="rgb(var(--rw-chart-exp))" label={t("Expenses")} />
+              </>
+            }
+          >
+            {data.days.every((d) => d.revenue === 0 && d.expenses === 0) ? (
+              <EmptyState>{t("No revenue or expenses recorded in the last 14 days yet.")}</EmptyState>
+            ) : (
+              <RevenueChart data={data.days} />
+            )}
+          </ChartCard>
           <RevenueBySource data={data} />
         </div>
 
@@ -176,13 +169,12 @@ function TopBar({ data }: { data: OverviewData }) {
   const { t, language, setLanguage } = useLanguage();
 
   return (
-    <div className="flex flex-col gap-4 2xl:flex-row 2xl:items-start 2xl:justify-between">
-      <div>
-        <h1 className="text-2xl font-bold tracking-tight sm:text-[28px]">{t(GREETINGS[data.greeting])}</h1>
-        <p className="mt-1 text-sm text-rw-muted">{t("Property, restaurant and finance at a glance")}</p>
-      </div>
-
-      <div className="flex flex-wrap items-center gap-2 sm:gap-3">
+    <PageHeader
+      title={t(GREETINGS[data.greeting])}
+      subtitle={t("Property, restaurant and finance at a glance")}
+      stackUntil="2xl"
+      actions={
+        <>
         <label className="relative order-last w-full sm:order-none sm:w-auto sm:min-w-[240px] sm:flex-1 2xl:w-64 2xl:flex-none">
           <span className="sr-only">{t("Search")}</span>
           <Search
@@ -252,8 +244,9 @@ function TopBar({ data }: { data: OverviewData }) {
           <Plus className="h-4 w-4" strokeWidth={2} />
           {t("New booking")}
         </Link>
-      </div>
-    </div>
+        </>
+      }
+    />
   );
 }
 
@@ -298,45 +291,6 @@ function HeroCard({ data }: { data: OverviewData }) {
         </Link>
       </div>
     </div>
-  );
-}
-
-const CHIP_TONES = {
-  green: "bg-[#E8F2EC] text-rw-green dark:bg-rw-green/15",
-  lime: "bg-rw-lime/25 text-rw-on-lime dark:bg-rw-lime/15 dark:text-rw-lime",
-  orange: "bg-[#FDE8DA] text-[#C0561B] dark:bg-orange-400/15 dark:text-orange-300",
-} as const;
-
-function KpiCard({
-  icon: Icon,
-  tone,
-  title,
-  value,
-  sub,
-  valueClassName,
-}: {
-  icon: LucideIcon;
-  tone: keyof typeof CHIP_TONES;
-  title: string;
-  value: string;
-  sub: string;
-  valueClassName?: string;
-}) {
-  const { t } = useLanguage();
-  return (
-    <Panel className="flex flex-col">
-      <div className="flex items-center gap-3">
-        <span className={cn("flex h-10 w-10 shrink-0 items-center justify-center rounded-xl", CHIP_TONES[tone])}>
-          <Icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
-        </span>
-        <span className="min-w-0 flex-1 truncate text-[15px] font-medium text-rw-muted">{title}</span>
-        <Pill tone="neutral">{t("14 days")}</Pill>
-      </div>
-      <p className={cn("mt-5 text-2xl font-bold tabular-nums tracking-tight sm:text-[28px]", valueClassName)}>
-        {value}
-      </p>
-      <p className="mt-2 text-sm tabular-nums text-rw-muted">{sub}</p>
-    </Panel>
   );
 }
 
@@ -617,14 +571,9 @@ function ActivityCard({ items }: { items: ActivityItem[] }) {
             const { title, sub } = describe(item);
             return (
               <li key={i} className="flex items-start gap-3 py-3">
-                <span
-                  className={cn(
-                    "mt-0.5 shrink-0 rounded-md px-2 py-0.5 text-[10px] font-bold tracking-wide",
-                    TONES[tag.tone]
-                  )}
-                >
+                <Tag tone={tag.tone} className="mt-0.5">
                   {t(tag.label)}
-                </span>
+                </Tag>
                 <div className="min-w-0 flex-1">
                   <p className="break-words text-sm font-medium leading-snug">{title}</p>
                   {sub && <p className="truncate text-xs text-rw-muted">{sub}</p>}
@@ -644,36 +593,6 @@ function ActivityCard({ items }: { items: ActivityItem[] }) {
 
 /* ---------------------------- primitives ---------------------------- */
 
-function Panel({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <section className={cn("rounded-rw border border-rw-border bg-rw-card p-5 sm:p-6", className)}>
-      {children}
-    </section>
-  );
-}
-
-function Pill({ tone, children }: { tone: Tone; children: ReactNode }) {
-  return (
-    <span
-      className={cn(
-        "inline-flex shrink-0 items-center whitespace-nowrap rounded-full px-2 py-0.5 text-[11px] font-semibold tabular-nums",
-        TONES[tone]
-      )}
-    >
-      {children}
-    </span>
-  );
-}
-
-function LegendDot({ className, label }: { className: string; label: string }) {
-  return (
-    <span className="flex items-center gap-1.5">
-      <span className={cn("h-2.5 w-2.5 rounded-sm", className)} />
-      {label}
-    </span>
-  );
-}
-
 function StatTile({ dot, label, value }: { dot: string; label: string; value: number }) {
   return (
     <div className="rounded-2xl bg-rw-soft p-3">
@@ -682,19 +601,6 @@ function StatTile({ dot, label, value }: { dot: string; label: string; value: nu
         {label}
       </p>
       <p className="mt-1 text-xl font-bold tabular-nums">{value}</p>
-    </div>
-  );
-}
-
-function EmptyState({ className, children }: { className?: string; children: ReactNode }) {
-  return (
-    <div
-      className={cn(
-        "rounded-2xl border border-dashed border-rw-border bg-rw-soft/50 px-4 py-8 text-center text-sm text-rw-muted",
-        className
-      )}
-    >
-      {children}
     </div>
   );
 }

@@ -84,6 +84,7 @@
     --rw-muted: 94 107 100; /* #5E6B64 */
     --rw-chart-rev: 15 61 46; /* #0F3D2E */
     --rw-chart-exp: 181 229 80; /* #B5E550 */
+    --rw-grid: 238 241 236; /* #EEF1EC chart gridlines */
   }
 
   .dark {
@@ -95,6 +96,7 @@
     --rw-muted: 147 165 155;
     --rw-green: 111 191 145;
     --rw-chart-rev: 111 191 145;
+    --rw-grid: 32 52 42;
   }
 }
 
