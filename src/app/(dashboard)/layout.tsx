@@ -23,8 +23,8 @@ export default async function DashboardLayout({ children }: { children: React.Re
         hotelName={settings?.hotel_name ?? "Soheily PMS"}
         logoUrl={settings?.logo_url ?? null}
       />
-      {/* Offsets match the sidebar: icon rail (76px) on tablet, full 248px on desktop */}
-      <div className="md:pl-[76px] lg:pl-[248px]">
+      {/* Offset for the 76px icon rail — it expands over the content on hover */}
+      <div className="md:pl-[76px]">
         <RouteGuard role={profile.role}>
           <main className="mx-auto w-full max-w-[1600px] p-4 md:p-6 xl:p-8">{children}</main>
         </RouteGuard>
