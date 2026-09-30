@@ -198,8 +198,26 @@ export function AppSidebar({
     });
   }
 
-  /** `rail` = tablet icon-only mode */
-  const nav = (rail: boolean) => (
+  /*
+   * `hover` = the desktop/tablet rail: 76px of icons that widens to 248px
+   * while the pointer (or keyboard focus) is over it. It floats over the
+   * page instead of pushing it, so wide screens like the POS terminal keep
+   * their space. Labels are hidden with opacity (not unmounted) so the
+   * icons never shift while the rail animates open.
+   */
+  const reveal = (hover: boolean) =>
+    hover
+      ? "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100"
+      : "";
+  // Written out in full so Tailwind's class scanner picks them up.
+  const onlyExpanded = (hover: boolean, display: "flex" | "block" = "flex") =>
+    !hover
+      ? ""
+      : display === "flex"
+        ? "hidden group-hover:flex group-has-[:focus-visible]:flex"
+        : "hidden group-hover:block group-has-[:focus-visible]:block";
+
+  const nav = (hover: boolean) => (
     <nav className="no-scrollbar flex flex-1 flex-col gap-6 overflow-y-auto overflow-x-hidden px-3 py-2">
       {SECTIONS.map((section) => {
         const items = visible.filter((i) => i.section === section);
@@ -208,8 +226,8 @@ export function AppSidebar({
           <div key={section}>
             <p
               className={cn(
-                "mb-2 px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-rw-sidebar-text/60",
-                rail && "sr-only"
+                "mb-2 whitespace-nowrap px-3 text-[11px] font-semibold uppercase tracking-[0.12em] text-rw-sidebar-text/60",
+                reveal(hover)
               )}
             >
               {t(section === "MENU" ? "Menu" : "Management")}
@@ -232,11 +250,12 @@ export function AppSidebar({
                       <Link
                         href={item.target}
                         onClick={() => setOpen(false)}
-                        title={rail ? t(item.label) : undefined}
+                        aria-label={hover ? t(item.label) : undefined}
                         aria-current={active ? "page" : undefined}
                         className={cn(
-                          "flex min-w-0 flex-1 items-center gap-3 rounded-xl px-3 py-2.5 text-[15px] font-medium transition-colors",
-                          rail && "justify-center px-0",
+                          "flex min-w-0 flex-1 items-center gap-3 rounded-xl py-2.5 text-[15px] font-medium transition-colors",
+                          // 17px keeps the icon centred in the 76px rail
+                          hover ? "px-[17px]" : "px-3",
                           active
                             ? "bg-white/10 text-white"
                             : "text-rw-sidebar-text hover:bg-white/5 hover:text-white"
@@ -244,29 +263,35 @@ export function AppSidebar({
                       >
                         <span className="relative shrink-0">
                           <item.icon className="h-[18px] w-[18px]" strokeWidth={1.8} />
-                          {rail && badge > 0 && (
-                            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rw-lime px-1 text-[10px] font-bold tabular-nums text-rw-on-lime">
+                          {hover && badge > 0 && (
+                            <span className="absolute -right-2 -top-2 flex h-4 min-w-4 items-center justify-center rounded-full bg-rw-lime px-1 text-[10px] font-bold tabular-nums text-rw-on-lime group-hover:hidden group-has-[:focus-visible]:hidden">
                               {badge}
                             </span>
                           )}
                         </span>
-                        {!rail && <span className="truncate">{t(item.label)}</span>}
-                        {!rail && badge > 0 && (
+                        <span className={cn("truncate whitespace-nowrap", reveal(hover))}>{t(item.label)}</span>
+                        {badge > 0 && (
                           <span
-                            className="ml-auto flex h-6 min-w-6 items-center justify-center rounded-full bg-rw-lime px-1.5 text-xs font-bold tabular-nums text-rw-on-lime"
+                            className={cn(
+                              "ml-auto h-6 min-w-6 items-center justify-center rounded-full bg-rw-lime px-1.5 text-xs font-bold tabular-nums text-rw-on-lime",
+                              hover ? onlyExpanded(true) : "flex"
+                            )}
                             title={`${badge} ${t("active kitchen orders")}`}
                           >
                             {badge}
                           </span>
                         )}
                       </Link>
-                      {!rail && hasChildren && (
+                      {hasChildren && (
                         <button
                           type="button"
                           onClick={() => toggle(item.href)}
                           aria-label={isOpen ? t("Collapse") : t("Expand")}
                           aria-expanded={isOpen}
-                          className="ml-1 flex h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rw-sidebar-text/70 transition-colors hover:bg-white/5 hover:text-white"
+                          className={cn(
+                            "ml-1 h-8 w-8 shrink-0 items-center justify-center rounded-lg text-rw-sidebar-text/70 transition-colors hover:bg-white/5 hover:text-white",
+                            hover ? onlyExpanded(true) : "flex"
+                          )}
                         >
                           <ChevronDown
                             className={cn("h-4 w-4 transition-transform", isOpen && "rotate-180")}
@@ -275,8 +300,13 @@ export function AppSidebar({
                         </button>
                       )}
                     </div>
-                    {!rail && isOpen && (
-                      <div className="ml-[22px] mt-1 flex flex-col gap-0.5 border-l border-white/10 pl-3">
+                    {isOpen && (
+                      <div
+                        className={cn(
+                          "ml-[22px] mt-1 flex-col gap-0.5 border-l border-white/10 pl-3",
+                          hover ? onlyExpanded(true) : "flex"
+                        )}
+                      >
                         {item.visibleChildren.map((child) => {
                           const childActive = activeHref === child.href;
                           return (
@@ -286,7 +316,7 @@ export function AppSidebar({
                               onClick={() => setOpen(false)}
                               aria-current={childActive ? "page" : undefined}
                               className={cn(
-                                "flex items-center gap-2.5 rounded-lg px-2.5 py-1.5 text-sm transition-colors",
+                                "flex items-center gap-2.5 whitespace-nowrap rounded-lg px-2.5 py-1.5 text-sm transition-colors",
                                 childActive
                                   ? "bg-white/10 font-medium text-white"
                                   : "text-rw-sidebar-text/80 hover:bg-white/5 hover:text-white"
@@ -309,25 +339,27 @@ export function AppSidebar({
     </nav>
   );
 
-  const userCard = (rail: boolean) => (
+  const userCard = (hover: boolean) => (
     <div className="p-3">
-      <div className={cn("rounded-2xl bg-white/[0.06] p-3", rail && "flex flex-col items-center gap-2 px-1")}>
-        <div className={cn("flex items-center gap-3", rail && "flex-col gap-2")}>
-          <span
-            className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rw-sidebar-text text-sm font-bold text-rw-sidebar"
-            title={rail ? `${profile.full_name} · ${t(ROLE_LABELS[profile.role] ?? profile.role)}` : undefined}
-          >
+      <div
+        className={cn(
+          "rounded-2xl transition-[background-color,padding] duration-150",
+          hover
+            ? "p-1.5 group-hover:bg-white/[0.06] group-hover:p-3 group-has-[:focus-visible]:bg-white/[0.06] group-has-[:focus-visible]:p-3"
+            : "bg-white/[0.06] p-3"
+        )}
+      >
+        <div className="flex items-center gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-full bg-rw-sidebar-text text-sm font-bold text-rw-sidebar">
             {initials(profile.full_name)}
           </span>
-          {!rail && (
-            <div className="min-w-0 flex-1">
-              <p className="truncate text-sm font-semibold text-white">{profile.full_name}</p>
-              <p className="truncate text-xs text-rw-sidebar-text/70">
-                {t(ROLE_LABELS[profile.role] ?? profile.role)}
-              </p>
-            </div>
-          )}
-          <form action={logout}>
+          <div className={cn("min-w-0 flex-1", reveal(hover))}>
+            <p className="truncate whitespace-nowrap text-sm font-semibold text-white">{profile.full_name}</p>
+            <p className="truncate whitespace-nowrap text-xs text-rw-sidebar-text/70">
+              {t(ROLE_LABELS[profile.role] ?? profile.role)}
+            </p>
+          </div>
+          <form action={logout} className={cn(hover && onlyExpanded(true, "block"))}>
             <button
               type="submit"
               aria-label={t("Sign out")}
@@ -340,8 +372,8 @@ export function AppSidebar({
         </div>
         <div
           className={cn(
-            "flex items-center",
-            rail ? "flex-col gap-1" : "mt-2 gap-1 border-t border-white/10 pt-2"
+            "mt-2 items-center gap-1 border-t border-white/10 pt-2",
+            hover ? onlyExpanded(true) : "flex"
           )}
         >
           <SidebarLanguageButton />
@@ -397,22 +429,13 @@ export function AppSidebar({
         </aside>
       </div>
 
-      {/* Tablet: icon rail */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[76px] flex-col bg-rw-sidebar md:flex lg:hidden">
-        <div className="flex justify-center pb-4 pt-5">
-          <Brand hotelName={hotelName} logoUrl={logoUrl} markOnly />
+      {/* Tablet + desktop: icon rail that expands over the page on hover */}
+      <aside className="group fixed inset-y-0 left-0 z-30 hidden w-[76px] flex-col overflow-hidden bg-rw-sidebar transition-[width,box-shadow] duration-200 ease-out hover:w-[248px] hover:shadow-2xl has-[:focus-visible]:w-[248px] has-[:focus-visible]:shadow-2xl md:flex">
+        <div className="px-4 pb-4 pt-5">
+          <Brand hotelName={hotelName} logoUrl={logoUrl} hover />
         </div>
         {nav(true)}
         {userCard(true)}
-      </aside>
-
-      {/* Desktop: full sidebar with labels */}
-      <aside className="fixed inset-y-0 left-0 z-30 hidden w-[248px] flex-col bg-rw-sidebar lg:flex">
-        <div className="px-5 pb-5 pt-6">
-          <Brand hotelName={hotelName} logoUrl={logoUrl} />
-        </div>
-        {nav(false)}
-        {userCard(false)}
       </aside>
     </>
   );
@@ -457,12 +480,13 @@ function Brand({
   hotelName,
   logoUrl,
   compact = false,
-  markOnly = false,
+  hover = false,
 }: {
   hotelName: string;
   logoUrl: string | null;
   compact?: boolean;
-  markOnly?: boolean;
+  /** Text fades in only while the rail is expanded */
+  hover?: boolean;
 }) {
   const { t } = useLanguage();
   const mark = logoUrl ? (
@@ -483,12 +507,16 @@ function Brand({
     </span>
   );
 
-  if (markOnly) return <span title={hotelName}>{mark}</span>;
-
   return (
     <span className="flex min-w-0 items-center gap-3">
       {mark}
-      <span className="min-w-0">
+      <span
+        className={cn(
+          "min-w-0 whitespace-nowrap",
+          hover &&
+            "opacity-0 transition-opacity duration-150 group-hover:opacity-100 group-has-[:focus-visible]:opacity-100"
+        )}
+      >
         <span className="block truncate text-[17px] font-bold leading-tight text-white">{hotelName}</span>
         {!compact && (
           <span className="block truncate text-xs text-rw-sidebar-text/70">{t("Owner console")}</span>
