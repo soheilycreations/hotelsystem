@@ -1,6 +1,6 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
-import { colomboDateKey, colomboDaysAgo, colomboToday } from "@/lib/colombo-date";
+import { colomboDateKey, colomboDayStartIso, colomboDaysAgo, colomboToday, formatDayKey } from "@/lib/colombo-date";
 import { formatDateTime, formatOrderNumber } from "@/lib/utils";
 import type { Booking, ChannelType, Expense, Room } from "@/lib/types";
 import { LiveRefresher } from "./live-refresher";
@@ -17,12 +17,7 @@ function activityKindForLog(eventType: string): ActivityKind {
 
 /** "30 Sept" style label for a Colombo YYYY-MM-DD key. */
 function dayLabel(key: string, withYear = false): string {
-  return new Date(`${key}T00:00:00Z`).toLocaleDateString("en-GB", {
-    day: "numeric",
-    month: "short",
-    ...(withYear ? { year: "numeric" } : {}),
-    timeZone: "UTC",
-  });
+  return formatDayKey(key, "en-GB", { day: "numeric", month: "short", ...(withYear ? { year: "numeric" } : {}) });
 }
 
 export default function OverviewPage() {
@@ -42,6 +37,11 @@ async function OverviewContent() {
   const supabase = await createClient();
   const today = colomboToday();
   const sinceDate = colomboDaysAgo(13);
+  // Day boundaries as real instants at 00:00 Colombo — a bare "T00:00:00"
+  // is read by Postgres as UTC midnight (05:30 Colombo) and silently drops
+  // anything between midnight and 05:29.
+  const todayStartIso = colomboDayStartIso(today);
+  const sinceStartIso = colomboDayStartIso(sinceDate);
 
   const [
     roomsRes,
@@ -58,7 +58,7 @@ async function OverviewContent() {
     supabase.from("rooms").select("id, status"),
     supabase
       .from("restaurant_orders")
-      .select("id, order_number, total_amount, order_status, channel_type, business_date, is_historical")
+      .select("id, order_number, total_amount, order_status, channel_type, business_date, is_historical, settled_at")
       .or("payment_method.neq.complimentary,payment_method.is.null")
       .gte("business_date", sinceDate),
     supabase
@@ -71,15 +71,15 @@ async function OverviewContent() {
     supabase
       .from("bookings")
       .select("guest_name, actual_check_in, actual_check_out, status")
-      .or(`actual_check_in.gte.${sinceDate},actual_check_out.gte.${sinceDate}`),
+      .or(`actual_check_in.gte.${sinceStartIso},actual_check_out.gte.${sinceStartIso}`),
     // Today's arrivals/departures for the snapshot row
     supabase
       .from("bookings")
       .select("id, actual_check_in, actual_check_out")
-      .or(`actual_check_in.gte.${today}T00:00:00,actual_check_out.gte.${today}T00:00:00`),
+      .or(`actual_check_in.gte.${todayStartIso},actual_check_out.gte.${todayStartIso}`),
     supabase
       .from("restaurant_orders")
-      .select("id, order_items(is_custom, kot_printed_at)")
+      .select("id, order_items(quantity, is_custom, kot_printed_at)")
       .eq("order_status", "active"),
     supabase.from("inventory_items").select("id, name, quantity_in_stock, reorder_level"),
     // Room revenue for the chart — checkouts in the window (business_date has
@@ -101,6 +101,7 @@ async function OverviewContent() {
     channel_type: ChannelType;
     business_date: string;
     is_historical: boolean;
+    settled_at: string | null;
   }[];
   const expenses = (expensesRes.data ?? []) as unknown as (Pick<
     Expense,
@@ -112,7 +113,6 @@ async function OverviewContent() {
 
   const completed = orders.filter((o) => o.order_status === "completed");
   const posRevenue = completed.reduce((sum, o) => sum + Number(o.total_amount), 0);
-  const activeOrders = orders.filter((o) => o.order_status === "active").length;
   const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const folioRows = folioRes.data ?? [];
   const openFolios = folioRows.reduce((sum, b) => sum + Number(b.total_folio_amount), 0);
@@ -160,7 +160,7 @@ async function OverviewContent() {
       .filter((b) => b.actual_check_out && colomboDateKey(new Date(b.actual_check_out).getTime()) === key)
       .reduce((s, b) => s + Math.max(0, Number(b.total_folio_amount) - (roomServiceByBooking.get(b.id) ?? 0)), 0);
     days.push({
-      day: new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+      day: formatDayKey(key, "en-GB", { day: "2-digit", month: "short" }),
       revenue: posForDay + roomForDay,
       expenses: expenses.filter((e) => e.date === key).reduce((s, e) => s + Number(e.amount), 0),
     });
@@ -178,17 +178,44 @@ async function OverviewContent() {
     (b) => b.actual_check_out && colomboDateKey(new Date(b.actual_check_out).getTime()) === today
   ).length;
   const todayRevenue = days[days.length - 1]?.revenue ?? 0;
-  const yesterdayRevenue = days[days.length - 2]?.revenue ?? 0;
-  const revenueDelta = todayRevenue - yesterdayRevenue;
 
-  // KOT-pending bill count
+  // Yesterday up to the SAME clock time as now — comparing today-so-far with
+  // all of yesterday made every morning look like a bad day. A bill counts if
+  // it was settled by this time yesterday (bills from before settled_at
+  // existed have no timestamp and are counted); a room counts if it checked
+  // out by then.
+  const yesterdayKey = colomboDateKey(Date.now() - 86_400_000);
+  const yesterdayCutoff = Date.now() - 86_400_000;
+  const posYesterdaySoFar = completed
+    .filter(
+      (o) =>
+        o.business_date === yesterdayKey &&
+        (!o.settled_at || new Date(o.settled_at).getTime() <= yesterdayCutoff)
+    )
+    .reduce((s, o) => s + Number(o.total_amount), 0);
+  const roomYesterdaySoFar = checkouts
+    .filter((b) => {
+      if (!b.actual_check_out) return false;
+      const t = new Date(b.actual_check_out).getTime();
+      return colomboDateKey(t) === yesterdayKey && t <= yesterdayCutoff;
+    })
+    .reduce((s, b) => s + Math.max(0, Number(b.total_folio_amount) - (roomServiceByBooking.get(b.id) ?? 0)), 0);
+  const yesterdaySoFar = posYesterdaySoFar + roomYesterdaySoFar;
+  const revenueDelta = todayRevenue - yesterdaySoFar;
+
+  // Kitchen — every open bill (any date, not just the 14-day window), plus
+  // item counts: lines not yet on a KOT, and lines already sent to the
+  // kitchen on a bill that's still open. Custom lines never go on a KOT.
   const kotOrders = (kotRes.data ?? []) as {
     id: string;
-    order_items: { is_custom: boolean; kot_printed_at: string | null }[];
+    order_items: { quantity: number; is_custom: boolean; kot_printed_at: string | null }[];
   }[];
-  const kotPendingCount = kotOrders.filter((o) =>
-    (o.order_items ?? []).some((i) => !i.is_custom && !i.kot_printed_at)
-  ).length;
+  const kitchenItems = kotOrders.flatMap((o) => o.order_items ?? []).filter((i) => !i.is_custom);
+  const kitchen = {
+    openBills: kotOrders.length,
+    itemsAwaitingKot: kitchenItems.filter((i) => !i.kot_printed_at).reduce((s, i) => s + Number(i.quantity), 0),
+    itemsSentToKitchen: kitchenItems.filter((i) => i.kot_printed_at).reduce((s, i) => s + Number(i.quantity), 0),
+  };
 
   // Low-stock item count
   const inventory = (inventoryRes.data ?? []) as {
@@ -228,7 +255,7 @@ async function OverviewContent() {
     status: string;
   }[];
 
-  const activity: (ActivityItem & { sortAt: string })[] = [];
+  const activity: (ActivityItem & { sortAt: string; dateOnly?: string })[] = [];
   for (const b of recentBookings) {
     if (b.actual_check_in) {
       activity.push({ kind: "check_in", name: b.guest_name, sortAt: b.actual_check_in, at: "" });
@@ -238,12 +265,16 @@ async function OverviewContent() {
     }
   }
   for (const o of completed) {
+    // settled_at is the real moment the bill was paid. Bills settled before
+    // that column existed only have a business date — sort them at the
+    // start of that Colombo day and show the date alone (not a fake 00:00).
     activity.push({
       kind: "bill",
       name: formatOrderNumber(o.business_date, o.order_number),
       channel: o.channel_type,
       amount: Number(o.total_amount),
-      sortAt: o.business_date,
+      sortAt: o.settled_at ?? colomboDayStartIso(o.business_date),
+      dateOnly: !o.settled_at ? o.business_date : undefined,
       at: "",
     });
   }
@@ -270,7 +301,7 @@ async function OverviewContent() {
   activity.sort((a, b) => new Date(b.sortAt).getTime() - new Date(a.sortAt).getTime());
   const recentActivity: ActivityItem[] = activity
     .slice(0, 10)
-    .map(({ sortAt, ...item }) => ({ ...item, at: formatDateTime(sortAt) }));
+    .map(({ sortAt, dateOnly, ...item }) => ({ ...item, at: dateOnly ? formatDayKey(dateOnly) : formatDateTime(sortAt) }));
 
   // Greeting follows the Colombo clock, not the server's.
   const colomboHour = new Date(Date.now() + 5.5 * 3600 * 1000).getUTCHours();
@@ -282,6 +313,7 @@ async function OverviewContent() {
     todayLabel: dayLabel(today),
     rangeLabel: `${dayLabel(sinceDate)} – ${dayLabel(today, true)}`,
     todayRevenue,
+    yesterdaySoFar,
     revenueDelta,
     posRevenue,
     roomRevenue: roomRevenue14d,
@@ -292,11 +324,15 @@ async function OverviewContent() {
     todayCheckIns,
     todayCheckOuts,
     occupied,
-    vacant: rooms.filter((r) => r.status === "vacant").length,
+    roomStatus: {
+      vacant: rooms.filter((r) => r.status === "vacant").length,
+      occupied,
+      dirty: rooms.filter((r) => r.status === "dirty").length,
+      maintenance: rooms.filter((r) => r.status === "maintenance").length,
+    },
     totalRooms: rooms.length,
     occupancyPct,
-    activeOrders,
-    kotPendingCount,
+    kitchen,
     lowStockCount: lowStockItems.length,
     days,
     channels,

@@ -3,6 +3,7 @@ import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { HotelSettings } from "@/lib/types";
 import { AppSidebar } from "@/components/app-sidebar";
 import { RouteGuard } from "@/components/route-guard";
+import { BRAND } from "@/lib/brand";
 
 export default async function DashboardLayout({ children }: { children: React.ReactNode }) {
   const profile = await getSessionProfile();
@@ -20,7 +21,7 @@ export default async function DashboardLayout({ children }: { children: React.Re
     <div className="min-h-dvh bg-rw-page">
       <AppSidebar
         profile={profile}
-        hotelName={settings?.hotel_name ?? "Soheily PMS"}
+        hotelName={settings?.hotel_name ?? BRAND.name}
         logoUrl={settings?.logo_url ?? null}
       />
       {/* Offset for the 76px icon rail — it expands over the content on hover */}

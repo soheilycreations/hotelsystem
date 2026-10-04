@@ -15,7 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { Booking, CreditAccount, HotelSettings, PaymentMethod } from "@/lib/types";
-import { formatDate, formatLKR } from "@/lib/utils";
+import { formatDate, formatLKR, roundToRupee } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import {
@@ -43,6 +43,9 @@ import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
 import type { ServiceOrderDetail } from "./page";
+import { formatColomboDateTimeFull } from "@/lib/colombo-date";
+import { useLanguage } from "@/lib/i18n/language-context";
+import Link from "next/link";
 
 function advancePaidOf(b: Booking): number {
   return (b.booking_advance_payments ?? []).reduce((sum, a) => sum + Number(a.amount), 0);
@@ -99,13 +102,16 @@ export function BookingList({
   pendingServiceByBooking = {},
   hotel = null,
   creditAccounts = [],
+  canSettleRoomService = false,
 }: {
   bookings: Booking[];
   serviceOrdersByBooking?: Record<string, ServiceOrderDetail[]>;
   pendingServiceByBooking?: Record<string, ServiceOrderDetail[]>;
   hotel?: HotelSettings | null;
   creditAccounts?: CreditAccount[];
+  canSettleRoomService?: boolean;
 }) {
+  const { t } = useLanguage();
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [pendingId, setPendingId] = useState<string | null>(null);
@@ -238,7 +244,7 @@ export function BookingList({
         <CardTitle>Arrivals &amp; in-house guests</CardTitle>
       </CardHeader>
       <CardContent className="space-y-3">
-        {error ? <p className="text-sm text-destructive">{error}</p> : null}
+        {error ? <p className="text-sm text-destructive">{t(error)}</p> : null}
         {printError ? <p className="text-sm text-destructive">{printError}</p> : null}
         {notice ? <p className="text-sm text-emerald-500">{notice}</p> : null}
         {bookings.length === 0 ? (
@@ -269,10 +275,7 @@ export function BookingList({
                 </p>
                 {b.actual_check_in ? (
                   <p className="text-xs text-muted-foreground">
-                    In: {new Date(b.actual_check_in).toLocaleString("en-GB")}
-                    {(pendingServiceByBooking[b.id] ?? []).length > 0
-                      ? ` · ${pendingServiceByBooking[b.id]?.length} room-service bill(s) to settle`
-                      : ""}
+                    In: {formatColomboDateTimeFull(b.actual_check_in)}
                   </p>
                 ) : null}
                 <p className="text-xs text-muted-foreground">
@@ -287,6 +290,11 @@ export function BookingList({
                     : ""}
                   {b.contact_number ? ` · ${b.contact_number}` : ""}
                 </p>
+                <PendingRoomService
+                  booking={b}
+                  pending={pendingServiceByBooking[b.id] ?? []}
+                  canSettle={canSettleRoomService}
+                />
                 {advancePaidOf(b) > 0 && (
                   <p className="text-xs text-muted-foreground">
                     Advance paid: <span className="font-medium text-emerald-500">{formatLKR(advancePaidOf(b))}</span>
@@ -376,8 +384,7 @@ export function BookingList({
           ))
         )}
         <p className="text-xs text-muted-foreground">
-          Checking out flips the room to <span className="font-medium">dirty</span> automatically for
-          housekeeping (database Trigger A). Time-block countdowns start at the actual check-in.
+          {t("After check-out the room is marked dirty for housekeeping automatically. Time-block countdowns start at the actual check-in time.")}
         </p>
       </CardContent>
 
@@ -438,6 +445,7 @@ export function BookingList({
         {checkingOut && (
           <CheckoutDialog
             booking={checkingOut}
+            pendingRoomService={(pendingServiceByBooking[checkingOut.id] ?? []).length}
             creditAccounts={creditAccounts}
             onDone={(msg) => {
               setCheckingOut(null);
@@ -461,7 +469,7 @@ function ExtendDialog({ booking, onDone }: { booking: Booking; onDone: (msg: str
     : booking.rate_plan_price && booking.duration_hours
     ? Number(booking.rate_plan_price) / Number(booking.duration_hours)
     : 0;
-  const topUp = Math.round(unitRate * Number(amount || 0) * 100) / 100;
+  const topUp = roundToRupee(unitRate * Number(amount || 0)); // same whole-rupee rule as the server
 
   function submit() {
     const n = Number(amount);
@@ -526,7 +534,7 @@ function ShortenDialog({ booking, onDone }: { booking: Booking; onDone: (msg: st
   const [pending, startTransition] = useTransition();
 
   const nightlyRate = Number(booking.rate_plan_price ?? 0);
-  const reduction = Math.round(nightlyRate * Number(nights || 0) * 100) / 100;
+  const reduction = roundToRupee(nightlyRate * Number(nights || 0)); // same whole-rupee rule as the server
 
   function submit() {
     const n = Number(nights);
@@ -716,13 +724,17 @@ function AdvancePaymentDialog({ booking, onDone }: { booking: Booking; onDone: (
 
 function CheckoutDialog({
   booking,
+  pendingRoomService = 0,
   creditAccounts,
   onDone,
 }: {
   booking: Booking;
+  /** Unsettled room-service bills — checkout is blocked while any exist */
+  pendingRoomService?: number;
   creditAccounts: CreditAccount[];
   onDone: (msg: string) => void;
 }) {
+  const { t } = useLanguage();
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
   const [creditAccountId, setCreditAccountId] = useState("");
   const [error, setError] = useState<string | null>(null);
@@ -815,21 +827,80 @@ function CheckoutDialog({
             <p className="text-xs text-amber-500">
               Counts as revenue, but not cash-in-hand — collect this later from the account. No
               accounts yet?{" "}
-              <a href="/finance/credit-accounts" className="underline">
+              <Link href="/finance/credit-accounts" className="underline">
                 Add one here
-              </a>
+              </Link>
               .
             </p>
           </div>
         )}
-        {error && <p className="text-sm text-destructive">{error}</p>}
+        {pendingRoomService > 0 && (
+          <p className="rounded-lg border border-amber-500/40 bg-amber-500/10 p-3 text-sm text-amber-700 dark:text-amber-300">
+            {t(CHECKOUT_BLOCKED_MESSAGE)}
+          </p>
+        )}
+        {error && <p className="text-sm text-destructive">{t(error)}</p>}
       </div>
       <DialogFooter>
-        <Button onClick={submit} disabled={pending || (paymentMethod === "credit" && !creditAccountId)}>
+        <Button
+          onClick={submit}
+          disabled={pending || pendingRoomService > 0 || (paymentMethod === "credit" && !creditAccountId)}
+        >
           <DoorOpen className="mr-2 h-4 w-4" />
           {pending ? "Checking out…" : "Confirm check out"}
         </Button>
       </DialogFooter>
     </DialogContent>
+  );
+}
+
+/** Same text the server action and the DB guard use, so one translation covers all three. */
+const CHECKOUT_BLOCKED_MESSAGE = "This guest has an unsettled room-service bill. Settle or cancel the room-service bill first, then check out.";
+
+/**
+ * Room-service bills post to the folio only when they are settled, so an
+ * open one isn't in the folio figure yet. Shows the full picture —
+ * posted folio + pending room service = total due — and a way to settle.
+ */
+function PendingRoomService({
+  booking,
+  pending,
+  canSettle,
+}: {
+  booking: Booking;
+  pending: ServiceOrderDetail[];
+  canSettle: boolean;
+}) {
+  const { t } = useLanguage();
+  if (pending.length === 0) return null;
+  const posted = Number(booking.total_folio_amount);
+  const pendingTotal = pending.reduce((sum, o) => sum + o.amount, 0);
+  return (
+    <div className="mt-2 space-y-1.5 rounded-lg border border-amber-500/40 bg-amber-500/10 p-2.5 text-xs">
+      <p className="tabular-nums text-foreground">
+        {t("Posted folio")} {formatLKR(posted)} + {t("pending room service")} {formatLKR(pendingTotal)} ={" "}
+        <span className="font-semibold">
+          {t("Total due")} {formatLKR(posted + pendingTotal)}
+        </span>
+      </p>
+      <p className="text-amber-700 dark:text-amber-300">
+        {pending.length} {t("room-service bill(s) not settled — settle or cancel before checkout.")}
+      </p>
+      {canSettle ? (
+        <div className="flex flex-wrap gap-2">
+          {pending.map((o) => (
+            <Link
+              key={o.id}
+              href={`/pos/billing?order=${o.id}`}
+              className="inline-flex items-center rounded-full border border-amber-500/40 bg-background px-2.5 py-1 font-medium tabular-nums hover:bg-amber-500/10"
+            >
+              {t("Settle room service")} · {formatLKR(o.amount)}
+            </Link>
+          ))}
+        </div>
+      ) : (
+        <p className="text-muted-foreground">{t("Ask the cashier to settle it on the Billing screen.")}</p>
+      )}
+    </div>
   );
 }

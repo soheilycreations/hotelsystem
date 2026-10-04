@@ -41,6 +41,7 @@ import { cn } from "@/lib/utils";
 import { useActiveOrderCount } from "@/hooks/useActiveOrderCount";
 import { useLanguage } from "@/lib/i18n/language-context";
 import { logout } from "@/app/(auth)/login/actions";
+import { BRAND } from "@/lib/brand";
 
 interface NavChild {
   href: string;
@@ -149,7 +150,7 @@ interface VisibleItem extends NavItem {
 
 export function AppSidebar({
   profile,
-  hotelName = "Soheily PMS",
+  hotelName = BRAND.name,
   logoUrl = null,
 }: {
   profile: StaffProfile;
@@ -380,6 +381,14 @@ export function AppSidebar({
           <SidebarThemeButton />
         </div>
       </div>
+      <p
+        className={cn(
+          "mt-2 text-center text-[10px] tracking-wide text-rw-sidebar-text/45",
+          hover && onlyExpanded(true, "block")
+        )}
+      >
+        {t("Powered by")} {BRAND.poweredBy}
+      </p>
     </div>
   );
 

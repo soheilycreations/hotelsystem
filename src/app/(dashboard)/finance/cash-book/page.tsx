@@ -1,9 +1,10 @@
 import { createClient } from "@/lib/supabase/server";
-import { colomboDateKey, colomboToday } from "@/lib/colombo-date";
+import { colomboDateKey, colomboToday, formatDayKey } from "@/lib/colombo-date";
 import type { CashMovement } from "@/lib/types";
-import { formatOrderNumber } from "@/lib/utils";
+import { addMoney, formatOrderNumber } from "@/lib/utils";
 import { LiveRefresher } from "../../live-refresher";
 import { CashBookView } from "./cash-book-view";
+import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Cash Book" };
@@ -186,7 +187,7 @@ export default async function CashBookPage({
   // Opening balance for `from` = everything strictly before it, netted.
   let runningBalance = 0;
   for (const r of raw) {
-    if (r.date < fromDate) runningBalance += r.direction === "in" ? r.amount : -r.amount;
+    if (r.date < fromDate) runningBalance = addMoney(runningBalance, r.direction === "in" ? r.amount : -r.amount);
   }
   const openingBalance = runningBalance;
 
@@ -195,7 +196,7 @@ export default async function CashBookPage({
   const ledger: CashLedgerEntry[] = [];
   for (const r of raw) {
     if (r.date < fromDate || r.date > toDate) continue;
-    runningBalance += r.direction === "in" ? r.amount : -r.amount;
+    runningBalance = addMoney(runningBalance, r.direction === "in" ? r.amount : -r.amount);
     ledger.push({ ...r, runningBalance });
   }
   const closingBalance = runningBalance;
@@ -210,12 +211,12 @@ export default async function CashBookPage({
   for (let i = 0; i < dayCount; i++) {
     const key = colomboDateKey(new Date(`${fromDate}T00:00:00`).getTime() + i * 86_400_000);
     const dayEntries = ledger.filter((l) => l.date === key);
-    const cashIn = dayEntries.filter((l) => l.direction === "in").reduce((s, l) => s + l.amount, 0);
-    const cashOut = dayEntries.filter((l) => l.direction === "out").reduce((s, l) => s + l.amount, 0);
-    chartBalance += cashIn - cashOut;
+    const cashIn = dayEntries.filter((l) => l.direction === "in").reduce((s, l) => addMoney(s, l.amount), 0);
+    const cashOut = dayEntries.filter((l) => l.direction === "out").reduce((s, l) => addMoney(s, l.amount), 0);
+    chartBalance = addMoney(chartBalance, cashIn - cashOut);
     days.push({
       date: key,
-      label: new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+      label: formatDayKey(key, "en-GB", { day: "2-digit", month: "short" }),
       cashIn,
       cashOut,
       net: cashIn - cashOut,
@@ -261,32 +262,32 @@ export default async function CashBookPage({
   for (const b of checkoutsInRange) {
     const rs = roomServiceByBooking.get(b.id) ?? 0;
     const advance = advanceTotalByBooking.get(b.id) ?? 0;
-    roomCashRevenue += Math.max(0, Number(b.total_folio_amount) - rs - advance);
-    roomServiceCashRevenue += rs;
+    roomCashRevenue = addMoney(roomCashRevenue, Math.max(0, Number(b.total_folio_amount) - rs - advance));
+    roomServiceCashRevenue = addMoney(roomServiceCashRevenue, rs);
   }
   // Cash advances received in-range are Room money too — just collected
   // ahead of checkout instead of on the checkout day itself.
   for (const a of (advances ?? []) as AdvanceRow[]) {
     if (a.payment_method !== "cash") continue;
     const d = String(a.date).slice(0, 10);
-    if (d >= fromDate && d <= toDate) roomCashRevenue += Number(a.amount);
+    if (d >= fromDate && d <= toDate) roomCashRevenue = addMoney(roomCashRevenue, Number(a.amount));
   }
 
   const ordersInRange = (orders ?? []).filter(
     (o) => String(o.business_date).slice(0, 10) >= fromDate && String(o.business_date).slice(0, 10) <= toDate
   ) as OrderRow[];
   const restaurantCashRevenue =
-    ordersInRange.reduce((sum, o) => sum + Number(o.total_amount), 0) + roomServiceCashRevenue;
+    ordersInRange.reduce((sum, o) => addMoney(sum, Number(o.total_amount)), 0) + roomServiceCashRevenue;
 
   const expensesInRange = (expenses ?? []).filter(
     (e) => String(e.date).slice(0, 10) >= fromDate && String(e.date).slice(0, 10) <= toDate
   ) as ExpenseRow[];
   const roomCashExpenses = expensesInRange
     .filter((e) => e.division === "room")
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+    .reduce((sum, e) => addMoney(sum, Number(e.amount)), 0);
   const restaurantCashExpenses = expensesInRange
     .filter((e) => e.division !== "room")
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+    .reduce((sum, e) => addMoney(sum, Number(e.amount)), 0);
 
   return (
     <div className="space-y-6">
@@ -301,7 +302,7 @@ export default async function CashBookPage({
       <CashBookView
         fromDate={fromDate}
         toDate={toDate}
-        hotelName={(hotel as { hotel_name?: string } | null)?.hotel_name ?? "Soheily PMS"}
+        hotelName={(hotel as { hotel_name?: string } | null)?.hotel_name ?? BRAND.name}
         openingBalance={openingBalance}
         closingBalance={closingBalance}
         days={days}

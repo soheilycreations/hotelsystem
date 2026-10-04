@@ -254,4 +254,46 @@ export const SI_DICT: Record<string, string> = {
   "No completed orders in this period.": "මේ කාලයේ සම්පූර්ණ කළ ඇණවුම් නැත.",
   "Expenses by category": "වර්ගය අනුව වියදම්",
   "No expenses logged in this period.": "මේ කාලයේ වියදම් ලියා නැත.",
+
+  // Phase 1 — Overview
+  "Revenue − logged expenses": "ආදායම − ලියූ වියදම්",
+  "Not true profit: food cost, salaries not yet logged and stock bought for later are not deducted. The real P&L is coming.":
+    "මෙය සැබෑ ලාභය නොවේ: ආහාර පිරිවැය, තවම ලියා නැති වැටුප් සහ පසුවට ගත් තොග අඩු කර නැත. සැබෑ ලාභ අලාභ වාර්තාව ඉදිරියේදී.",
+  "Before food cost & salary accruals": "ආහාර පිරිවැය සහ වැටුප් අඩු කිරීමට පෙර",
+  "below yesterday at this time": "ඊයේ මේ වෙලාවට වඩා අඩුයි",
+  "above yesterday at this time": "ඊයේ මේ වෙලාවට වඩා වැඩියි",
+  "Same as yesterday at this time": "ඊයේ මේ වෙලාවට සමානයි",
+  "Open bills": "විවෘත බිල්",
+  "items waiting for KOT": "අයිතම KOT සඳහා බලා සිටී",
+  "sent to kitchen": "කුස්සියට යවා ඇත",
+  "KOT pending": "KOT තවම නැත",
+  "Open": "විවෘතයි",
+  "Vacant": "හිස්",
+  "Dirty": "පිරිසිදු කළ යුතු",
+  "Maintenance": "අලුත්වැඩියාව",
+
+  // Phase 1 — P&L
+  "Surplus": "අතිරික්තය",
+  "Deficit": "හිඟය",
+
+  // Phase 1 — Reservations / room service
+  "This guest has an unsettled room-service bill. Settle or cancel the room-service bill first, then check out.":
+    "මෙම අමුත්තාගේ ගෙවා නැති room-service බිලක් තිබේ. පළමුව එම බිල ගෙවන්න හෝ අවලංගු කරන්න, පසුව check out කරන්න.",
+  "Posted folio": "බිලට එකතු කළ මුදල",
+  "pending room service": "ගෙවා නැති room service",
+  "Total due": "ගෙවිය යුතු මුළු මුදල",
+  "room-service bill(s) not settled — settle or cancel before checkout.":
+    "room-service බිල් තවම ගෙවා නැත — check out කිරීමට පෙර ගෙවන්න හෝ අවලංගු කරන්න.",
+  "Settle room service": "Room service බිල ගෙවන්න",
+  "Ask the cashier to settle it on the Billing screen.": "Billing තිරයෙන් එය ගෙවීමට කැෂියර්ට කියන්න.",
+  "After check-out the room is marked dirty for housekeeping automatically. Time-block countdowns start at the actual check-in time.":
+    "Check out කළ පසු කාමරය පිරිසිදු කිරීමට ස්වයංක්‍රීයව සලකුණු වේ. පැය ගණනේ කාලය ආරම්භ වන්නේ සැබෑ check-in වෙලාවෙනි.",
+
+  // Phase 1 — Billing / recipes / branding
+  "Settling closes the bill. Recipe stock is deducted automatically, and room-service bills are added to the guest's room bill.":
+    "ගෙවූ පසු බිල වැසේ. වට්ටෝරු තොග ස්වයංක්‍රීයව අඩු වන අතර room-service බිල් අමුත්තාගේ කාමර බිලට එකතු වේ.",
+  "No menu items yet": "තවම මෙනු අයිතම නැත",
+  "Add dishes under Restaurant → Menu Items first, then set their recipes here.":
+    "පළමුව රෙස්ටුරන්ට් → මෙනු අයිතම යටතේ කෑම එකතු කරන්න, පසුව මෙතන වට්ටෝරු සකසන්න.",
+  "Powered by": "බලගැන්වීම",
 };

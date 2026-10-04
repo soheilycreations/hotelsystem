@@ -1,8 +1,9 @@
 import { createClient } from "@/lib/supabase/server";
 import { colomboToday } from "@/lib/colombo-date";
-import { formatOrderNumber } from "@/lib/utils";
+import { addMoney, formatOrderNumber } from "@/lib/utils";
 import { LiveRefresher } from "../../live-refresher";
 import { SimpleReportView } from "./simple-report-view";
+import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Simple Report" };
@@ -71,17 +72,17 @@ export default async function SimpleReportPage({
   const creditBillLines: { label: string; amount: number }[] = [];
   for (const o of orders ?? []) {
     const amount = Number(o.total_amount);
-    restaurantRevenue += amount;
+    restaurantRevenue = addMoney(restaurantRevenue, amount);
     const method = o.payment_method ?? "cash";
-    if (method === "card") cardPayment += amount;
-    else if (method === "bank_transfer") bankTransfer += amount;
+    if (method === "card") cardPayment = addMoney(cardPayment, amount);
+    else if (method === "bank_transfer") bankTransfer = addMoney(bankTransfer, amount);
     else if (method === "credit") {
-      creditBills += amount;
+      creditBills = addMoney(creditBills, amount);
       creditBillLines.push({ label: orderLabel(o), amount });
     }
   }
 
-  const cashExpenses = (expenses ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
+  const cashExpenses = (expenses ?? []).reduce((sum, e) => addMoney(sum, Number(e.amount)), 0);
 
   type AdvRoom = { room_number: string } | { room_number: string }[] | null;
   type AdvBooking = { guest_name: string; rooms: AdvRoom } | { guest_name: string; rooms: AdvRoom }[] | null;
@@ -111,7 +112,7 @@ export default async function SimpleReportPage({
       </div>
       <SimpleReportView
         date={date}
-        hotelName={(hotel as { hotel_name?: string } | null)?.hotel_name ?? "Soheily PMS"}
+        hotelName={(hotel as { hotel_name?: string } | null)?.hotel_name ?? BRAND.name}
         pettyCash={pettyCash}
         restaurantRevenue={restaurantRevenue}
         cardPayment={cardPayment}

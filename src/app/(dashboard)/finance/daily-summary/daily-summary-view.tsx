@@ -27,10 +27,12 @@ import {
   TableHeader,
   TableRow,
 } from "@/components/ui/table";
-import { cn, formatLKR } from "@/lib/utils";
+import { addMoney, cn, formatLKR } from "@/lib/utils";
 import type { HotelSettings, PaymentMethod } from "@/lib/types";
 import { generateDailySummaryPdf, openPdfBlob } from "@/lib/report-pdf";
 import { useLanguage } from "@/lib/i18n/language-context";
+import { formatDayKey } from "@/lib/colombo-date";
+import { BRAND } from "@/lib/brand";
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   cash: "Cash",
@@ -152,7 +154,7 @@ export function DailySummaryView({
     try {
       const blob = await generateDailySummaryPdf({
         date,
-        hotelName: hotel?.hotel_name ?? "Soheily PMS",
+        hotelName: hotel?.hotel_name ?? BRAND.name,
         language,
         roomSales,
         roomRevenueTotal,
@@ -177,7 +179,7 @@ export function DailySummaryView({
     }
   }
 
-  const prettyDate = new Date(`${date}T00:00:00`).toLocaleDateString(language === "si" ? "si-LK" : "en-GB", {
+  const prettyDate = formatDayKey(date, language === "si" ? "si-LK" : "en-GB", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -554,7 +556,7 @@ export function DailySummaryView({
               <div className="flex items-center justify-between border-t pt-2 text-sm font-semibold">
                 <span>{t("Total outstanding")}</span>
                 <span className="tabular-nums">
-                  {formatLKR(creditAccountBalances.reduce((s, a) => s + a.balance, 0))}
+                  {formatLKR(creditAccountBalances.reduce((s, a) => addMoney(s, a.balance), 0))}
                 </span>
               </div>
             </div>

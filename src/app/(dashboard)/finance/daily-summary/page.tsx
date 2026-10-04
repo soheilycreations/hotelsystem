@@ -1,7 +1,7 @@
 import { createClient } from "@/lib/supabase/server";
 import { colomboToday } from "@/lib/colombo-date";
 import type { HotelSettings } from "@/lib/types";
-import { formatOrderNumber } from "@/lib/utils";
+import { addMoney, formatOrderNumber } from "@/lib/utils";
 import { LiveRefresher } from "../../live-refresher";
 import { DailySummaryView } from "./daily-summary-view";
 
@@ -131,11 +131,11 @@ export default async function DailySummaryPage({
     const roomPortion = Math.max(0, Number(b.total_folio_amount) - rs - advance);
     const checkoutDate = b.actual_check_out.slice(0, 10);
     if (checkoutDate === date) {
-      roomTodayIn += roomPortion;
-      restaurantTodayIn += rs;
+      roomTodayIn = addMoney(roomTodayIn, roomPortion);
+      restaurantTodayIn = addMoney(restaurantTodayIn, rs);
     } else if (checkoutDate < date) {
-      roomOpening += roomPortion;
-      restaurantOpening += rs;
+      roomOpening = addMoney(roomOpening, roomPortion);
+      restaurantOpening = addMoney(restaurantOpening, rs);
     }
   }
   // Cash advances land in the Room ledger on the day they were actually
@@ -144,20 +144,20 @@ export default async function DailySummaryPage({
     if (a.payment_method !== "cash") continue;
     const advanceDate = String(a.date).slice(0, 10);
     const amount = Number(a.amount);
-    if (advanceDate === date) roomTodayIn += amount;
-    else if (advanceDate < date) roomOpening += amount;
+    if (advanceDate === date) roomTodayIn = addMoney(roomTodayIn, amount);
+    else if (advanceDate < date) roomOpening = addMoney(roomOpening, amount);
   }
   for (const o of allCashOrders ?? []) {
     const orderDate = String(o.business_date).slice(0, 10);
-    if (orderDate === date) restaurantTodayIn += Number(o.total_amount);
-    else if (orderDate < date) restaurantOpening += Number(o.total_amount);
+    if (orderDate === date) restaurantTodayIn = addMoney(restaurantTodayIn, Number(o.total_amount));
+    else if (orderDate < date) restaurantOpening = addMoney(restaurantOpening, Number(o.total_amount));
   }
   for (const e of allCashExpenses ?? []) {
     const expenseDate = String(e.date).slice(0, 10);
     const amount = Number(e.amount);
     if (expenseDate === date) {
-      if (e.division === "room") roomTodayOut += amount;
-      else restaurantTodayOut += amount;
+      if (e.division === "room") roomTodayOut = addMoney(roomTodayOut, amount);
+      else restaurantTodayOut = addMoney(restaurantTodayOut, amount);
     } else if (expenseDate < date) {
       if (e.division === "room") roomOpening -= amount;
       else restaurantOpening -= amount;
@@ -173,8 +173,8 @@ export default async function DailySummaryPage({
     const moveDate = String(m.date).slice(0, 10);
     const amount = Number(m.amount);
     if (moveDate === date) {
-      if (m.direction === "in") restaurantTodayIn += amount;
-      else restaurantTodayOut += amount;
+      if (m.direction === "in") restaurantTodayIn = addMoney(restaurantTodayIn, amount);
+      else restaurantTodayOut = addMoney(restaurantTodayOut, amount);
       todayCashMovements.push({
         direction: m.direction,
         category: m.category,
@@ -182,7 +182,7 @@ export default async function DailySummaryPage({
         amount,
       });
     } else if (moveDate < date) {
-      restaurantOpening += m.direction === "in" ? amount : -amount;
+      restaurantOpening = addMoney(restaurantOpening, m.direction === "in" ? amount : -amount);
     }
   }
 
@@ -234,7 +234,7 @@ export default async function DailySummaryPage({
       paymentMethod: b.payment_method ?? "cash",
     };
   });
-  const roomRevenueTotal = roomSales.reduce((sum, r) => sum + r.amount, 0);
+  const roomRevenueTotal = roomSales.reduce((sum, r) => addMoney(sum, r.amount), 0);
 
   type AdvanceTodayRoom = { room_number: string } | { room_number: string }[] | null;
   type AdvanceTodayBooking = { guest_name: string; rooms: AdvanceTodayRoom } | { guest_name: string; rooms: AdvanceTodayRoom }[] | null;
@@ -288,9 +288,9 @@ export default async function DailySummaryPage({
   let posServiceCharge = 0;
   let posTotal = 0;
   for (const o of orders ?? []) {
-    posSubtotal += Number(o.subtotal);
-    posServiceCharge += Number(o.service_charge);
-    posTotal += Number(o.total_amount);
+    posSubtotal = addMoney(posSubtotal, Number(o.subtotal));
+    posServiceCharge = addMoney(posServiceCharge, Number(o.service_charge));
+    posTotal = addMoney(posTotal, Number(o.total_amount));
     for (const it of o.order_items ?? []) {
       const menuItem = it.menu_items as unknown as { name: string } | null;
       const name = it.is_custom
@@ -298,7 +298,7 @@ export default async function DailySummaryPage({
         : menuItem?.name ?? "Unknown item";
       const cur = itemTotals.get(name) ?? { qty: 0, revenue: 0 };
       cur.qty += Number(it.quantity);
-      cur.revenue += Number(it.line_total);
+      cur.revenue = addMoney(cur.revenue, Number(it.line_total));
       itemTotals.set(name, cur);
     }
   }
@@ -311,17 +311,17 @@ export default async function DailySummaryPage({
   // record (in the full total below) but don't reduce the Net Cash Balance
   // the way cash/card expenses do. Room/Restaurant expenses are split out
   // for the divisional balance, same rule as the P&L Report.
-  const expensesTotal = (expenses ?? []).reduce((sum, e) => sum + Number(e.amount), 0);
+  const expensesTotal = (expenses ?? []).reduce((sum, e) => addMoney(sum, Number(e.amount)), 0);
   const cashExpenses = (expenses ?? []).filter(
     (e) => e.payment_method !== "bank_transfer" && e.payment_method !== "owner_paid"
   );
-  const expensesAgainstRevenue = cashExpenses.reduce((sum, e) => sum + Number(e.amount), 0);
+  const expensesAgainstRevenue = cashExpenses.reduce((sum, e) => addMoney(sum, Number(e.amount)), 0);
   const roomExpenses = cashExpenses
     .filter((e) => e.division === "room")
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+    .reduce((sum, e) => addMoney(sum, Number(e.amount)), 0);
   const restaurantExpenses = cashExpenses
     .filter((e) => e.division !== "room")
-    .reduce((sum, e) => sum + Number(e.amount), 0);
+    .reduce((sum, e) => addMoney(sum, Number(e.amount)), 0);
 
   // Credit accounts — settled against a named account instead of cash/card/
   // bank. Still counts as revenue above (room or restaurant, per source). Two

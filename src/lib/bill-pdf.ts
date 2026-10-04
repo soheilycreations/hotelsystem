@@ -5,7 +5,7 @@
 import { createClient } from "@/lib/supabase/client";
 import type { FolioPayload, ReceiptPayload } from "@/hooks/useThermalPrint";
 import { formatOrderNumber } from "@/lib/utils";
-import { colomboToday } from "@/lib/colombo-date";
+import { colomboToday, formatColomboDateNumeric, formatColomboDateTimeFull } from "@/lib/colombo-date";
 
 const A5: [number, number] = [148, 210]; // mm
 const MARGIN = 14;
@@ -151,18 +151,18 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
     l.row("Stay", `${payload.durationHours ?? "?"}h block`);
   }
   if (payload.actualCheckIn) {
-    l.row("Checked in", new Date(payload.actualCheckIn).toLocaleString("en-GB"));
+    l.row("Checked in", formatColomboDateTimeFull(payload.actualCheckIn));
   } else {
-    l.row("Check-in", new Date(payload.checkInDate).toLocaleDateString("en-GB"));
+    l.row("Check-in", formatColomboDateNumeric(payload.checkInDate));
   }
   if (payload.actualCheckOut) {
-    l.row("Checked out", new Date(payload.actualCheckOut).toLocaleString("en-GB"));
+    l.row("Checked out", formatColomboDateTimeFull(payload.actualCheckOut));
   } else if (payload.stayType === "short_stay") {
-    l.row("Until", new Date(payload.checkOutDate).toLocaleString("en-GB"));
+    l.row("Until", formatColomboDateTimeFull(payload.checkOutDate));
   } else {
-    l.row("Check-out", new Date(payload.checkOutDate).toLocaleDateString("en-GB"));
+    l.row("Check-out", formatColomboDateNumeric(payload.checkOutDate));
   }
-  l.row("Printed", new Date().toLocaleString("en-GB"));
+  l.row("Printed", formatColomboDateTimeFull(new Date()));
   l.divider();
 
   if (payload.stayType === "short_stay") {
@@ -201,7 +201,7 @@ export async function generateReceiptPdf(payload: ReceiptPayload): Promise<Blob>
     `Bill #${formatOrderNumber(order.business_date, order.order_number)}`,
     order.channel_type.replace("_", " ").toUpperCase()
   );
-  l.row("Date", new Date(order.created_at).toLocaleString("en-GB"));
+  l.row("Date", formatColomboDateTimeFull(order.created_at));
   if (order.restaurant_tables) l.row("Table", order.restaurant_tables.table_number);
   if (order.bookings) l.row("Guest", order.bookings.guest_name);
   l.divider();

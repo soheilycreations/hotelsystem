@@ -10,6 +10,7 @@ import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { HotelSettings } from "@/lib/types";
 import { updateHotelSettings } from "./actions";
+import { BRAND } from "@/lib/brand";
 
 async function uploadHotelAsset(file: File): Promise<string> {
   const supabase = createClient();
@@ -21,7 +22,7 @@ async function uploadHotelAsset(file: File): Promise<string> {
 }
 
 export function HotelProfileForm({ settings }: { settings: HotelSettings | null }) {
-  const [name, setName] = useState(settings?.hotel_name ?? "Soheily PMS");
+  const [name, setName] = useState(settings?.hotel_name ?? BRAND.name);
   const [address, setAddress] = useState(settings?.address ?? "");
   const [phone1, setPhone1] = useState(settings?.phone_primary ?? "");
   const [phone2, setPhone2] = useState(settings?.phone_secondary ?? "");

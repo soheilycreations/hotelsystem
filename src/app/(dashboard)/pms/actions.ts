@@ -3,6 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { BookingStatus, GuestStayHistory, PaymentMethod, RoomStatus } from "@/lib/types";
+import { roundToRupee } from "@/lib/utils";
 
 interface ActionResult {
   ok: boolean;
@@ -254,9 +255,11 @@ export async function setBookingStatus(
         .eq("booking_id", bookingId)
         .eq("order_status", "active");
       if (openRs && openRs.length > 0) {
+        // Exact text is also a translation key (booking-list shows t(error)),
+        // and matches the database guard from migration 038.
         return {
           ok: false,
-          error: `Settle ${openRs.length} open room-service order${openRs.length > 1 ? "s" : ""} first (Billing screen) — then check out.`,
+          error: "This guest has an unsettled room-service bill. Settle or cancel the room-service bill first, then check out.",
         };
       }
     }
@@ -335,7 +338,7 @@ export async function extendShortStay(
       return { ok: false, error: "Only in-house stays can be extended." };
 
     const perHour = Number(b.rate_plan_price ?? 0) / Number(b.duration_hours);
-    const topUp = Math.round(perHour * extraHours * 100) / 100;
+    const topUp = roundToRupee(perHour * extraHours); // whole rupees, half up
     const newEnd = new Date(
       new Date(b.check_out_date).getTime() + extraHours * 3_600_000
     ).toISOString();
@@ -392,7 +395,7 @@ export async function extendOvernightStay(
       return { ok: false, error: "Only in-house stays can be extended." };
 
     const nightlyRate = Number(b.rate_plan_price ?? 0);
-    const topUp = Math.round(nightlyRate * extraNights * 100) / 100;
+    const topUp = roundToRupee(nightlyRate * extraNights); // whole rupees, half up
     const newEnd = new Date(
       new Date(b.check_out_date).getTime() + extraNights * 86_400_000
     ).toISOString();
@@ -462,7 +465,7 @@ export async function shortenOvernightStay(
       return { ok: false, error: `This stay only has ${currentNights} night(s) — can't remove that many.` };
 
     const nightlyRate = Number(b.rate_plan_price ?? 0);
-    const reduction = Math.round(nightlyRate * reduceNights * 100) / 100;
+    const reduction = roundToRupee(nightlyRate * reduceNights); // whole rupees, half up
     const newCheckout = new Date(
       new Date(b.check_out_date).getTime() - reduceNights * 86_400_000
     ).toISOString();

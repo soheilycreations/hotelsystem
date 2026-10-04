@@ -5,7 +5,14 @@ import { BillingDesk } from "./billing-desk";
 
 export const dynamic = "force-dynamic";
 
-export default async function BillingPage() {
+export default async function BillingPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ order?: string }>;
+}) {
+  // ?order=<id> pre-selects a bill — used by the "Settle room service"
+  // shortcut on the Reservations folio card.
+  const { order: initialOrderId } = await searchParams;
   const supabase = await createClient();
   const profile = await getSessionProfile();
   const canVoid = profile?.role === "admin";
@@ -36,6 +43,7 @@ export default async function BillingPage() {
         hotel={(hotel as HotelSettings | null) ?? null}
         creditAccounts={(creditAccounts as CreditAccount[] | null) ?? []}
         canVoid={canVoid}
+        initialOrderId={initialOrderId}
       />
     </div>
   );

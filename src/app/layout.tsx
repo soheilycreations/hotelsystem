@@ -2,6 +2,7 @@ import type { Metadata, Viewport } from "next";
 import { Plus_Jakarta_Sans } from "next/font/google";
 import { ThemeProvider } from "@/components/theme-provider";
 import { LanguageProvider } from "@/lib/i18n/language-context";
+import { BRAND } from "@/lib/brand";
 import "./globals.css";
 
 const jakarta = Plus_Jakarta_Sans({
@@ -11,8 +12,8 @@ const jakarta = Plus_Jakarta_Sans({
 });
 
 export const metadata: Metadata = {
-  title: { default: "Soheily PMS", template: "%s · Soheily PMS" },
-  description: "Hotel Property Management, Restaurant POS, Inventory & Ledger — all in one.",
+  title: { default: BRAND.name, template: `%s · ${BRAND.name}` },
+  description: `${BRAND.name} — rooms, restaurant and finance. Powered by ${BRAND.poweredBy}.`,
 };
 
 export const viewport: Viewport = {

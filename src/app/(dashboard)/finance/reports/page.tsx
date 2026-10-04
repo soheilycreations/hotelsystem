@@ -1,5 +1,5 @@
 import { createClient } from "@/lib/supabase/server";
-import { colomboDateKey, colomboToday } from "@/lib/colombo-date";
+import { colomboDateKey, colomboToday, formatDayKey } from "@/lib/colombo-date";
 import type { ChannelType } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { ReportsView } from "./reports-view";
@@ -97,7 +97,7 @@ export default async function ReportsPage({
     const key = colomboDateKey(new Date(`${fromDate}T00:00:00`).getTime() + i * 86_400_000);
     series.set(key, {
       date: key,
-      label: new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short" }),
+      label: formatDayKey(key, "en-GB", { day: "numeric", month: "short" }),
       room: 0,
       food: 0,
       expenses: 0,

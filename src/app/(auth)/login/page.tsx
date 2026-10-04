@@ -7,20 +7,23 @@ import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { BRAND } from "@/lib/brand";
+import { useLanguage } from "@/lib/i18n/language-context";
 
 const initialState: AuthState = { error: null };
 
 export default function LoginPage() {
+  const { t } = useLanguage();
   const [state, formAction, pending] = useActionState(login, initialState);
 
   return (
-    <main className="flex min-h-dvh items-center justify-center bg-background p-4">
+    <main className="flex min-h-dvh flex-col items-center justify-center bg-background p-4">
       <Card className="w-full max-w-sm">
         <CardHeader className="items-center text-center">
           <div className="mb-2 flex h-12 w-12 items-center justify-center rounded-xl bg-primary text-primary-foreground">
             <Hotel className="h-6 w-6" />
           </div>
-          <CardTitle className="text-xl">Soheily PMS</CardTitle>
+          <CardTitle className="text-xl">{BRAND.name}</CardTitle>
           <CardDescription>Staff sign in — hotel, restaurant &amp; back office</CardDescription>
         </CardHeader>
         <CardContent>
@@ -47,6 +50,9 @@ export default function LoginPage() {
           </form>
         </CardContent>
       </Card>
+      <p className="mt-6 text-xs text-muted-foreground">
+        {t("Powered by")} {BRAND.poweredBy}
+      </p>
     </main>
   );
 }

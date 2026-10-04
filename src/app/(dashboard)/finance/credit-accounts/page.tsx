@@ -74,7 +74,7 @@ export default async function CreditAccountsPage() {
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Credit Accounts</h1>
         <p className="text-sm text-muted-foreground">
-          Bills and bookings settled "on credit" against a named account — track what each one
+          Bills and bookings settled “on credit” against a named account — track what each one
           owes, and record repayments as they come in.
         </p>
       </div>

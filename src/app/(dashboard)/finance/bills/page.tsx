@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { colomboToday } from "@/lib/colombo-date";
 import type { HotelSettings, PaymentMethod } from "@/lib/types";
 import { BillsView } from "./bills-view";
+import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 export const metadata = { title: "Bills" };
@@ -76,7 +77,7 @@ export default async function BillsPage({
   return (
     <BillsView
       date={date}
-      hotelName={(hotel as HotelSettings | null)?.hotel_name ?? "Soheily PMS"}
+      hotelName={(hotel as HotelSettings | null)?.hotel_name ?? BRAND.name}
       bills={bills}
     />
   );

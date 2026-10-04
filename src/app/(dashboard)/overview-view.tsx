@@ -7,6 +7,7 @@ import {
   Bell,
   CalendarDays,
   ChevronDown,
+  Info,
   Plus,
   ReceiptText,
   Search,
@@ -42,6 +43,8 @@ export interface OverviewData {
   todayLabel: string;
   rangeLabel: string;
   todayRevenue: number;
+  /** Yesterday's sales up to this same clock time */
+  yesterdaySoFar: number;
   revenueDelta: number;
   posRevenue: number;
   roomRevenue: number;
@@ -52,11 +55,11 @@ export interface OverviewData {
   todayCheckIns: number;
   todayCheckOuts: number;
   occupied: number;
-  vacant: number;
+  /** Always sums to totalRooms */
+  roomStatus: { vacant: number; occupied: number; dirty: number; maintenance: number };
   totalRooms: number;
   occupancyPct: number;
-  activeOrders: number;
-  kotPendingCount: number;
+  kitchen: { openBills: number; itemsAwaitingKot: number; itemsSentToKitchen: number };
   lowStockCount: number;
   days: { day: string; revenue: number; expenses: number }[];
   channels: { channel: ChannelType; value: number; count: number }[];
@@ -111,11 +114,20 @@ export function OverviewView({ data }: { data: OverviewData }) {
         <StatCard
           icon={Banknote}
           tone="lime"
-          label={t("Net profit")}
+          label={t("Revenue − logged expenses")}
           value={formatLKR(netProfit)}
           valueClassName={netProfit < 0 ? "text-[#B3261E] dark:text-red-300" : undefined}
-          pill={<Pill>{t("14 days")}</Pill>}
-          sub={t("Revenue minus logged expenses")}
+          pill={
+            <>
+              <InfoTip
+                text={t(
+                  "Not true profit: food cost, salaries not yet logged and stock bought for later are not deducted. The real P&L is coming."
+                )}
+              />
+              <Pill>{t("14 days")}</Pill>
+            </>
+          }
+          sub={t("Before food cost & salary accruals")}
         />
         <StatCard
           icon={ReceiptText}
@@ -279,8 +291,8 @@ function HeroCard({ data }: { data: OverviewData }) {
         >
           {!same && <DeltaIcon className="h-4 w-4 shrink-0" strokeWidth={1.8} />}
           {same
-            ? t("Same as yesterday")
-            : `${formatLKR(Math.abs(data.revenueDelta))} ${down ? t("below yesterday") : t("above yesterday")}`}
+            ? t("Same as yesterday at this time")
+            : `${formatLKR(Math.abs(data.revenueDelta))} ${down ? t("below yesterday at this time") : t("above yesterday at this time")}`}
         </p>
         <Link
           href="/finance/daily-summary"
@@ -306,6 +318,7 @@ function TodayCard({ data }: { data: OverviewData }) {
     value: string;
     pill: string;
     tone: Tone;
+    wrapSub?: boolean;
   }[] = [
     {
       code: "IN",
@@ -333,14 +346,12 @@ function TodayCard({ data }: { data: OverviewData }) {
     },
     {
       code: "KT",
-      label: t("Kitchen orders"),
-      sub:
-        data.kotPendingCount > 0
-          ? `${data.kotPendingCount} ${t("bill(s) — KOT pending")}`
-          : t("Currently cooking"),
-      value: String(data.activeOrders),
-      pill: data.activeOrders > 0 ? t("Active") : t("Clear"),
-      tone: data.kotPendingCount > 0 ? "amber" : data.activeOrders > 0 ? "green" : "neutral",
+      label: t("Open bills"),
+      sub: `${data.kitchen.itemsAwaitingKot} ${t("items waiting for KOT")} · ${data.kitchen.itemsSentToKitchen} ${t("sent to kitchen")}`,
+      wrapSub: true,
+      value: String(data.kitchen.openBills),
+      pill: data.kitchen.itemsAwaitingKot > 0 ? t("KOT pending") : data.kitchen.openBills > 0 ? t("Open") : t("Clear"),
+      tone: data.kitchen.itemsAwaitingKot > 0 ? "amber" : data.kitchen.openBills > 0 ? "green" : "neutral",
     },
     {
       code: "FO",
@@ -354,8 +365,8 @@ function TodayCard({ data }: { data: OverviewData }) {
       code: "RS",
       label: t("Today's sales"),
       sub: same
-        ? t("Same as yesterday")
-        : `${formatLKR(Math.abs(data.revenueDelta))} ${down ? t("below yesterday") : t("above yesterday")}`,
+        ? t("Same as yesterday at this time")
+        : `${formatLKR(Math.abs(data.revenueDelta))} ${down ? t("below yesterday at this time") : t("above yesterday at this time")}`,
       value: formatLKR(data.todayRevenue),
       pill: same ? t("Flat") : down ? t("Down") : t("Up"),
       tone: same ? "neutral" : down ? "red" : "green",
@@ -378,7 +389,7 @@ function TodayCard({ data }: { data: OverviewData }) {
             </span>
             <div className="min-w-0 flex-1">
               <p className="truncate text-[15px] font-medium">{row.label}</p>
-              <p className="truncate text-xs text-rw-muted">{row.sub}</p>
+              <p className={cn("text-xs text-rw-muted", row.wrapSub ? "leading-snug" : "truncate")}>{row.sub}</p>
             </div>
             <div className="flex shrink-0 flex-col items-end gap-1">
               <span className="text-[15px] font-bold tabular-nums">{row.value}</span>
@@ -527,9 +538,12 @@ function OccupancyCard({ data }: { data: OverviewData }) {
               </span>
             </div>
           </div>
+          {/* Every room is in exactly one of these, so the tiles always add up to the total. */}
           <div className="mt-5 grid grid-cols-2 gap-3">
-            <StatTile dot="bg-[rgb(var(--rw-chart-rev))]" label={t("Occupied")} value={data.occupied} />
-            <StatTile dot="bg-rw-lime" label={t("Available")} value={data.vacant} />
+            <StatTile dot="bg-rw-lime" label={t("Vacant")} value={data.roomStatus.vacant} />
+            <StatTile dot="bg-[rgb(var(--rw-chart-rev))]" label={t("Occupied")} value={data.roomStatus.occupied} />
+            <StatTile dot="bg-[#E8833A]" label={t("Dirty")} value={data.roomStatus.dirty} />
+            <StatTile dot="bg-[#94A39B]" label={t("Maintenance")} value={data.roomStatus.maintenance} />
           </div>
         </>
       )}
@@ -592,6 +606,27 @@ function ActivityCard({ items }: { items: ActivityItem[] }) {
 }
 
 /* ---------------------------- primitives ---------------------------- */
+
+/** Small "i" button with a hover/focus explanation bubble. */
+function InfoTip({ text }: { text: string }) {
+  return (
+    <span className="group/tip relative inline-flex">
+      <button
+        type="button"
+        aria-label={text}
+        className="flex h-6 w-6 items-center justify-center rounded-full text-rw-muted transition-colors hover:bg-rw-soft hover:text-rw-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-rw-green/30"
+      >
+        <Info className="h-4 w-4" strokeWidth={1.8} />
+      </button>
+      <span
+        role="tooltip"
+        className="pointer-events-none absolute right-0 top-8 z-20 w-64 rounded-xl border border-rw-border bg-rw-card p-3 text-xs font-normal leading-relaxed text-rw-ink opacity-0 shadow-[0_8px_24px_rgba(15,61,46,0.12)] transition-opacity group-hover/tip:opacity-100 group-focus-within/tip:opacity-100"
+      >
+        {text}
+      </span>
+    </span>
+  );
+}
 
 function StatTile({ dot, label, value }: { dot: string; label: string; value: number }) {
   return (

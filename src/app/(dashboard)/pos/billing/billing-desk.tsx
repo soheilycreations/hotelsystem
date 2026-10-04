@@ -36,6 +36,8 @@ import { formatDateTime, formatLKR, formatOrderNumber } from "@/lib/utils";
 import { colomboToday } from "@/lib/colombo-date";
 import type { ChannelType, CreditAccount, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
 import { cancelOrder, ensureOrderNumber, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
+import { useLanguage } from "@/lib/i18n/language-context";
+import Link from "next/link";
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }> = {
   dine_in: { label: "Dine-in", icon: Armchair },
@@ -50,13 +52,18 @@ export function BillingDesk({
   hotel = null,
   creditAccounts = [],
   canVoid = false,
+  initialOrderId,
 }: {
   orders: RestaurantOrder[];
   hotel?: HotelSettings | null;
   creditAccounts?: CreditAccount[];
   canVoid?: boolean;
+  initialOrderId?: string;
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
+  const { t } = useLanguage();
+  const [selectedId, setSelectedId] = useState<string | null>(
+    (initialOrderId && orders.some((o) => o.id === initialOrderId) ? initialOrderId : null) ?? orders[0]?.id ?? null
+  );
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
   const [dateConfirmId, setDateConfirmId] = useState<string | null>(null);
@@ -469,9 +476,9 @@ export function BillingDesk({
                       <p className="text-xs text-amber-500">
                         Counts as revenue, but not cash-in-hand — collect this later from the
                         account. No accounts yet?{" "}
-                        <a href="/finance/credit-accounts" className="underline">
+                        <Link href="/finance/credit-accounts" className="underline">
                           Add one here
-                        </a>
+                        </Link>
                         .
                       </p>
                     </div>
@@ -585,9 +592,7 @@ export function BillingDesk({
             </div>
 
             <p className="text-xs text-muted-foreground">
-              Settling flips the order to <span className="font-medium">completed</span> — the
-              database trigger then deducts recipe stock and posts room-service charges to the
-              guest folio automatically.
+              {t("Settling closes the bill. Recipe stock is deducted automatically, and room-service bills are added to the guest's room bill.")}
             </p>
 
             {(feedback || printError) && (

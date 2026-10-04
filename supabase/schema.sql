@@ -584,6 +584,39 @@ create trigger trg_a_housekeeping
 after update of status on public.bookings
 for each row execute function public.tg_housekeeping_automator();
 
+-- Migration 038 — no checkout while a room-service bill on the booking is
+-- still open (it only posts to the folio when settled).
+create or replace function public.tg_block_checkout_with_open_room_service()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_open int;
+begin
+  if new.status = 'checked_out' and old.status is distinct from 'checked_out' then
+    select count(*) into v_open
+    from public.restaurant_orders
+    where booking_id = new.id
+      and order_status = 'active';
+
+    if v_open > 0 then
+      -- Same text the app shows, so the EN/Sinhala translation covers it.
+      raise exception using
+        errcode = 'P0001',
+        message = 'This guest has an unsettled room-service bill. Settle or cancel the room-service bill first, then check out.',
+        hint    = 'මෙම අමුත්තාගේ ගෙවා නැති room-service බිලක් තිබේ. පළමුව එම බිල ගෙවන්න හෝ අවලංගු කරන්න, පසුව check out කරන්න.';
+    end if;
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists trg_block_checkout_open_room_service on public.bookings;
+create trigger trg_block_checkout_open_room_service
+before update of status on public.bookings
+for each row execute function public.tg_block_checkout_with_open_room_service();
+
 -- ---------------------------------------------------------------------------
 -- 6. TRIGGER B — REAL-TIME RECIPE STOCK DEDUCTOR
 --    order completed -> deduct (quantity_needed × item quantity) per ingredient
@@ -1004,6 +1037,8 @@ left join store_daily_snapshots ds
 -- ---------------------------------------------------------------------------
 -- 8. ORDER TOTAL RECALCULATOR (keeps restaurant_orders.total_amount honest)
 -- ---------------------------------------------------------------------------
+-- Migration 038: service charge rounds to whole rupees while a bill is open;
+-- settled bills keep 2-decimal rounding so corrections never re-round history.
 create or replace function public.tg_recalc_order_total()
 returns trigger
 language plpgsql
@@ -1017,6 +1052,7 @@ declare
   v_sc       numeric(14,2);
   v_waived   boolean;
   v_channel  channel_type;
+  v_status   order_status;
 begin
   select coalesce(sum(oi.line_total), 0) into v_subtotal
   from public.order_items oi where oi.order_id = v_order_id;
@@ -1029,13 +1065,15 @@ begin
   select coalesce(hs.service_charge_rate, 0) into v_rate
   from public.hotel_settings hs where hs.id = 1;
 
-  select o.service_charge_waived, o.channel_type into v_waived, v_channel
+  select o.service_charge_waived, o.channel_type, o.order_status
+  into v_waived, v_channel, v_status
   from public.restaurant_orders o where o.id = v_order_id;
 
   -- No service charge on takeaway/delivery — there's no table service to
   -- charge for, whatever the hotel's dine-in rate is set to.
   v_sc := case when coalesce(v_waived, false) then 0
                when v_channel in ('takeaway', 'delivery') then 0
+               when v_status = 'active' then round(v_sc_base * coalesce(v_rate, 0) / 100.0, 0)
                else round(v_sc_base * coalesce(v_rate, 0) / 100.0, 2)
           end;
 

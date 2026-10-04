@@ -26,13 +26,13 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { cn, formatDate, formatLKR } from "@/lib/utils";
-import { colomboToday } from "@/lib/colombo-date";
+import { colomboToday, formatColomboTime } from "@/lib/colombo-date";
 import type { CreditAccount } from "@/lib/types";
 import { addCreditAdjustment } from "../actions";
 import { generateCreditStatementPdf, openPdfBlob } from "@/lib/report-pdf";
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return formatColomboTime(iso);
 }
 
 const KIND_BADGE = {
@@ -241,7 +241,7 @@ export function CreditAccountDetailView({
               {entries.length === 0 && (
                 <TableRow>
                   <TableCell colSpan={5} className="py-10 text-center text-sm text-muted-foreground">
-                    No activity yet — settle a bill or booking to "Credit" against this account to
+                    No activity yet — settle a bill or booking to “Credit” against this account to
                     get started.
                   </TableCell>
                 </TableRow>
@@ -282,7 +282,7 @@ function AdjustmentDialog({
           Add manual adjustment
         </DialogTitle>
         <DialogDescription>
-          For old bills that can't be individually found and retagged — adds straight to what
+          For old bills that can’t be individually found and retagged — adds straight to what
           this account owes. Admin only.
         </DialogDescription>
       </DialogHeader>

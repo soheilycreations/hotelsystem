@@ -17,6 +17,7 @@ import { Input } from "@/components/ui/input";
 import { formatLKR, formatOrderNumber, cn } from "@/lib/utils";
 import type { PaymentMethod } from "@/lib/types";
 import { generateBillsReportPdf, openPdfBlob } from "@/lib/report-pdf";
+import { formatColomboTime, formatDayKey } from "@/lib/colombo-date";
 
 const PAYMENT_LABEL: Record<PaymentMethod, string> = {
   cash: "Cash",
@@ -28,7 +29,7 @@ const PAYMENT_LABEL: Record<PaymentMethod, string> = {
 };
 
 function formatTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return formatColomboTime(iso);
 }
 
 interface BillItem {
@@ -104,7 +105,7 @@ export function BillsView({ date, hotelName, bills }: { date: string; hotelName:
     }
   }
 
-  const prettyDate = new Date(`${date}T00:00:00`).toLocaleDateString("en-GB", {
+  const prettyDate = formatDayKey(date, "en-GB", {
     weekday: "long",
     year: "numeric",
     month: "long",

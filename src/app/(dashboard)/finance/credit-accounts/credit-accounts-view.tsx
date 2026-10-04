@@ -107,7 +107,7 @@ export function CreditAccountsView({
           <Card className="sm:col-span-2 lg:col-span-3">
             <CardContent className="flex items-center gap-3 p-6 text-sm text-muted-foreground">
               <CreditCard className="h-5 w-5" />
-              No credit accounts yet — add one, then pick "Credit" as the payment method on any
+              No credit accounts yet — add one, then pick “Credit” as the payment method on any
               bill or booking to settle it against this account.
             </CardContent>
           </Card>
@@ -179,7 +179,7 @@ function AccountDialog({
       <DialogHeader>
         <DialogTitle>{editing ? `Edit — ${account?.name}` : "New credit account"}</DialogTitle>
         <DialogDescription>
-          This name shows up in the "Credit" option when settling a bill or booking.
+          This name shows up in the “Credit” option when settling a bill or booking.
         </DialogDescription>
       </DialogHeader>
       <form action={submit} className="grid gap-4 py-2">
@@ -292,7 +292,7 @@ function AdjustmentDialog({
       <DialogHeader>
         <DialogTitle>Add manual adjustment — {account.name}</DialogTitle>
         <DialogDescription>
-          For old bills that can't be individually found and retagged — adds straight to what
+          For old bills that can’t be individually found and retagged — adds straight to what
           this account owes. Admin only.
         </DialogDescription>
       </DialogHeader>

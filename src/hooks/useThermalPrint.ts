@@ -3,6 +3,7 @@
 import { useCallback, useState } from "react";
 import type { OrderItem, RestaurantOrder } from "@/lib/types";
 import { formatOrderNumber } from "@/lib/utils";
+import { formatColomboDateNumeric, formatColomboDateTimeFull } from "@/lib/colombo-date";
 
 /**
  * ESC/POS raw spooler over WebUSB (Chrome/Edge). Builds a raw byte stream
@@ -224,23 +225,23 @@ export async function buildFolioReceipt(payload: FolioPayload): Promise<Uint8Arr
     ...row(
       actualCheckIn ? "Checked in" : "Check-in",
       actualCheckIn
-        ? new Date(actualCheckIn).toLocaleString("en-GB")
+        ? formatColomboDateTimeFull(actualCheckIn)
         : stayType === "short_stay"
-        ? new Date(checkInDate).toLocaleString("en-GB")
-        : new Date(checkInDate).toLocaleDateString("en-GB")
+        ? formatColomboDateTimeFull(checkInDate)
+        : formatColomboDateNumeric(checkInDate)
     )
   );
   bytes.push(
     ...row(
       actualCheckOut ? "Checked out" : stayType === "short_stay" ? "Until" : "Check-out",
       actualCheckOut
-        ? new Date(actualCheckOut).toLocaleString("en-GB")
+        ? formatColomboDateTimeFull(actualCheckOut)
         : stayType === "short_stay"
-        ? new Date(checkOutDate).toLocaleString("en-GB")
-        : new Date(checkOutDate).toLocaleDateString("en-GB")
+        ? formatColomboDateTimeFull(checkOutDate)
+        : formatColomboDateNumeric(checkOutDate)
     )
   );
-  bytes.push(...row("Printed", new Date().toLocaleString("en-GB")));
+  bytes.push(...row("Printed", formatColomboDateTimeFull(new Date())));
   bytes.push(...line());
 
   if (stayType === "short_stay") {
@@ -311,7 +312,7 @@ export function buildKotTicket({ order, items, station = "kitchen", kotNumber }:
   bytes.push(...row(ticketHeading, order.channel_type.replace("_", " ").toUpperCase()));
   if (order.restaurant_tables) bytes.push(...row("Table", order.restaurant_tables.table_number));
   if (order.bookings) bytes.push(...row("Guest", order.bookings.guest_name));
-  bytes.push(...row("Printed", new Date().toLocaleString("en-GB")));
+  bytes.push(...row("Printed", formatColomboDateTimeFull(new Date())));
   bytes.push(...line());
 
   // Big, price-free lines the kitchen can read from a distance
@@ -351,7 +352,7 @@ export async function buildEscPosReceipt({
       order.channel_type.replace("_", " ").toUpperCase()
     )
   );
-  bytes.push(...row("Date", new Date(order.created_at).toLocaleString("en-GB")));
+  bytes.push(...row("Date", formatColomboDateTimeFull(order.created_at)));
   if (order.restaurant_tables) bytes.push(...row("Table", order.restaurant_tables.table_number));
   if (order.bookings) bytes.push(...row("Guest", order.bookings.guest_name));
   bytes.push(...line());

@@ -1,4 +1,5 @@
-import { createClient } from "@/lib/supabase/server";
+import { createClient, getSessionProfile } from "@/lib/supabase/server";
+import { canAccess } from "@/lib/types";
 import type { Booking, CreditAccount, HotelSettings, Room, RoomRatePlan } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { BookingForm } from "./booking-form";
@@ -73,9 +74,14 @@ export default async function ReservePage() {
     }
   }
 
+  // Front desk can't open the Billing screen — they get an instruction to
+  // ask the cashier instead of a link that lands on "No access".
+  const profile = await getSessionProfile();
+  const canSettleRoomService = canAccess(profile?.role ?? null, "/pos/billing");
+
   return (
     <div className="space-y-6">
-      <LiveRefresher tables={["bookings", "rooms", "booking_charges", "room_rate_plans"]} />
+      <LiveRefresher tables={["bookings", "rooms", "booking_charges", "room_rate_plans", "restaurant_orders"]} />
       <div>
         <h1 className="text-2xl font-semibold tracking-tight">Booking engine</h1>
         <p className="text-sm text-muted-foreground">
@@ -93,6 +99,7 @@ export default async function ReservePage() {
             pendingServiceByBooking={pendingServiceByBooking}
             hotel={hotel}
             creditAccounts={creditAccounts}
+            canSettleRoomService={canSettleRoomService}
           />
         </div>
       </div>

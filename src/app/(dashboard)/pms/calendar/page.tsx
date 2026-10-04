@@ -42,8 +42,9 @@ export default async function CalendarPage({
       .from("bookings")
       .select("id, guest_name, room_id, check_in_date, check_out_date, status, rooms(room_number)")
       .in("status", ["pending", "checked_in"])
-      .lte("check_in_date", `${end}T23:59:59`)
-      .gte("check_out_date", `${start}T00:00:00`),
+      // Colombo day bounds — bare "T00:00:00" would be read as UTC.
+      .lte("check_in_date", `${end}T23:59:59+05:30`)
+      .gte("check_out_date", `${start}T00:00:00+05:30`),
   ]);
 
   return (

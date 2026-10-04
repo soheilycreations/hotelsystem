@@ -3,6 +3,7 @@
 import { SI_DICT } from "./i18n/translations";
 import { exportHtmlReport, escapeHtml } from "./html-pdf";
 import { formatOrderNumber } from "./utils";
+import { formatColombo, formatColomboTime, formatDayKey } from "./colombo-date";
 
 const A4: [number, number] = [210, 297]; // mm
 const MARGIN = 16;
@@ -14,7 +15,7 @@ function fmt(n: number): string {
 }
 
 function fmtTime(iso: string): string {
-  return new Date(iso).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" });
+  return formatColomboTime(iso);
 }
 
 /** Looks text up in the Sinhala dictionary (same one the on-screen UI uses)
@@ -176,7 +177,7 @@ async function generateDailySummaryPdfVector(data: DailySummaryData): Promise<Bl
 
   l.title(data.hotelName);
   l.subtitle(
-    `${T("Daily Summary")} — ${new Date(data.date).toLocaleDateString("en-GB", {
+    `${T("Daily Summary")} — ${formatDayKey(data.date, "en-GB", {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -542,7 +543,7 @@ function htmlTwoColTotal(label: string, room: string, restaurant: string, bold =
  */
 async function generateDailySummaryPdfHtml(data: DailySummaryData): Promise<Blob> {
   const T = (text: string) => tr(text, "si");
-  const dateLabel = new Date(`${data.date}T00:00:00`).toLocaleDateString("si-LK", {
+  const dateLabel = formatDayKey(data.date, "si-LK", {
     weekday: "long",
     year: "numeric",
     month: "long",
@@ -735,7 +736,7 @@ export async function generateCashBookPdf(data: CashBookData): Promise<Blob> {
   const colRight = W - MARGIN;
 
   const prettyDate = (d: string) =>
-    new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    formatDayKey(d, "en-GB", { day: "numeric", month: "short", year: "numeric" });
 
   l.title(data.hotelName);
   l.subtitle(`Cash Book — ${prettyDate(data.fromDate)} to ${prettyDate(data.toDate)}`);
@@ -768,7 +769,7 @@ export async function generateCashBookPdf(data: CashBookData): Promise<Blob> {
   } else {
     for (const e of data.ledger) {
       l.row([
-        { text: new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
+        { text: formatDayKey(e.date, "en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
         { text: e.description.slice(0, 46), x: MARGIN + 28 },
         { text: e.direction === "in" ? fmt(e.amount) : "", x: MARGIN + 122, align: "right" },
         { text: e.direction === "out" ? fmt(e.amount) : "", x: MARGIN + 150, align: "right" },
@@ -874,7 +875,7 @@ export async function generateExpensesReportPdf(data: ExpensesReportData): Promi
   const colRight = W - MARGIN;
 
   const pretty = (d: string) =>
-    new Date(`${d}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+    formatDayKey(d, "en-GB", { day: "numeric", month: "short", year: "numeric" });
 
   l.title(data.hotelName);
   l.subtitle(`Expenses — ${pretty(data.fromDate)} to ${pretty(data.toDate)}`);
@@ -904,7 +905,7 @@ export async function generateExpensesReportPdf(data: ExpensesReportData): Promi
     byDivision.set(divisionLabel, (byDivision.get(divisionLabel) ?? 0) + e.amount);
 
     l.row([
-      { text: new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
+      { text: formatDayKey(e.date, "en-GB", { day: "2-digit", month: "short" }), x: MARGIN },
       { text: e.category.slice(0, 18), x: MARGIN + 20 },
       { text: (e.description ?? "—").slice(0, 32), x: MARGIN + 55 },
       { text: divisionLabel, x: MARGIN + 122 },
@@ -976,7 +977,7 @@ export async function generateBillsReportPdf(data: BillsReportData): Promise<Blo
 
   l.title(data.hotelName);
   l.subtitle(
-    `All Bills — ${new Date(`${data.date}T00:00:00`).toLocaleDateString("en-GB", {
+    `All Bills — ${formatDayKey(data.date, "en-GB", {
       weekday: "long",
       year: "numeric",
       month: "long",
@@ -1103,7 +1104,7 @@ export async function generateCreditStatementPdf(data: CreditStatementData): Pro
   l.subtitle(`Credit Account Statement — ${data.accountName}`);
   if (data.accountNotes) l.subtitle(data.accountNotes, 9);
   l.subtitle(
-    `Generated ${new Date().toLocaleDateString("en-GB", { day: "2-digit", month: "short", year: "numeric" })}`,
+    `Generated ${formatColombo(new Date(), { day: "2-digit", month: "short", year: "numeric" })}`,
     8.5
   );
   l.divider();
@@ -1113,7 +1114,7 @@ export async function generateCreditStatementPdf(data: CreditStatementData): Pro
   }
 
   for (const e of data.entries) {
-    const dateLabel = new Date(`${e.date}T00:00:00`).toLocaleDateString("en-GB", {
+    const dateLabel = formatDayKey(e.date, "en-GB", {
       day: "2-digit",
       month: "short",
       year: "numeric",

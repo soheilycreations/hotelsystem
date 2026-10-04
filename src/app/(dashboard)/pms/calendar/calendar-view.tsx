@@ -31,6 +31,7 @@ import { Textarea } from "@/components/ui/textarea";
 import { cn } from "@/lib/utils";
 import type { Booking, EventBooking, EventStatus } from "@/lib/types";
 import { createEventBooking, deleteEventBooking, updateEventBooking } from "./actions";
+import { formatDayKey } from "@/lib/colombo-date";
 
 const STATUS_BADGE: Record<EventStatus, "warning" | "success" | "danger"> = {
   tentative: "warning",
@@ -90,7 +91,7 @@ export function CalendarView({
   const todayKey = `${today.getFullYear()}-${String(today.getMonth() + 1).padStart(2, "0")}-${String(today.getDate()).padStart(2, "0")}`;
   const grid = useMemo(() => buildMonthGrid(monthKey, todayKey), [monthKey, todayKey]);
 
-  const monthLabel = new Date(`${monthKey}-01T00:00:00`).toLocaleDateString("en-GB", {
+  const monthLabel = formatDayKey(`${monthKey}-01`, "en-GB", {
     month: "long",
     year: "numeric",
   });
@@ -280,7 +281,7 @@ export function CalendarView({
                       </Badge>
                     </div>
                     <p className="text-xs text-muted-foreground">
-                      {new Date(`${e.event_date}T00:00:00`).toLocaleDateString("en-GB", {
+                      {formatDayKey(e.event_date, "en-GB", {
                         weekday: "short",
                         day: "numeric",
                         month: "short",

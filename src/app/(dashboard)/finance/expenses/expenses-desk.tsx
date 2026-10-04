@@ -41,6 +41,7 @@ import {
   renameExpenseCategory,
   updateExpense,
 } from "../actions";
+import { BRAND } from "@/lib/brand";
 
 const BADGE_CYCLE = ["info", "warning", "success", "danger", "secondary"] as const;
 
@@ -95,7 +96,7 @@ export function ExpensesDesk({
     setExporting(true);
     try {
       const blob = await generateExpensesReportPdf({
-        hotelName: hotel?.hotel_name ?? "Soheily PMS",
+        hotelName: hotel?.hotel_name ?? BRAND.name,
         fromDate,
         toDate,
         entries: expenses.map((e) => ({

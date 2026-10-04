@@ -29,7 +29,7 @@ import { Select } from "@/components/ui/select";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { createClient } from "@/lib/supabase/client";
-import { colomboToday } from "@/lib/colombo-date";
+import { colomboToday, formatColomboTime } from "@/lib/colombo-date";
 import { cn } from "@/lib/utils";
 import type { InventoryItem, StoreItem, StoreTransaction } from "@/lib/types";
 import { createStoreItem, issueStoreToKitchen, recordStoreTransaction, updateStoreItem } from "./actions";
@@ -496,8 +496,9 @@ function DailyHistory() {
         supabase
           .from("store_transactions")
           .select("*, store_items(name, unit), staff_profiles(full_name)")
-          .gte("created_at", `${date}T00:00:00`)
-          .lte("created_at", `${date}T23:59:59.999`)
+          // Colombo day bounds — bare "T00:00:00" would be read as UTC.
+          .gte("created_at", `${date}T00:00:00+05:30`)
+          .lte("created_at", `${date}T23:59:59.999+05:30`)
           .order("created_at", { ascending: false }),
       ]);
       if (cancelled) return;
@@ -654,7 +655,7 @@ function DailyHistory() {
                     {Number(tx.quantity).toLocaleString()} {tx.store_items?.unit ?? ""}
                   </div>
                   <div className="text-xs text-muted-foreground">
-                    {new Date(tx.created_at).toLocaleTimeString("en-GB", { hour: "2-digit", minute: "2-digit" })}
+                    {formatColomboTime(tx.created_at)}
                   </div>
                 </div>
               </div>

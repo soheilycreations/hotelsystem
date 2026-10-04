@@ -12,6 +12,7 @@ import { formatLKR } from "@/lib/utils";
 import type { InventoryItem, MenuCategoryRow } from "@/lib/types";
 import type { MenuItemWithRecipe } from "./page";
 import { addRecipeIngredient, removeRecipeIngredient, updateOtherCost } from "../actions";
+import { useLanguage } from "@/lib/i18n/language-context";
 
 function ingredientCost(item: MenuItemWithRecipe): number {
   return item.menu_recipe_ingredients.reduce(
@@ -33,6 +34,7 @@ export function RecipeManager({
   inventory: InventoryItem[];
   categories: MenuCategoryRow[];
 }) {
+  const { t } = useLanguage();
   const [selectedId, setSelectedId] = useState<string | null>(menuItems[0]?.id ?? null);
   const [search, setSearch] = useState("");
   const query = search.trim().toLowerCase();
@@ -46,9 +48,9 @@ export function RecipeManager({
       <Card>
         <CardContent className="flex flex-col items-center gap-2 py-16 text-center">
           <ChefHat className="h-10 w-10 text-muted-foreground" />
-          <p className="font-medium">No menu items yet</p>
+          <p className="font-medium">{t("No menu items yet")}</p>
           <p className="text-sm text-muted-foreground">
-            Seed the menu via the SQL script, then define recipes here.
+            {t("Add dishes under Restaurant → Menu Items first, then set their recipes here.")}
           </p>
         </CardContent>
       </Card>

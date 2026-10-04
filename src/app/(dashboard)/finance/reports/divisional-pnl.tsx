@@ -98,7 +98,7 @@ function OverallCard({
             profit ? "bg-rw-lime text-rw-on-lime" : "bg-[#FFB4A6] text-[#5C1A10]"
           )}
         >
-          {profit ? t("Profit") : t("Loss")}
+          {profit ? t("Surplus") : t("Deficit")}
         </span>
       </div>
       <dl className="relative mt-5 space-y-2.5 text-sm">

@@ -4,6 +4,7 @@ import type { CreditAccount } from "@/lib/types";
 import { formatOrderNumber } from "@/lib/utils";
 import { LiveRefresher } from "../../../live-refresher";
 import { CreditAccountDetailView } from "./detail-view";
+import { BRAND } from "@/lib/brand";
 
 export const dynamic = "force-dynamic";
 
@@ -176,7 +177,7 @@ export default async function CreditAccountDetailPage({
         entries={entriesWithBalance.slice().reverse()}
         balance={running}
         isAdmin={profile?.role === "admin"}
-        hotelName={(hotel as { hotel_name?: string } | null)?.hotel_name ?? "Soheily PMS"}
+        hotelName={(hotel as { hotel_name?: string } | null)?.hotel_name ?? BRAND.name}
       />
     </div>
   );

@@ -10,9 +10,10 @@ import { DateRangeBar, LAST_30_DAYS, THIS_MONTH } from "@/components/ui/date-ran
 import { ReportCharts } from "./report-charts";
 import { DivisionalPnl } from "./divisional-pnl";
 import type { DailyPnlPoint } from "./page";
+import { formatDayKey } from "@/lib/colombo-date";
 
 function formatDay(key: string): string {
-  return new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "numeric", month: "short", year: "numeric" });
+  return formatDayKey(key, "en-GB", { day: "numeric", month: "short", year: "numeric" });
 }
 
 export function ReportsView({

@@ -4,7 +4,6 @@ import { useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import {
   Bar,
-  BarChart,
   CartesianGrid,
   Legend,
   Line,
@@ -39,7 +38,7 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { StatCard } from "@/components/stat-card";
-import { cn, formatLKR } from "@/lib/utils";
+import { addMoney, cn, formatLKR } from "@/lib/utils";
 import { colomboToday } from "@/lib/colombo-date";
 import { generateCashBookPdf, openPdfBlob } from "@/lib/report-pdf";
 import type { CashMovement } from "@/lib/types";
@@ -163,8 +162,8 @@ export function CashBookView({
   const [showDetails, setShowDetails] = useState(false);
   const [pending, startTransition] = useTransition();
 
-  const totalIn = days.reduce((s, d) => s + d.cashIn, 0);
-  const totalOut = days.reduce((s, d) => s + d.cashOut, 0);
+  const totalIn = days.reduce((s, d) => addMoney(s, d.cashIn), 0);
+  const totalOut = days.reduce((s, d) => addMoney(s, d.cashOut), 0);
   const roomBalance = roomRevenue - roomExpenses;
   const restaurantBalance = restaurantRevenue - restaurantExpenses;
 
