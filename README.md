@@ -68,7 +68,7 @@ SUPABASE_SERVICE_ROLE_KEY=<service-role-key>
 
 `SUPABASE_SERVICE_ROLE_KEY` is in Supabase under **Project Settings → API → service_role key**. It's required for **Staff Accounts** (`/settings/users`) to create and manage logins — never prefix it with `NEXT_PUBLIC_` and never expose it to the browser; the app only ever uses it inside server actions.
 
-Deploy to Vercel: push to GitHub → import → add all three env vars.
+Deploy: hosted on Cloudflare Workers via OpenNext — see [docs/CLOUDFLARE_DEPLOY.md](docs/CLOUDFLARE_DEPLOY.md).
 
 ### 3. Thermal printer (optional)
 
