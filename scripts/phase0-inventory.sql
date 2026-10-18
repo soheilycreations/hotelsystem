@@ -100,7 +100,7 @@ select '8_money', 'expenses (all time)', 'sum', coalesce(sum(amount), 0)::text f
 union all
 select '8_money', 'credit outstanding (all accounts)', 'bookings+orders+adjustments-repayments',
        ( coalesce((select sum(total_folio_amount) from public.bookings where payment_method = 'credit' and credit_account_id is not null), 0)
-       + coalesce((select sum(total_amount) from public.restaurant_orders where payment_method = 'credit' and credit_account_id is not null and order_status = 'completed'), 0)
+       + coalesce((select sum(total_amount) from public.restaurant_orders where payment_method = 'credit' and credit_account_id is not null), 0)
        + coalesce((select sum(amount) from public.credit_adjustments), 0)
        - coalesce((select sum(amount) from public.credit_repayments), 0) )::text
 union all
