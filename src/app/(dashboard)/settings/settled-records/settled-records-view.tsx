@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useTransition } from "react";
+import { createContext, useContext, useState, useTransition } from "react";
 import { useRouter } from "next/navigation";
 import { BedDouble, CalendarRange, Loader2, Pencil, Plus, RotateCcw, Trash2, UtensilsCrossed } from "lucide-react";
 import { Badge } from "@/components/ui/badge";
@@ -40,6 +40,10 @@ import {
   updateSettledOrder,
   updateSettledOrderItemQuantity,
 } from "./actions";
+
+/** Reason for the edits made on this page — required by the database for any
+ * change to a settled record and written to the audit log (migration 039). */
+const ReasonContext = createContext("");
 
 const PAYMENT_LABEL: Record<string, string> = {
   cash: "Cash",
@@ -104,9 +108,22 @@ export function SettledRecordsView({
   const [editingBooking, setEditingBooking] = useState<SettledBookingRow | null>(null);
   const [reopening, setReopening] = useState<SettledBookingRow | null>(null);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [reason, setReason] = useState("");
 
   return (
+    <ReasonContext.Provider value={reason}>
     <div className="space-y-4">
+      <div className="space-y-1.5 rounded-md border border-amber-500/40 bg-amber-500/10 p-3">
+        <Label htmlFor="edit-reason" className="text-xs font-medium">
+          Reason for changes (required — saved in the audit log with your name)
+        </Label>
+        <Input
+          id="edit-reason"
+          value={reason}
+          onChange={(e) => setReason(e.target.value)}
+          placeholder="e.g. Guest paid by card, cashier entered cash"
+        />
+      </div>
       {feedback && <p className="rounded-md bg-muted px-3 py-2 text-xs">{feedback}</p>}
 
       <div className="flex flex-wrap items-center justify-between gap-3">
@@ -263,6 +280,7 @@ export function SettledRecordsView({
         )}
       </Dialog>
     </div>
+    </ReasonContext.Provider>
   );
 }
 
@@ -273,12 +291,13 @@ function ReopenBookingDialog({
   booking: SettledBookingRow;
   onDone: (msg: string) => void;
 }) {
+  const reason = useContext(ReasonContext);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
 
   function submit() {
     startTransition(async () => {
-      const res = await reopenCheckedOutBooking(booking.id);
+      const res = await reopenCheckedOutBooking(booking.id, reason);
       if (res.ok) onDone(`${booking.guest_name} (Room ${booking.room_number}) is back in house — checkout undone.`);
       else setError(res.error ?? "Could not undo the checkout.");
     });
@@ -318,6 +337,7 @@ function EditOrderDialog({
   menuItems: MenuItemOption[];
   onDone: (msg: string) => void;
 }) {
+  const reason = useContext(ReasonContext);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>((order.payment_method as PaymentMethod) ?? "cash");
   const [creditAccountId, setCreditAccountId] = useState(order.credit_account_id ?? "");
   const [subtotal, setSubtotal] = useState(String(order.subtotal));
@@ -348,7 +368,7 @@ function EditOrderDialog({
         creditAccountId: paymentMethod === "credit" ? creditAccountId : undefined,
         subtotal: Number(subtotal),
         serviceCharge: Number(serviceCharge),
-      });
+      }, reason);
       if (res.ok) onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} updated.`);
       else setError(res.error ?? "Could not save.");
     });
@@ -357,7 +377,7 @@ function EditOrderDialog({
   function changeQuantity(itemId: string, quantity: number) {
     if (quantity < 1) return;
     startItemTransition(async () => {
-      const res = await updateSettledOrderItemQuantity(itemId, quantity);
+      const res = await updateSettledOrderItemQuantity(itemId, quantity, reason);
       if (res.ok) onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} item updated — reopen to see the new total.`);
       else setError(res.error ?? "Could not update the item.");
     });
@@ -365,7 +385,7 @@ function EditOrderDialog({
 
   function removeItem(itemId: string) {
     startItemTransition(async () => {
-      const res = await deleteSettledOrderItem(itemId);
+      const res = await deleteSettledOrderItem(itemId, reason);
       if (res.ok) onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} item removed — reopen to see the new total.`);
       else setError(res.error ?? "Could not remove the item.");
     });
@@ -373,7 +393,7 @@ function EditOrderDialog({
 
   function addMenuItem(menuItemId: string) {
     startItemTransition(async () => {
-      const res = await addSettledOrderItemFromMenu({ orderId: order.id, menuItemId, quantity: 1 });
+      const res = await addSettledOrderItemFromMenu({ orderId: order.id, menuItemId, quantity: 1 }, reason);
       if (res.ok) {
         setMenuQuery("");
         onDone(`Bill #${formatOrderNumber(order.business_date, order.order_number)} item added — reopen to see the new total.`);
@@ -391,7 +411,7 @@ function EditOrderDialog({
         description: newItemDesc,
         amount: Number(newItemAmount),
         serviceChargeable: newItemSc,
-      });
+      }, reason);
       if (res.ok) {
         setNewItemDesc("");
         setNewItemAmount("");
@@ -567,6 +587,7 @@ function EditBookingDialog({
   creditAccounts: CreditAccount[];
   onDone: (msg: string) => void;
 }) {
+  const reason = useContext(ReasonContext);
   const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>((booking.payment_method as PaymentMethod) ?? "cash");
   const [creditAccountId, setCreditAccountId] = useState(booking.credit_account_id ?? "");
   const [ratePlanPrice, setRatePlanPrice] = useState(
@@ -596,7 +617,7 @@ function EditBookingDialog({
         bookingId: booking.id,
         description: editChargeDesc,
         amount: Number(editChargeAmount),
-      });
+      }, reason);
       if (res.ok) {
         setEditingChargeId(null);
         onDone(`${booking.guest_name}'s charge updated — reopen to see the new total.`);
@@ -608,7 +629,7 @@ function EditBookingDialog({
 
   function removeCharge(chargeId: string) {
     startChargeTransition(async () => {
-      const res = await deleteSettledBookingCharge(chargeId);
+      const res = await deleteSettledBookingCharge(chargeId, reason);
       if (res.ok) onDone(`${booking.guest_name}'s charge removed — reopen to see the new total.`);
       else setError(res.error ?? "Could not remove the charge.");
     });
@@ -621,7 +642,7 @@ function EditBookingDialog({
         bookingId: booking.id,
         description: newChargeDesc,
         amount: Number(newChargeAmount),
-      });
+      }, reason);
       if (res.ok) {
         setNewChargeDesc("");
         setNewChargeAmount("");
@@ -644,7 +665,7 @@ function EditBookingDialog({
         creditAccountId: paymentMethod === "credit" ? creditAccountId : undefined,
         ratePlanPrice: ratePlanPrice.trim() === "" ? null : Number(ratePlanPrice),
         totalFolioAmount: Number(totalFolioAmount),
-      });
+      }, reason);
       if (res.ok) onDone(`${booking.guest_name}'s booking updated.`);
       else setError(res.error ?? "Could not save.");
     });

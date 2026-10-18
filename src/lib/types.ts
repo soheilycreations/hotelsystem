@@ -423,7 +423,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/settings": ["admin", "manager"],
   "/settings/users": ["admin"],
   "/settings/settled-records": ["admin"],
-  "/backfill": ["admin", "manager"],
+  "/backfill": ["admin"], // and only while hotel_settings.backfill_enabled is on (migration 043)
   "/pos/active": ["admin", "manager", "cashier", "kitchen_staff"],
   "/pos/billing": ["admin", "manager", "cashier"],
   "/pos/menu": ["admin", "manager"],
