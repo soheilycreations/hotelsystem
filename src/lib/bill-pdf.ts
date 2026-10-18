@@ -4,7 +4,7 @@
  */
 import { createClient } from "@/lib/supabase/client";
 import type { FolioPayload, ReceiptPayload } from "@/hooks/useThermalPrint";
-import { formatOrderNumber } from "@/lib/utils";
+import { billDateTime, billTitle, formatOrderNumber } from "@/lib/utils";
 import { colomboToday } from "@/lib/colombo-date";
 
 const A5: [number, number] = [148, 210]; // mm
@@ -176,7 +176,7 @@ export async function generateFolioPdf(payload: FolioPayload): Promise<Blob> {
   }
   for (const c of payload.charges ?? []) l.row(c.description, fmt(c.amount));
   for (const so of payload.serviceOrders) {
-    l.row(`Room service — bill #${formatOrderNumber(so.businessDate, so.orderNumber)}`, fmt(so.amount));
+    l.row(so.orderNumber == null ? "Room service (not yet settled)" : `Room service — bill #${formatOrderNumber(so.businessDate, so.orderNumber)}`, fmt(so.amount));
     for (const item of so.items ?? []) {
       l.row(`  ${item.quantity} x ${item.name}`, "", 8);
     }
@@ -198,10 +198,10 @@ export async function generateReceiptPdf(payload: ReceiptPayload): Promise<Blob>
   await header(l, doc, hotel, "RESTAURANT BILL");
 
   l.row(
-    `Bill #${formatOrderNumber(order.business_date, order.order_number)}`,
+    billTitle(order),
     order.channel_type.replace("_", " ").toUpperCase()
   );
-  l.row("Date", new Date(order.created_at).toLocaleString("en-GB"));
+  l.row("Date", billDateTime(order));
   if (order.restaurant_tables) l.row("Table", order.restaurant_tables.table_number);
   if (order.bookings) l.row("Guest", order.bookings.guest_name);
   l.divider();

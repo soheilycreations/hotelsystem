@@ -2,6 +2,7 @@ import { createClient } from "@/lib/supabase/server";
 import { colomboToday } from "@/lib/colombo-date";
 import type { HotelSettings } from "@/lib/types";
 import { formatOrderNumber } from "@/lib/utils";
+import { getFinanceSummary } from "@/lib/finance/revenue";
 import { LiveRefresher } from "../../live-refresher";
 import { DailySummaryView } from "./daily-summary-view";
 
@@ -109,8 +110,7 @@ export default async function DailySummaryPage({
       .from("restaurant_orders")
       .select("booking_id, total_amount")
       .eq("order_status", "completed")
-      .eq("channel_type", "room_service")
-      .in("booking_id", allCheckoutIds);
+      .in("booking_id", allCheckoutIds); // every bill posted to the folio (room service or charge-to-room)
     for (const o of rsAllTime ?? []) {
       if (!o.booking_id) continue;
       rsByBookingAllTime.set(o.booking_id, (rsByBookingAllTime.get(o.booking_id) ?? 0) + Number(o.total_amount));
@@ -199,9 +199,9 @@ export default async function DailySummaryPage({
     closing: restaurantOpening + restaurantTodayIn - restaurantTodayOut,
   };
 
-  // Room-service orders are counted in POS revenue AND posted onto folios —
-  // subtract them per booking so the room total isn't doubled (same pattern
-  // used on the P&L report).
+  // Bills posted onto a folio (room service, charge-to-room) are counted in
+  // restaurant revenue — subtract them per booking so the room total isn't
+  // doubled (same rule as fn_finance_daily, migration 040).
   const bookingIds = (checkouts ?? []).map((b) => b.id);
   const rsByBooking: Record<string, number> = {};
   if (bookingIds.length > 0) {
@@ -209,7 +209,6 @@ export default async function DailySummaryPage({
       .from("restaurant_orders")
       .select("booking_id, total_amount")
       .eq("order_status", "completed")
-      .eq("channel_type", "room_service")
       .in("booking_id", bookingIds);
     for (const o of rsOrders ?? []) {
       if (!o.booking_id) continue;
@@ -217,24 +216,26 @@ export default async function DailySummaryPage({
     }
   }
 
-  // Amount here is the BALANCE actually collected at checkout today — any
-  // advance already paid earlier (see recordAdvancePayment) is netted out,
-  // since that cash was already counted on the day it was received.
+  // amount = room REVENUE recognised at this checkout (same rule as the
+  // shared finance source). collected = the balance actually paid at
+  // checkout, i.e. minus any advance already received on an earlier day —
+  // used only for the "money received by payment method" view.
   const roomSales = (checkouts ?? []).map((b) => {
-    const amount = Math.max(
-      0,
-      Number(b.total_folio_amount) - (rsByBooking[b.id] ?? 0) - (advanceTotalByBooking.get(b.id) ?? 0)
-    );
+    const amount = Math.max(0, Number(b.total_folio_amount) - (rsByBooking[b.id] ?? 0));
     const rooms = b.rooms as unknown as { room_number: string } | null;
     return {
       guestName: b.guest_name,
       roomNumber: rooms?.room_number ?? "—",
       planName: b.rate_plan_name,
       amount,
+      collected: Math.max(0, amount - (advanceTotalByBooking.get(b.id) ?? 0)),
       paymentMethod: b.payment_method ?? "cash",
     };
   });
-  const roomRevenueTotal = roomSales.reduce((sum, r) => sum + r.amount, 0);
+  // Headline revenue comes from the shared source so it matches the
+  // Dashboard and P&L to the cent.
+  const finance = await getFinanceSummary(supabase, date, date);
+  const roomRevenueTotal = finance.totals.roomRevenue;
 
   type AdvanceTodayRoom = { room_number: string } | { room_number: string }[] | null;
   type AdvanceTodayBooking = { guest_name: string; rooms: AdvanceTodayRoom } | { guest_name: string; rooms: AdvanceTodayRoom }[] | null;
@@ -263,10 +264,11 @@ export default async function DailySummaryPage({
   const revenueByMethod: Record<string, number> = {};
   for (const r of roomSales) {
     const method = r.paymentMethod;
-    revenueByMethod[method] = (revenueByMethod[method] ?? 0) + r.amount;
+    revenueByMethod[method] = (revenueByMethod[method] ?? 0) + r.collected;
   }
   for (const o of orders ?? []) {
-    const method = o.payment_method ?? "cash";
+    if (!o.payment_method) continue; // posted to a guest folio — paid at checkout
+    const method = o.payment_method;
     revenueByMethod[method] = (revenueByMethod[method] ?? 0) + Number(o.total_amount);
   }
   for (const a of advancePaymentsToday) {
@@ -279,7 +281,7 @@ export default async function DailySummaryPage({
   // hand" aren't the same number.
   const posRevenueByMethod: Record<string, number> = {};
   for (const o of orders ?? []) {
-    const method = o.payment_method ?? "cash";
+    const method = o.payment_method ?? "room";  // null = posted to a guest folio
     posRevenueByMethod[method] = (posRevenueByMethod[method] ?? 0) + Number(o.total_amount);
   }
 
@@ -302,6 +304,7 @@ export default async function DailySummaryPage({
       itemTotals.set(name, cur);
     }
   }
+  posTotal = finance.totals.restaurantRevenue; // shared definition (same filter as the loop above)
   const itemSales = Array.from(itemTotals.entries())
     .map(([name, v]) => ({ name, qty: v.qty, revenue: v.revenue }))
     .sort((a, b) => b.revenue - a.revenue);

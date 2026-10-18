@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { PaymentMethod } from "@/lib/types";
-import { addCustomOrderItem, openOrder, setOrderBusinessDate, settleOrder } from "../pos/actions";
+import { addCustomOrderItem, openOrder, settleOrder } from "../pos/actions";
 
 interface ActionResult {
   ok: boolean;
@@ -131,9 +131,14 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
     if (!opened.ok || !opened.orderId) return { ok: false, error: opened.error ?? "Could not open." };
 
     // Flag it so channel-mix reports separate this from real Banquet
-    // function revenue instead of lumping them together.
+    // function revenue instead of lumping them together. Historical rows are
+    // the only ones whose business_date survives settlement (migration 041).
     const supabase = await createClient();
-    await supabase.from("restaurant_orders").update({ is_historical: true }).eq("id", opened.orderId);
+    const { error: flagError } = await supabase
+      .from("restaurant_orders")
+      .update({ is_historical: true, business_date: input.date })
+      .eq("id", opened.orderId);
+    if (flagError) return { ok: false, error: flagError.message };
 
     const lineAdded = await addCustomOrderItem({
       orderId: opened.orderId,
@@ -143,9 +148,6 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
       logAsExpense: false,
     });
     if (!lineAdded.ok) return lineAdded;
-
-    const dated = await setOrderBusinessDate(opened.orderId, input.date);
-    if (!dated.ok) return dated;
 
     const settled = await settleOrder(opened.orderId, input.paymentMethod, false, input.creditAccountId);
     if (!settled.ok) return settled;

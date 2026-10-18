@@ -19,7 +19,6 @@ import {
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
-import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 import {
@@ -33,9 +32,8 @@ import {
 import { useThermalPrint } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateReceiptPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import { formatDateTime, formatLKR, formatOrderNumber } from "@/lib/utils";
-import { colomboToday } from "@/lib/colombo-date";
-import type { ChannelType, CreditAccount, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
-import { cancelOrder, ensureOrderNumber, markTableBilled, settleOrder, setOrderBusinessDate } from "../actions";
+import type { Booking, ChannelType, CreditAccount, HotelSettings, PaymentMethod, RestaurantOrder } from "@/lib/types";
+import { cancelOrder, markTableBilled, settleOrder } from "../actions";
 
 const CHANNEL_META: Record<ChannelType, { label: string; icon: typeof Armchair }> = {
   dine_in: { label: "Dine-in", icon: Armchair },
@@ -50,22 +48,24 @@ export function BillingDesk({
   hotel = null,
   creditAccounts = [],
   canVoid = false,
+  guests = [],
 }: {
   orders: RestaurantOrder[];
   hotel?: HotelSettings | null;
   creditAccounts?: CreditAccount[];
   canVoid?: boolean;
+  /** in-house guests, for "Charge to room" */
+  guests?: Pick<Booking, "id" | "guest_name" | "rooms">[];
 }) {
   const [selectedId, setSelectedId] = useState<string | null>(orders[0]?.id ?? null);
   const [feedback, setFeedback] = useState<string | null>(null);
   const [confirmSettleId, setConfirmSettleId] = useState<string | null>(null);
-  const [dateConfirmId, setDateConfirmId] = useState<string | null>(null);
-  const today = colomboToday();
-  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
+  // "room" = charge to an in-house guest's folio (paid at checkout)
+  const [paymentMethod, setPaymentMethod] = useState<PaymentMethod | "room">("cash");
+  const [roomBookingId, setRoomBookingId] = useState<string>("");
   const [creditAccountId, setCreditAccountId] = useState<string>("");
   const [scWaived, setScWaived] = useState(false);
   const [busy, setBusy] = useState(false);
-  const [savingDate, setSavingDate] = useState(false);
   const [pending, startTransition] = useTransition();
   const { print, printing, error: printError } = useThermalPrint();
 
@@ -80,17 +80,13 @@ export function BillingDesk({
   );
 
   function handleSettle(order: RestaurantOrder) {
-    if (paymentMethod === "credit" && !creditAccountId) {
+    const isRoomService = order.channel_type === "room_service";
+    if (!isRoomService && paymentMethod === "credit" && !creditAccountId) {
       setFeedback("Pick a credit account before settling.");
       return;
     }
-    // The bill was opened on an earlier day and never had its date touched
-    // since — settling it silently would post it to that stale date. Make
-    // the cashier pick, rather than relying on someone having remembered to
-    // fix the "Counts toward" field above.
-    if (order.business_date !== today && dateConfirmId !== order.id) {
-      setDateConfirmId(order.id);
-      setFeedback(null);
+    if (!isRoomService && paymentMethod === "room" && !roomBookingId) {
+      setFeedback("Pick the in-house guest to charge this bill to.");
       return;
     }
     const kotPending = (order.order_items ?? []).some((i) => !i.kot_printed_at && !i.is_custom);
@@ -103,17 +99,22 @@ export function BillingDesk({
       return;
     }
     setConfirmSettleId(null);
-    setDateConfirmId(null);
     startTransition(async () => {
-      const res = await settleOrder(
-        order.id,
-        paymentMethod,
-        scWaived,
-        paymentMethod === "credit" ? creditAccountId : undefined
-      );
+      // Room service and "charge to room" both go on the guest folio — no
+      // payment method now; the guest pays at checkout.
+      const res = isRoomService
+        ? await settleOrder(order.id, undefined, scWaived)
+        : paymentMethod === "room"
+        ? await settleOrder(order.id, undefined, scWaived, undefined, roomBookingId)
+        : await settleOrder(
+            order.id,
+            paymentMethod,
+            scWaived,
+            paymentMethod === "credit" ? creditAccountId : undefined
+          );
       setFeedback(
         res.ok
-          ? `Bill #${formatOrderNumber(order.business_date, res.orderNumber ?? order.order_number)} settled — stock deducted${
+          ? `Bill #${res.billLabel ?? "—"} settled — stock deducted${
               order.channel_type === "room_service" ? " & charged to guest folio" : ""
             }.`
           : res.error ?? "Could not settle the bill."
@@ -134,16 +135,10 @@ export function BillingDesk({
     });
   }
 
-  /** Resolves the bill number to print/PDF/WhatsApp with, assigning one now
-   * if this order has never had a bill issued before. */
-  async function ensureBillNumber(order: RestaurantOrder): Promise<number | null> {
-    if (order.order_number) return order.order_number;
-    const res = await ensureOrderNumber(order.id);
-    if (!res.ok || !res.orderNumber) {
-      setFeedback(res.error ?? "Could not assign a bill number.");
-      return null;
-    }
-    return res.orderNumber;
+  /** Bill numbers are issued only at settle time (migration 041) — an
+   * order printed before that goes out as a PRE-BILL with no number. */
+  function billNumberOf(order: RestaurantOrder): number | null {
+    return order.order_number ?? null;
   }
 
   function handleMarkBilled(order: RestaurantOrder) {
@@ -178,8 +173,7 @@ export function BillingDesk({
   async function handlePdf(order: RestaurantOrder) {
     setBusy(true);
     try {
-      const orderNumber = await ensureBillNumber(order);
-      if (orderNumber == null) return;
+      const orderNumber = billNumberOf(order);
       openPdf(await generateReceiptPdf(receiptPayload({ ...order, order_number: orderNumber })));
     } catch (e) {
       setFeedback(e instanceof Error ? e.message : "Could not generate the PDF.");
@@ -196,14 +190,13 @@ export function BillingDesk({
     }
     setBusy(true);
     try {
-      const orderNumber = await ensureBillNumber(order);
-      if (orderNumber == null) return;
+      const orderNumber = billNumberOf(order);
       const numberedOrder = { ...order, order_number: orderNumber };
       const blob = await generateReceiptPdf(receiptPayload(numberedOrder));
-      const url = await uploadBillPdf(`pos-${orderNumber}-${order.id.slice(0, 8)}.pdf`, blob);
+      const url = await uploadBillPdf(`pos-${orderNumber ?? "prebill"}-${order.id.slice(0, 8)}.pdf`, blob);
       const msg =
         `Hello! Thank you for your order at ${hotel?.hotel_name ?? "our restaurant"}. ` +
-        `Your bill #${formatOrderNumber(order.business_date, orderNumber)} (Total: Rs ${Number(order.total_amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
+        `Your ${orderNumber ? `bill #${formatOrderNumber(order.business_date, orderNumber)}` : "pre-bill"} (Total: Rs ${Number(order.total_amount).toLocaleString("en-LK", { minimumFractionDigits: 2 })}) : ${url}`;
       window.open(buildWhatsAppUrl(phone, msg), "_blank", "noopener");
       setFeedback(`Bill link ready — WhatsApp opened.`);
     } catch (e) {
@@ -213,41 +206,15 @@ export function BillingDesk({
     }
   }
 
-  async function handleDateChange(order: RestaurantOrder, date: string) {
-    setSavingDate(true);
-    try {
-      const res = await setOrderBusinessDate(order.id, date);
-      setFeedback(
-        res.ok
-          ? order.order_number
-            ? `Bill #${formatOrderNumber(date, order.order_number)} now counts toward ${date}.`
-            : `Order now counts toward ${date}.`
-          : res.error ?? "Could not update the date."
-      );
-    } finally {
-      setSavingDate(false);
-    }
-  }
-
-  /** The "move to today" half of the settle-time date check — updates the
-   * date, then re-runs the settle flow against the corrected order. */
-  async function moveDateToTodayAndSettle(order: RestaurantOrder) {
-    setSavingDate(true);
-    const res = await setOrderBusinessDate(order.id, today);
-    setSavingDate(false);
-    if (!res.ok) {
-      setFeedback(res.error ?? "Could not update the date.");
-      return;
-    }
-    setDateConfirmId(null);
-    handleSettle({ ...order, business_date: today });
-  }
-
   async function handlePrint(order: RestaurantOrder) {
-    const orderNumber = await ensureBillNumber(order);
-    if (orderNumber == null) return;
+    const orderNumber = billNumberOf(order);
     const sent = await print(receiptPayload({ ...order, order_number: orderNumber }));
-    if (sent) setFeedback(`Receipt for bill #${formatOrderNumber(order.business_date, orderNumber)} sent to printer.`);
+    if (sent)
+      setFeedback(
+        orderNumber
+          ? `Receipt for bill #${formatOrderNumber(order.business_date, orderNumber)} sent to printer.`
+          : "Pre-bill sent to printer — the bill number is issued when it is settled."
+      );
   }
 
   if (orders.length === 0) {
@@ -354,20 +321,10 @@ export function BillingDesk({
             <p className="text-xs text-muted-foreground">
               Opened {formatDateTime(selected.created_at)}
             </p>
-            <div className="flex items-center gap-2">
-              <CalendarDays className="h-3.5 w-3.5 shrink-0 text-muted-foreground" />
-              <label htmlFor="bill-business-date" className="text-xs text-muted-foreground">
-                Counts toward:
-              </label>
-              <Input
-                id="bill-business-date"
-                type="date"
-                value={selected.business_date}
-                onChange={(e) => handleDateChange(selected, e.target.value)}
-                disabled={savingDate}
-                className="h-7 w-36 px-2 py-1 text-xs"
-              />
-            </div>
+            <p className="flex items-center gap-2 text-xs text-muted-foreground">
+              <CalendarDays className="h-3.5 w-3.5 shrink-0" />
+              Bill number and date are issued when it is settled.
+            </p>
             {selected.bookings && (
               <p className="text-xs text-muted-foreground">
                 Guest: {selected.bookings.guest_name} — settling posts this to the room folio.
@@ -439,14 +396,33 @@ export function BillingDesk({
                   <Select
                     id="settle-payment-method"
                     value={paymentMethod}
-                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod)}
+                    onChange={(e) => setPaymentMethod(e.target.value as PaymentMethod | "room")}
                   >
                     <option value="cash">Cash</option>
                     <option value="card">Card</option>
                     <option value="bank_transfer">Bank Transfer</option>
                     <option value="credit">Credit (settle to an account)</option>
                     <option value="complimentary">Complimentary (no charge)</option>
+                    <option value="room" disabled={guests.length === 0}>
+                      Charge to room (guest folio)
+                    </option>
                   </Select>
+                  {paymentMethod === "room" && (
+                    <div className="space-y-1.5">
+                      <Select value={roomBookingId} onChange={(e) => setRoomBookingId(e.target.value)}>
+                        <option value="">Select the in-house guest…</option>
+                        {guests.map((g) => (
+                          <option key={g.id} value={g.id}>
+                            {g.rooms?.room_number ? `Room ${g.rooms.room_number} — ` : ""}
+                            {g.guest_name}
+                          </option>
+                        ))}
+                      </Select>
+                      <p className="text-xs text-muted-foreground">
+                        Added to the guest&apos;s folio and paid at checkout — not to a credit account.
+                      </p>
+                    </div>
+                  )}
                   {paymentMethod === "complimentary" && (
                     <p className="text-xs text-amber-500">
                       This bill won&apos;t count toward revenue anywhere — it&apos;s recorded as a
@@ -487,44 +463,24 @@ export function BillingDesk({
                 />
                 No service charge on this bill
               </label>
-              {dateConfirmId === selected.id && (
-                <div className="space-y-2 rounded-md border border-amber-500/40 bg-amber-500/10 p-3 text-xs">
-                  <p className="font-medium text-amber-500">
-                    This bill was opened on {selected.business_date}, not today ({today}). Which date
-                    should it count toward?
-                  </p>
-                  <div className="grid grid-cols-2 gap-2">
-                    <Button variant="outline" size="sm" onClick={() => handleSettle(selected)} disabled={pending}>
-                      Keep {selected.business_date}
-                    </Button>
-                    <Button
-                      size="sm"
-                      onClick={() => moveDateToTodayAndSettle(selected)}
-                      disabled={pending || savingDate}
-                    >
-                      Move to today
-                    </Button>
-                  </div>
-                </div>
-              )}
-              {dateConfirmId !== selected.id && (
-                <Button
-                  onClick={() => handleSettle(selected)}
-                  disabled={
-                    pending ||
-                    Number(selected.total_amount) <= 0 ||
-                    (paymentMethod === "credit" && !creditAccountId)
-                  }
-                  variant={confirmSettleId === selected.id ? "destructive" : "default"}
-                >
-                  <Wallet className="mr-2 h-4 w-4" />
-                  {confirmSettleId === selected.id
-                    ? "Settle anyway (KOT pending)"
-                    : selected.channel_type === "room_service"
-                    ? "Charge to room folio"
-                    : "Settle & complete"}
-                </Button>
-              )}
+              <Button
+                onClick={() => handleSettle(selected)}
+                disabled={
+                  pending ||
+                  Number(selected.total_amount) <= 0 ||
+                  (selected.channel_type !== "room_service" &&
+                    ((paymentMethod === "credit" && !creditAccountId) ||
+                      (paymentMethod === "room" && !roomBookingId)))
+                }
+                variant={confirmSettleId === selected.id ? "destructive" : "default"}
+              >
+                <Wallet className="mr-2 h-4 w-4" />
+                {confirmSettleId === selected.id
+                  ? "Settle anyway (KOT pending)"
+                  : selected.channel_type === "room_service"
+                  ? "Charge to room folio"
+                  : "Settle & complete"}
+              </Button>
               <Button
                 variant="outline"
                 onClick={() => handlePrint(selected)}

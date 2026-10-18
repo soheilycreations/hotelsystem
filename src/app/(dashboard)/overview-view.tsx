@@ -33,6 +33,12 @@ export interface ActivityItem {
   at: string;
 }
 
+export interface OverviewAlert {
+  tone: "red" | "amber";
+  text: string;
+  href: string;
+}
+
 export interface OverviewData {
   greeting: "morning" | "afternoon" | "evening";
   todayLabel: string;
@@ -41,7 +47,11 @@ export interface OverviewData {
   revenueDelta: number;
   posRevenue: number;
   roomRevenue: number;
+  /** every logged expense */
   totalExpenses: number;
+  /** paid from hotel money — what net profit subtracts (shared finance definition) */
+  operatingExpenses: number;
+  netProfit: number;
   openFolios: number;
   openFolioCount: number;
   settledBillCount: number;
@@ -51,6 +61,10 @@ export interface OverviewData {
   vacant: number;
   totalRooms: number;
   occupancyPct: number;
+  /** set when the room board couldn't be loaded — shown instead of "No rooms set up yet" */
+  roomsError: string | null;
+  overdueStays: { room: string; guest: string; overdue: string }[];
+  alerts: OverviewAlert[];
   activeOrders: number;
   kotPendingCount: number;
   lowStockCount: number;
@@ -98,11 +112,26 @@ const GREETINGS: Record<OverviewData["greeting"], string> = {
 export function OverviewView({ data }: { data: OverviewData }) {
   const { t } = useLanguage();
   const totalRevenue = data.posRevenue + data.roomRevenue;
-  const netProfit = totalRevenue - data.totalExpenses;
+  const netProfit = data.netProfit;
 
   return (
     <div className="space-y-5 text-rw-ink">
       <TopBar data={data} />
+
+      {data.alerts.length > 0 && (
+        <ul className="space-y-2" aria-label={t("Warnings")}>
+          {data.alerts.map((a, i) => (
+            <li key={i}>
+              <Link
+                href={a.href}
+                className={`block rounded-xl px-4 py-2.5 text-sm font-medium ${TONES[a.tone]} hover:opacity-90`}
+              >
+                {a.text}
+              </Link>
+            </li>
+          ))}
+        </ul>
+      )}
 
       {/* Row 1 — hero + KPIs */}
       <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-[1.25fr_1fr_1fr_1fr]">
@@ -120,7 +149,7 @@ export function OverviewView({ data }: { data: OverviewData }) {
           title={t("Net profit")}
           value={formatLKR(netProfit)}
           valueClassName={netProfit < 0 ? "text-[#B3261E] dark:text-red-300" : undefined}
-          sub={t("Revenue minus logged expenses")}
+          sub={t("Revenue minus expenses paid from hotel money")}
         />
         <KpiCard
           icon={ReceiptText}
@@ -544,7 +573,11 @@ function OccupancyCard({ data }: { data: OverviewData }) {
         <span className="text-xs text-rw-muted">{t("Tonight")}</span>
       </div>
 
-      {data.totalRooms === 0 ? (
+      {data.roomsError ? (
+        <EmptyState className="mt-4">
+          {t("Could not load rooms")}: {data.roomsError}
+        </EmptyState>
+      ) : data.totalRooms === 0 ? (
         <EmptyState className="mt-4">{t("No rooms set up yet.")}</EmptyState>
       ) : (
         <>
@@ -577,6 +610,15 @@ function OccupancyCard({ data }: { data: OverviewData }) {
             <StatTile dot="bg-[rgb(var(--rw-chart-rev))]" label={t("Occupied")} value={data.occupied} />
             <StatTile dot="bg-rw-lime" label={t("Available")} value={data.vacant} />
           </div>
+          {data.overdueStays.length > 0 && (
+            <ul className="mt-4 space-y-1.5">
+              {data.overdueStays.map((s) => (
+                <li key={s.room} className={`rounded-lg px-3 py-2 text-xs font-medium ${TONES.red}`}>
+                  {t("Room")} {s.room} · {s.guest} — {t("Overdue by")} {s.overdue}
+                </li>
+              ))}
+            </ul>
+          )}
         </>
       )}
     </Panel>

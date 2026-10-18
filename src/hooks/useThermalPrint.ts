@@ -2,7 +2,7 @@
 
 import { useCallback, useState } from "react";
 import type { OrderItem, RestaurantOrder } from "@/lib/types";
-import { formatOrderNumber } from "@/lib/utils";
+import { billDateTime, billTitle, formatOrderNumber } from "@/lib/utils";
 
 /**
  * ESC/POS raw spooler over WebUSB (Chrome/Edge). Builds a raw byte stream
@@ -258,7 +258,7 @@ export async function buildFolioReceipt(payload: FolioPayload): Promise<Uint8Arr
     bytes.push(...row(c.description, money(c.amount)));
   }
   for (const so of serviceOrders) {
-    bytes.push(...row(`Room service #${formatOrderNumber(so.businessDate, so.orderNumber)}`, money(so.amount)));
+    bytes.push(...row(so.orderNumber == null ? "Room service (not yet settled)" : `Room service #${formatOrderNumber(so.businessDate, so.orderNumber)}`, money(so.amount)));
     for (const item of so.items ?? []) {
       bytes.push(...encode(`  ${item.quantity} x ${item.name}\n`));
     }
@@ -347,11 +347,11 @@ export async function buildEscPosReceipt({
   bytes.push(ESC, 0x61, 0x00); // left align
   bytes.push(
     ...row(
-      `Bill #${formatOrderNumber(order.business_date, order.order_number)}`,
+      billTitle(order),
       order.channel_type.replace("_", " ").toUpperCase()
     )
   );
-  bytes.push(...row("Date", new Date(order.created_at).toLocaleString("en-GB")));
+  bytes.push(...row("Date", billDateTime(order)));
   if (order.restaurant_tables) bytes.push(...row("Table", order.restaurant_tables.table_number));
   if (order.bookings) bytes.push(...row("Guest", order.bookings.guest_name));
   bytes.push(...line());
