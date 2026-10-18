@@ -54,7 +54,9 @@ declare
     'expense_categories','hotel_settings','credit_accounts','guests'];
   c_trans  text[] := array['bookings','booking_charges','booking_advance_payments','restaurant_orders',
     'order_items','expenses','cash_movements','cashier_float','credit_repayments','credit_adjustments',
-    'purchases','purchase_items','store_transactions','store_daily_snapshots','event_bookings','system_logs'];
+    'purchases','purchase_items','store_transactions','store_daily_snapshots','event_bookings','system_logs',
+    -- Release 1 tables (present only after migrations 039–044 are deployed)
+    'bill_counters','audit_log','audit_reasons','stock_movements'];
   -- tables whose user triggers must not fire while we rewrite them
   c_quiet  text[] := array['bookings','booking_charges','booking_advance_payments','restaurant_orders',
     'order_items','event_bookings','inventory_items','store_items','rooms','restaurant_tables'];
@@ -145,8 +147,9 @@ begin
   end loop;
 
   execute 'truncate table ' ||
-          (select string_agg(format('public.%I', x), ', ') from unnest(c_trans) x) ||
-          ' restart identity';   -- also restarts the bill-number sequence at 1
+          (select string_agg(format('public.%I', x), ', ') from unnest(c_trans) x
+           where to_regclass(format('public.%I', x)) is not null) ||
+          ' restart identity';   -- also restarts the bill-number sequence / per-day counters
 
   -- re-insert carried-forward rows (generated columns are recomputed)
   for r in select * from (values ('bookings','cf_bookings', 1), ('booking_charges','cf_charges', 2),
@@ -234,8 +237,11 @@ begin
     (select case when logo_url is null then 'MISSING' else 'set' end from public.hotel_settings where id = 1),
     (select case when review_qr_url is null then 'MISSING' else 'set' end from public.hotel_settings where id = 1));
   v_report := v_report || format(E'\n=== NEXT BILL NUMBER === %s',
-    (select coalesce(last_value + 1, 1)
-     from pg_sequences where schemaname = 'public' and sequencename = 'restaurant_orders_order_number_seq'));
+    case when to_regclass('public.bill_counters') is not null   -- release 1: per-day numbers
+         then '#' || to_char(c_golive, 'YYYYMMDD') || '-001 (first bill settled on ' || c_golive || ')'
+         else (select coalesce(last_value + 1, 1)::text
+               from pg_sequences where schemaname = 'public' and sequencename = 'restaurant_orders_order_number_seq')
+    end);
 
   if not v_commit then
     raise exception E'DRY RUN OK — everything above was rolled back, NOTHING changed.%', v_report

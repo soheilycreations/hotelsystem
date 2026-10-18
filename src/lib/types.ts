@@ -430,6 +430,7 @@ export const ROUTE_ACCESS: Record<string, StaffRole[]> = {
   "/pos/tables": ["admin", "manager"],
   "/inventory": ["admin", "manager", "kitchen_staff"],
   "/inventory/recipes": ["admin", "manager"],
+  "/inventory/opening-stock": ["admin", "manager"],
   "/inventory/purchases": ["admin", "manager"],
   "/inventory/store": ["admin", "manager", "kitchen_staff"],
   "/finance/expenses": ["admin", "manager"],

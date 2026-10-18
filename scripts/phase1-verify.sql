@@ -10,14 +10,26 @@
 -- Every row must say OK before running the reset. CHANGED means someone used
 -- the system after the archive was taken — the reset will refuse; re-archive.
 -- ============================================================================
+-- Fingerprint of a table. For the live (public) table only the columns the
+-- archive has are used, in the archive's order — so a column added later
+-- (e.g. by a release migration) doesn't make unchanged data look changed.
 create or replace function pg_temp.fp(p_schema text, p_table text, out n bigint, out h text)
 language plpgsql as $$
+declare
+  v_cols text;
 begin
   if to_regclass(format('%I.%I', p_schema, p_table)) is null then
     n := null; h := null; return;
   end if;
-  execute format('select count(*), md5(coalesce(string_agg(t::text, E''\n'' order by t::text), '''')) from %I.%I t',
-                 p_schema, p_table) into n, h;
+  if p_schema = 'public' and to_regclass(format('archive_20261018.%I', p_table)) is not null then
+    select string_agg(format('%I', a.column_name), ', ' order by a.ordinal_position) into v_cols
+    from information_schema.columns a
+    where a.table_schema = 'archive_20261018' and a.table_name = p_table
+      and exists (select 1 from information_schema.columns c
+                  where c.table_schema = 'public' and c.table_name = p_table and c.column_name = a.column_name);
+  end if;
+  execute format('select count(*), md5(coalesce(string_agg(t::text, E''\n'' order by t::text), '''')) '
+                 'from (select %s from %I.%I) t', coalesce(v_cols, '*'), p_schema, p_table) into n, h;
 end $$;
 
 with live as (

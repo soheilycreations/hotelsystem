@@ -1367,3 +1367,1066 @@ drop policy if exists "hotel assets admin delete" on storage.objects;
 create policy "hotel assets admin delete" on storage.objects
   for delete to authenticated
   using (bucket_id = 'hotel-assets' and public.get_my_role() in ('admin', 'manager'));
+
+
+-- ============================================================================
+-- RELEASE 1 (go-live 2026-10) — migrations 038–044, folded in for fresh installs
+-- Existing databases: run the migration files instead, in order.
+-- ============================================================================
+
+-- ---- migration-038-pms-room-integrity.sql ----
+-- ============================================================================
+-- Migration 038 — room status integrity, double-booking guard, room board
+-- ----------------------------------------------------------------------------
+-- 1. Check-in → room OCCUPIED also when a booking is INSERTED as checked_in
+--    (Trigger A only fired on UPDATE).
+-- 2. A room with an in-house guest can't be flipped to vacant/dirty by hand
+--    ("Mark cleaned" while the guest is still staying is what left every
+--    room showing Vacant). Check the guest out instead.
+-- 3. Double booking is rejected in the database: a pending/checked-in
+--    booking can't overlap another on the same room, and a room can't hold
+--    two checked-in guests. An in-house guest past their checkout date still
+--    blocks the room until they are actually checked out.
+-- 4. rpc_room_board(): one server-side source for the room grid and the
+--    dashboard occupancy card (status, type, in-house guest, overdue).
+-- 5. One-time sync: rooms with an in-house guest are set to occupied.
+-- Safe to re-run.
+-- ============================================================================
+
+-- 1 -------------------------------------------------------------------------
+create or replace function public.tg_housekeeping_automator()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.room_id is null then
+    return new;
+  end if;
+
+  if tg_op = 'INSERT' then
+    if new.status = 'checked_in' then
+      update public.rooms set status = 'occupied' where id = new.room_id;
+    end if;
+    return new;
+  end if;
+
+  if new.status = 'checked_out' and old.status is distinct from 'checked_out' then
+    -- leave the room occupied if another guest is still checked in on it
+    -- (legacy double bookings) — checkout itself must never fail
+    update public.rooms set status = 'dirty'
+    where id = new.room_id
+      and not exists (select 1 from public.bookings o
+                      where o.room_id = new.room_id and o.status = 'checked_in' and o.id <> new.id);
+    insert into public.system_logs (event_type, severity, message, ref_table, ref_id)
+    values ('HOUSEKEEPING', 'info',
+            format('Guest "%s" checked out — room flagged dirty for housekeeping.', new.guest_name),
+            'rooms', new.room_id);
+
+  elsif new.status = 'checked_in' and old.status is distinct from 'checked_in' then
+    update public.rooms set status = 'occupied' where id = new.room_id;
+
+  elsif new.status = 'cancelled' and old.status = 'checked_in' then
+    update public.rooms set status = 'vacant'
+    where id = new.room_id
+      and not exists (select 1 from public.bookings o
+                      where o.room_id = new.room_id and o.status = 'checked_in' and o.id <> new.id);
+
+  elsif new.status = 'checked_in' and new.room_id is distinct from old.room_id then
+    -- room move while in house
+    update public.rooms set status = 'occupied' where id = new.room_id;
+    if old.room_id is not null then
+      update public.rooms set status = 'dirty' where id = old.room_id;
+    end if;
+  end if;
+
+  return new;
+end $$;
+
+drop trigger if exists trg_a_housekeeping on public.bookings;
+create trigger trg_a_housekeeping
+after insert or update of status, room_id on public.bookings
+for each row execute function public.tg_housekeeping_automator();
+
+-- 2 -------------------------------------------------------------------------
+create or replace function public.tg_room_status_guard()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_guest text;
+begin
+  if new.status is distinct from 'occupied' and new.status is distinct from old.status then
+    select guest_name into v_guest
+    from public.bookings
+    where room_id = new.id and status = 'checked_in'
+    limit 1;
+    if found then
+      raise exception 'Room % has an in-house guest (%). Check the guest out first — the room then flips to dirty automatically.',
+        new.room_number, v_guest
+        using errcode = 'P0001';
+    end if;
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_room_status_guard on public.rooms;
+create trigger trg_room_status_guard
+before update of status on public.rooms
+for each row execute function public.tg_room_status_guard();
+
+-- 3 -------------------------------------------------------------------------
+create or replace function public.tg_booking_overlap_guard()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_new_end timestamptz;
+  v_hit record;
+begin
+  if new.room_id is null or new.status not in ('pending', 'checked_in') then
+    return new;
+  end if;
+  -- only re-check when something that matters changed
+  if tg_op = 'UPDATE'
+     and new.room_id is not distinct from old.room_id
+     and new.check_in_date = old.check_in_date
+     and new.check_out_date = old.check_out_date
+     and new.status = old.status then
+    return new;
+  end if;
+
+  -- serialise bookings per room so two receptionists can't race
+  perform pg_advisory_xact_lock(hashtext('room-booking:' || new.room_id::text));
+
+  -- a checked-in guest occupies the room until actually checked out
+  v_new_end := case when new.status = 'checked_in'
+                    then greatest(new.check_out_date, now()) else new.check_out_date end;
+
+  select b.guest_name, b.status, b.check_in_date, b.check_out_date, r.room_number
+    into v_hit
+  from public.bookings b
+  join public.rooms r on r.id = b.room_id
+  where b.room_id = new.room_id
+    and b.id <> new.id
+    and b.status in ('pending', 'checked_in')
+    and (
+      (new.status = 'checked_in' and b.status = 'checked_in')
+      or tstzrange(b.check_in_date,
+                   case when b.status = 'checked_in' then greatest(b.check_out_date, now())
+                        else b.check_out_date end, '[)')
+         && tstzrange(new.check_in_date, v_new_end, '[)')
+    )
+  order by b.check_in_date
+  limit 1;
+
+  if found then
+    raise exception 'Room % is already taken by % (%, % → %). Pick another room or other dates.',
+      v_hit.room_number, v_hit.guest_name,
+      case when v_hit.status = 'checked_in' then 'in house' else 'reserved' end,
+      to_char(v_hit.check_in_date at time zone 'Asia/Colombo', 'DD Mon HH24:MI'),
+      to_char(v_hit.check_out_date at time zone 'Asia/Colombo', 'DD Mon HH24:MI')
+      using errcode = '23P01';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_booking_overlap_guard on public.bookings;
+create trigger trg_booking_overlap_guard
+before insert or update of room_id, check_in_date, check_out_date, status on public.bookings
+for each row execute function public.tg_booking_overlap_guard();
+
+-- 4 -------------------------------------------------------------------------
+create or replace function public.rpc_room_board()
+returns table (
+  room_id         uuid,
+  room_number     text,
+  floor_zone      text,
+  room_type_id    uuid,
+  room_type       text,
+  max_occupancy   int,
+  status          room_status,
+  booking_id      uuid,
+  guest_name      text,
+  check_in_date   timestamptz,
+  check_out_date  timestamptz,
+  stay_type       stay_type,
+  overdue_minutes int
+)
+language plpgsql
+stable
+security definer set search_path = public
+as $$
+begin
+  if public.get_my_role() is null then
+    raise exception 'Not authorized.';
+  end if;
+  return query
+  select r.id, r.room_number::text, r.floor_zone::text, t.id, t.name::text, t.max_occupancy,
+         r.status, b.id, b.guest_name::text, b.check_in_date, b.check_out_date, b.stay_type,
+         case when b.id is not null and now() > b.check_out_date
+              then (extract(epoch from now() - b.check_out_date) / 60)::int end
+  from public.rooms r
+  join public.room_types t on t.id = r.type_id
+  left join lateral (
+    select * from public.bookings x
+    where x.room_id = r.id and x.status = 'checked_in'
+    order by x.actual_check_in desc nulls last
+    limit 1
+  ) b on true
+  order by r.room_number;
+end $$;
+
+grant execute on function public.rpc_room_board() to authenticated;
+
+-- 5 -------------------------------------------------------------------------
+update public.rooms r set status = 'occupied'
+where r.status <> 'occupied'
+  and exists (select 1 from public.bookings b where b.room_id = r.id and b.status = 'checked_in');
+
+-- ---- migration-039-audit-log.sql ----
+-- ============================================================================
+-- Migration 039 — audit log, logged-in user stamping, settled-record guard
+-- ----------------------------------------------------------------------------
+-- 1. audit_log: who / when / table / row / action / old value / new value /
+--    reason, filled by triggers on every money and stock table. Append-only;
+--    admins and managers can read it, nobody can write it directly.
+-- 2. The "created by" column of each money table is stamped with the
+--    logged-in user (auth.uid()) on insert — whatever the client sends.
+--    Staff therefore need their own logins for the trail to mean anything.
+-- 3. Settled records are protected in the database: a settled bill and its
+--    items, a checked-out stay and its charges can only be changed by an
+--    ADMIN who has first given a reason (rpc_set_audit_reason, valid for 10
+--    minutes). Changes made by the system's own triggers are exempt, and so
+--    is updating only the delivery status of a settled delivery order.
+-- Safe to re-run.
+-- ============================================================================
+
+-- 1 -------------------------------------------------------------------------
+create table if not exists public.audit_log (
+  id         bigint generated always as identity primary key,
+  at         timestamptz not null default now(),
+  user_id    uuid,
+  user_name  text,
+  table_name text not null,
+  row_id     text,
+  action     text not null check (action in ('INSERT', 'UPDATE', 'DELETE')),
+  old_data   jsonb,
+  new_data   jsonb,
+  changed    text[],
+  reason     text
+);
+create index if not exists audit_log_at_idx on public.audit_log (at desc);
+create index if not exists audit_log_row_idx on public.audit_log (table_name, row_id);
+
+alter table public.audit_log enable row level security;
+drop policy if exists "mgmt read audit log" on public.audit_log;
+create policy "mgmt read audit log" on public.audit_log for select
+  using (public.get_my_role() in ('admin', 'manager'));
+revoke insert, update, delete, truncate on public.audit_log from anon, authenticated;
+
+create or replace function public.tg_audit_log_append_only()
+returns trigger language plpgsql as $$
+begin
+  raise exception 'audit_log is append-only';
+end $$;
+drop trigger if exists trg_audit_log_append_only on public.audit_log;
+create trigger trg_audit_log_append_only
+before update or delete on public.audit_log
+for each row execute function public.tg_audit_log_append_only();
+
+-- reasons: one current reason per user, valid for 10 minutes
+create table if not exists public.audit_reasons (
+  user_id uuid primary key,
+  reason  text not null,
+  set_at  timestamptz not null default now()
+);
+alter table public.audit_reasons enable row level security; -- no policies: only via the RPC below
+
+create or replace function public.rpc_set_audit_reason(p_reason text)
+returns void
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if auth.uid() is null or public.get_my_role() is null then
+    raise exception 'Not authorized.';
+  end if;
+  if length(trim(coalesce(p_reason, ''))) < 5 then
+    raise exception 'Give a reason for this change (at least a few words).';
+  end if;
+  insert into public.audit_reasons (user_id, reason, set_at)
+  values (auth.uid(), trim(p_reason), now())
+  on conflict (user_id) do update set reason = excluded.reason, set_at = excluded.set_at;
+end $$;
+grant execute on function public.rpc_set_audit_reason(text) to authenticated;
+
+create or replace function public.current_audit_reason()
+returns text
+language sql
+stable
+security definer set search_path = public
+as $$
+  select reason from public.audit_reasons
+  where user_id = auth.uid() and set_at > now() - interval '10 minutes';
+$$;
+
+create or replace function public.tg_audit()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_old jsonb := case when tg_op in ('UPDATE', 'DELETE') then to_jsonb(old) end;
+  v_new jsonb := case when tg_op in ('INSERT', 'UPDATE') then to_jsonb(new) end;
+  v_changed text[];
+begin
+  if tg_op = 'UPDATE' then
+    select array_agg(k order by k) into v_changed
+    from jsonb_object_keys(v_new) k
+    where k <> 'updated_at' and v_new -> k is distinct from v_old -> k;
+    if v_changed is null then
+      return null; -- nothing but updated_at changed
+    end if;
+  end if;
+
+  insert into public.audit_log (user_id, user_name, table_name, row_id, action, old_data, new_data, changed, reason)
+  values (
+    auth.uid(),
+    (select full_name from public.staff_profiles where id = auth.uid()),
+    tg_table_name,
+    coalesce(v_new ->> 'id', v_old ->> 'id'),
+    tg_op,
+    v_old,
+    v_new,
+    v_changed,
+    public.current_audit_reason()
+  );
+  return null;
+end $$;
+
+do $$
+declare
+  t text;
+begin
+  foreach t in array array[
+    'restaurant_orders', 'order_items', 'bookings', 'booking_charges', 'booking_advance_payments',
+    'expenses', 'cash_movements', 'cashier_float', 'credit_accounts', 'credit_repayments',
+    'credit_adjustments', 'inventory_items', 'store_items', 'store_transactions', 'purchases',
+    'purchase_items', 'hotel_settings', 'room_rate_plans', 'menu_items'
+  ] loop
+    execute format('drop trigger if exists trg_z_audit on public.%I', t);
+    execute format('create trigger trg_z_audit after insert or update or delete on public.%I '
+                   'for each row execute function public.tg_audit()', t);
+  end loop;
+end $$;
+
+-- 2 -------------------------------------------------------------------------
+-- Stamp the logged-in user into the table's "created by" column on insert.
+-- TG_ARGV[0] = column name. Skipped when there is no logged-in user
+-- (service role / SQL editor), so scripts keep working.
+create or replace function public.tg_stamp_user()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if auth.uid() is not null then
+    new := jsonb_populate_record(new, jsonb_build_object(tg_argv[0], auth.uid()));
+  end if;
+  return new;
+end $$;
+
+do $$
+declare
+  r record;
+begin
+  for r in select * from (values
+    ('restaurant_orders', 'created_by'), ('bookings', 'created_by'), ('booking_charges', 'created_by'),
+    ('booking_advance_payments', 'received_by'), ('expenses', 'logged_by'), ('cash_movements', 'logged_by'),
+    ('cashier_float', 'set_by'), ('credit_accounts', 'created_by'), ('credit_repayments', 'logged_by'),
+    ('credit_adjustments', 'created_by'), ('purchases', 'created_by'), ('store_transactions', 'created_by')
+  ) v(tbl, col) loop
+    execute format('drop trigger if exists trg_0_stamp_user on public.%I', r.tbl);
+    execute format('create trigger trg_0_stamp_user before insert on public.%I '
+                   'for each row execute function public.tg_stamp_user(%L)', r.tbl, r.col);
+  end loop;
+end $$;
+
+-- cashier_float is upserted daily: the person who last set it is who counts
+drop trigger if exists trg_0_stamp_user_upd on public.cashier_float;
+create trigger trg_0_stamp_user_upd before update on public.cashier_float
+for each row execute function public.tg_stamp_user('set_by');
+
+-- 3 -------------------------------------------------------------------------
+create or replace function public.assert_settled_edit_allowed(p_what text)
+returns void
+language plpgsql
+stable
+security definer set search_path = public
+as $$
+begin
+  if public.get_my_role() is distinct from 'admin' then
+    raise exception '% can only be changed by an admin (Settings → Settled records).', p_what
+      using errcode = '42501';
+  end if;
+  if public.current_audit_reason() is null then
+    raise exception 'Give a reason before changing % (Settings → Settled records).', lower(p_what)
+      using errcode = '42501';
+  end if;
+end $$;
+
+create or replace function public.tg_guard_settled()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_locked boolean := false;
+  v_what text;
+  v_ref uuid;
+begin
+  -- changes made by the system's own triggers (folio posting, totals
+  -- recalculation, housekeeping…) are part of an action already checked
+  if pg_trigger_depth() > 1 then
+    return coalesce(new, old);
+  end if;
+  -- maintenance scripts run without a logged-in user (SQL editor)
+  if auth.uid() is null then
+    return coalesce(new, old);
+  end if;
+
+  if tg_table_name = 'restaurant_orders' then
+    v_what := 'A settled bill';
+    v_locked := old.order_status = 'completed';
+    if v_locked and tg_op = 'UPDATE'
+       and (to_jsonb(new) - 'delivery_status' - 'updated_at') = (to_jsonb(old) - 'delivery_status' - 'updated_at') then
+      return new; -- delivery status of a settled delivery order may still move on
+    end if;
+  elsif tg_table_name = 'order_items' then
+    v_what := 'A settled bill';
+    v_ref := coalesce(new.order_id, old.order_id);
+    select o.order_status = 'completed' into v_locked from public.restaurant_orders o where o.id = v_ref;
+    if v_locked and tg_op = 'UPDATE'
+       and (to_jsonb(new) - 'kot_printed_at') = (to_jsonb(old) - 'kot_printed_at') then
+      return new; -- reprinting a ticket
+    end if;
+  elsif tg_table_name = 'bookings' then
+    v_what := 'A checked-out stay';
+    v_locked := old.status = 'checked_out';
+  elsif tg_table_name = 'booking_charges' then
+    v_what := 'A checked-out stay';
+    v_ref := coalesce(new.booking_id, old.booking_id);
+    select b.status = 'checked_out' into v_locked from public.bookings b where b.id = v_ref;
+  end if;
+
+  if coalesce(v_locked, false) then
+    perform public.assert_settled_edit_allowed(v_what);
+  end if;
+  return coalesce(new, old);
+end $$;
+
+drop trigger if exists trg_0_guard_settled on public.restaurant_orders;
+create trigger trg_0_guard_settled before update or delete on public.restaurant_orders
+for each row execute function public.tg_guard_settled();
+drop trigger if exists trg_0_guard_settled on public.order_items;
+create trigger trg_0_guard_settled before insert or update or delete on public.order_items
+for each row execute function public.tg_guard_settled();
+drop trigger if exists trg_0_guard_settled on public.bookings;
+create trigger trg_0_guard_settled before update or delete on public.bookings
+for each row execute function public.tg_guard_settled();
+drop trigger if exists trg_0_guard_settled on public.booking_charges;
+create trigger trg_0_guard_settled before insert or update or delete on public.booking_charges
+for each row execute function public.tg_guard_settled();
+
+-- ---- migration-040-shared-revenue.sql ----
+-- ============================================================================
+-- Migration 040 — ONE definition of revenue for every page
+-- ----------------------------------------------------------------------------
+-- Dashboard, Daily Summary, Reports/P&L all read these two functions (via
+-- src/lib/finance/revenue.ts), so the same date range gives the same numbers
+-- everywhere. Dates are Asia/Colombo calendar days.
+--
+-- Restaurant revenue  settled bills (order_status completed), not
+--                     complimentary, on business_date — which migration 041
+--                     stamps with the Colombo date of settled_at. Includes
+--                     room service and "charge to room" bills.
+-- Room revenue        checked-out stays, not complimentary, on the Colombo
+--                     date of actual_check_out: folio total minus the
+--                     restaurant bills that were posted onto that folio
+--                     (already counted as restaurant revenue above).
+-- Advance payments    are deposits, NOT revenue when received — the stay
+--                     is recognised in full at checkout.
+-- Expenses            expenses_total = everything logged;
+--                     expenses_operating = paid from hotel money, i.e.
+--                     excluding bank_transfer / owner_paid (owner's own
+--                     funds) — net profit = revenue - expenses_operating.
+--
+-- SECURITY INVOKER: callers see exactly what their RLS already allows.
+-- ============================================================================
+
+create or replace function public.fn_finance_daily(p_from date, p_to date)
+returns table (
+  day                         date,
+  restaurant_revenue          numeric(14,2),
+  room_revenue                numeric(14,2),
+  total_revenue               numeric(14,2),
+  expenses_total              numeric(14,2),
+  expenses_operating          numeric(14,2),
+  expenses_operating_room     numeric(14,2),
+  expenses_operating_restaurant numeric(14,2),
+  bills                       int,
+  checkouts                   int
+)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  with days as (
+    select d::date as day from generate_series(p_from, p_to, interval '1 day') d
+  ),
+  pos as (
+    select o.business_date as day, sum(o.total_amount) as amt, count(*) as n
+    from restaurant_orders o
+    where o.order_status = 'completed'
+      and o.payment_method is distinct from 'complimentary'
+      and o.business_date between p_from and p_to
+    group by 1
+  ),
+  stays as (
+    select (b.actual_check_out at time zone 'Asia/Colombo')::date as day,
+           sum(greatest(0, b.total_folio_amount - coalesce(posted.amt, 0))) as amt,
+           count(*) as n
+    from bookings b
+    left join lateral (
+      select sum(o.total_amount) as amt
+      from restaurant_orders o
+      where o.booking_id = b.id and o.order_status = 'completed'
+    ) posted on true
+    where b.status = 'checked_out'
+      and b.payment_method is distinct from 'complimentary'
+      and b.actual_check_out >= (p_from::timestamp at time zone 'Asia/Colombo')
+      and b.actual_check_out <  ((p_to + 1)::timestamp at time zone 'Asia/Colombo')
+    group by 1
+  ),
+  exp as (
+    select e.date as day,
+           sum(e.amount) as total,
+           sum(e.amount) filter (where e.payment_method not in ('bank_transfer', 'owner_paid')) as op,
+           sum(e.amount) filter (where e.payment_method not in ('bank_transfer', 'owner_paid') and e.division = 'room') as op_room,
+           sum(e.amount) filter (where e.payment_method not in ('bank_transfer', 'owner_paid') and e.division <> 'room') as op_rest
+    from expenses e
+    where e.date between p_from and p_to
+    group by 1
+  )
+  select d.day,
+         coalesce(pos.amt, 0)::numeric(14,2),
+         coalesce(stays.amt, 0)::numeric(14,2),
+         (coalesce(pos.amt, 0) + coalesce(stays.amt, 0))::numeric(14,2),
+         coalesce(exp.total, 0)::numeric(14,2),
+         coalesce(exp.op, 0)::numeric(14,2),
+         coalesce(exp.op_room, 0)::numeric(14,2),
+         coalesce(exp.op_rest, 0)::numeric(14,2),
+         coalesce(pos.n, 0)::int,
+         coalesce(stays.n, 0)::int
+  from days d
+  left join pos   on pos.day = d.day
+  left join stays on stays.day = d.day
+  left join exp   on exp.day = d.day
+  order by d.day;
+$$;
+
+-- Restaurant revenue split by channel (historical backfill kept separate),
+-- same filter as restaurant_revenue above — the channels always add up to it.
+create or replace function public.fn_finance_channels(p_from date, p_to date)
+returns table (bucket text, revenue numeric(14,2), bills int)
+language sql
+stable
+security invoker
+set search_path = public
+as $$
+  select case when o.is_historical then 'historical' else o.channel_type::text end,
+         sum(o.total_amount)::numeric(14,2),
+         count(*)::int
+  from restaurant_orders o
+  where o.order_status = 'completed'
+    and o.payment_method is distinct from 'complimentary'
+    and o.business_date between p_from and p_to
+  group by 1;
+$$;
+
+grant execute on function public.fn_finance_daily(date, date) to authenticated;
+grant execute on function public.fn_finance_channels(date, date) to authenticated;
+
+-- ---- migration-041-bill-number-at-settle.sql ----
+-- ============================================================================
+-- Migration 041 — bill numbers issued at settle time, per day
+-- ----------------------------------------------------------------------------
+-- Bill number = #YYYYMMDD-NNN where YYYYMMDD is the Colombo date the bill was
+-- SETTLED and NNN restarts at 001 every day.
+--   * restaurant_orders.order_number now holds the per-day NNN (unique per
+--     business_date instead of globally); business_date is stamped with the
+--     Colombo settle date, settled_at/settled_by with the real time and the
+--     logged-in user — all by trigger, so no client can skip or backdate it.
+--   * Open orders carry no number (their uuid is the internal id); printing
+--     before settlement produces a PRE-BILL.
+--   * A bill reopened and settled again keeps its original number and date.
+--   * Backfill (is_historical) rows keep the business_date they were given.
+-- Existing settled bills keep their old numbers. Safe to re-run.
+-- ============================================================================
+
+create table if not exists public.bill_counters (
+  bill_date date primary key,
+  last_no   int  not null default 0
+);
+alter table public.bill_counters enable row level security; -- no policies: written only by the trigger below
+
+-- per-day uniqueness instead of global
+alter table public.restaurant_orders drop constraint if exists restaurant_orders_order_number_key;
+create unique index if not exists restaurant_orders_bill_number_uidx
+  on public.restaurant_orders (business_date, order_number) where order_number is not null;
+
+-- open orders that got a number from an early print give it back; they get
+-- a proper per-day number when settled
+update public.restaurant_orders set order_number = null
+where order_status = 'active' and order_number is not null;
+
+-- continue each existing day from its highest number
+insert into public.bill_counters (bill_date, last_no)
+select business_date, max(order_number)
+from public.restaurant_orders
+where order_number is not null
+group by business_date
+on conflict (bill_date) do update set last_no = greatest(public.bill_counters.last_no, excluded.last_no);
+
+create or replace function public.tg_bill_number_at_settle()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.order_status <> 'completed' then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and old.order_status = 'completed' then
+    return new; -- already settled; edits to settled bills are governed elsewhere
+  end if;
+
+  new.settled_by := coalesce(auth.uid(), new.settled_by);
+
+  if new.order_number is not null then
+    -- reopened and settled again: keep its number and date
+    new.settled_at := coalesce(new.settled_at, now());
+    return new;
+  end if;
+
+  if new.is_historical then
+    new.settled_at := coalesce(new.settled_at, now());
+  else
+    new.settled_at := now();
+    new.business_date := (now() at time zone 'Asia/Colombo')::date;
+  end if;
+
+  insert into public.bill_counters as c (bill_date, last_no)
+  values (new.business_date, 1)
+  on conflict (bill_date) do update set last_no = c.last_no + 1
+  returning c.last_no into new.order_number;
+
+  return new;
+end $$;
+
+drop trigger if exists trg_0_bill_number_at_settle on public.restaurant_orders;
+create trigger trg_0_bill_number_at_settle
+before insert or update of order_status on public.restaurant_orders
+for each row execute function public.tg_bill_number_at_settle();
+
+-- Printing no longer reserves a number. Kept for old clients: returns the
+-- number if the bill is settled, else null.
+create or replace function public.rpc_ensure_order_number(p_order_id uuid)
+returns int
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_number int;
+begin
+  if public.get_my_role() is null then
+    raise exception 'Not authorized.';
+  end if;
+  select order_number into v_number from public.restaurant_orders where id = p_order_id;
+  if not found then
+    raise exception 'Order not found.';
+  end if;
+  return v_number;
+end;
+$$;
+grant execute on function public.rpc_ensure_order_number(uuid) to authenticated;
+
+-- ---- migration-042-open-orders-and-folio.sql ----
+-- ============================================================================
+-- Migration 042 — open-order hygiene + room charges always go to the folio
+-- ----------------------------------------------------------------------------
+-- 1. Table colour follows the items: a dine-in table is occupied only while
+--    an open order on it has at least one item; removing the last item (or
+--    voiding/settling) makes it vacant again.
+-- 2. rpc_purge_empty_orders(): deletes OPEN orders with no items (Rs 0) that
+--    are older than N minutes and frees their tables. The POS, billing and
+--    dashboard pages call it on load, so abandoned empty orders disappear.
+-- 3. Any order linked to a guest booking (room service, or "charge to room"
+--    from dine-in/takeaway) is settled onto the guest FOLIO: payment method
+--    and credit account are cleared (the guest pays at checkout), and the
+--    guest must still be checked in.
+-- Safe to re-run.
+-- ============================================================================
+
+-- 1 -------------------------------------------------------------------------
+create or replace function public.tg_table_follows_items()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_order_id uuid := coalesce(new.order_id, old.order_id);
+  v_table uuid;
+begin
+  select table_id into v_table
+  from public.restaurant_orders
+  where id = v_order_id and order_status = 'active' and table_id is not null;
+  if v_table is null then
+    return null;
+  end if;
+
+  if exists (select 1 from public.restaurant_orders o
+             where o.table_id = v_table and o.order_status = 'active'
+               and exists (select 1 from public.order_items i where i.order_id = o.id)) then
+    update public.restaurant_tables set current_status = 'occupied'
+    where id = v_table and current_status = 'vacant';
+  else
+    update public.restaurant_tables set current_status = 'vacant'
+    where id = v_table and current_status <> 'vacant';
+  end if;
+  return null;
+end $$;
+
+drop trigger if exists trg_table_follows_items on public.order_items;
+create trigger trg_table_follows_items
+after insert or delete on public.order_items
+for each row execute function public.tg_table_follows_items();
+
+-- 2 -------------------------------------------------------------------------
+create or replace function public.rpc_purge_empty_orders(p_min_age_minutes int default 15)
+returns int
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_deleted int;
+begin
+  if public.get_my_role() is null then
+    raise exception 'Not authorized.';
+  end if;
+
+  with gone as (
+    delete from public.restaurant_orders o
+    where o.order_status = 'active'
+      and o.created_at < now() - make_interval(mins => greatest(p_min_age_minutes, 0))
+      and not exists (select 1 from public.order_items i where i.order_id = o.id)
+    returning o.table_id
+  ),
+  freed as (
+    update public.restaurant_tables t set current_status = 'vacant'
+    where t.id in (select table_id from gone where table_id is not null)
+      and t.current_status <> 'vacant'
+      and not exists (select 1 from public.restaurant_orders o
+                      where o.table_id = t.id and o.order_status = 'active'
+                        and exists (select 1 from public.order_items i where i.order_id = o.id))
+    returning 1
+  )
+  select count(*) into v_deleted from gone;
+
+  return v_deleted;
+end $$;
+
+grant execute on function public.rpc_purge_empty_orders(int) to authenticated;
+
+-- 3 -------------------------------------------------------------------------
+create or replace function public.tg_folio_orders()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_status booking_status;
+begin
+  if new.booking_id is null or new.order_status <> 'completed' then
+    return new;
+  end if;
+  if tg_op = 'UPDATE' and old.order_status = 'completed' then
+    return new;
+  end if;
+
+  select status into v_status from public.bookings where id = new.booking_id;
+  if v_status is distinct from 'checked_in' then
+    raise exception 'This guest is no longer checked in — settle the bill with a payment method instead of charging it to the room.'
+      using errcode = 'P0001';
+  end if;
+
+  -- the folio carries it; the guest pays at checkout
+  new.payment_method := null;
+  new.credit_account_id := null;
+  return new;
+end $$;
+
+drop trigger if exists trg_0b_folio_orders on public.restaurant_orders;
+create trigger trg_0b_folio_orders
+before insert or update of order_status on public.restaurant_orders
+for each row execute function public.tg_folio_orders();
+
+-- ---- migration-043-backfill-flag-and-rls.sql ----
+-- ============================================================================
+-- Migration 043 — backfill switched off, RLS tightened, store RLS fixed
+-- ----------------------------------------------------------------------------
+-- 1. hotel_settings.backfill_enabled (default OFF): while off, the database
+--    refuses any backdated "historical" sale, whatever the app does. The
+--    /backfill page is admin-only and 404 for everyone else (middleware).
+-- 2. RLS review — cashier can open orders and settle bills, but cannot:
+--    edit settled records (guard trigger, migration 039), delete expenses,
+--    change settings, menu, rooms or tables setup, delete credit accounts,
+--    delete advance payments, or see staff accounts.
+-- 3. store_items / store_daily_snapshots / store_transactions: RLS was never
+--    enabled in schema.sql (only in migration 034) — enable it everywhere.
+-- Safe to re-run.
+-- ============================================================================
+
+-- 1 -------------------------------------------------------------------------
+alter table public.hotel_settings add column if not exists backfill_enabled boolean not null default false;
+update public.hotel_settings set backfill_enabled = false;
+
+create or replace function public.tg_block_backfill()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.is_historical
+     and (tg_op = 'INSERT' or old.is_historical is distinct from true)
+     and not coalesce((select backfill_enabled from public.hotel_settings where id = 1), false) then
+    raise exception 'Backfill is switched off — backdated sales are not allowed. An admin can switch it on in Settings.'
+      using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_0_block_backfill on public.restaurant_orders;
+create trigger trg_0_block_backfill
+before insert or update of is_historical on public.restaurant_orders
+for each row execute function public.tg_block_backfill();
+
+-- backdated stays: a booking can't be CREATED already checked out unless
+-- backfill is on (normal stays are checked out via an update)
+create or replace function public.tg_block_backfill_booking()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.status = 'checked_out'
+     and not coalesce((select backfill_enabled from public.hotel_settings where id = 1), false) then
+    raise exception 'Backfill is switched off — backdated stays are not allowed. An admin can switch it on in Settings.'
+      using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_0_block_backfill on public.bookings;
+create trigger trg_0_block_backfill
+before insert on public.bookings
+for each row execute function public.tg_block_backfill_booking();
+
+-- only an admin may flip the switch (managers can still edit other settings)
+create or replace function public.tg_backfill_flag_admin_only()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+begin
+  if new.backfill_enabled is distinct from old.backfill_enabled
+     and auth.uid() is not null
+     and public.get_my_role() is distinct from 'admin' then
+    raise exception 'Only an admin can switch Backfill on or off.' using errcode = '42501';
+  end if;
+  return new;
+end $$;
+
+drop trigger if exists trg_backfill_flag_admin_only on public.hotel_settings;
+create trigger trg_backfill_flag_admin_only
+before update of backfill_enabled on public.hotel_settings
+for each row execute function public.tg_backfill_flag_admin_only();
+
+-- 2 -------------------------------------------------------------------------
+-- restaurant tables: cashiers update status; only management adds/removes
+drop policy if exists "pos write tables" on public.restaurant_tables;
+drop policy if exists "pos update tables" on public.restaurant_tables;
+drop policy if exists "mgmt insert tables" on public.restaurant_tables;
+drop policy if exists "mgmt delete tables" on public.restaurant_tables;
+create policy "pos update tables" on public.restaurant_tables for update
+  using (public.get_my_role() in ('admin', 'manager', 'cashier'))
+  with check (public.get_my_role() in ('admin', 'manager', 'cashier'));
+create policy "mgmt insert tables" on public.restaurant_tables for insert
+  with check (public.get_my_role() in ('admin', 'manager'));
+create policy "mgmt delete tables" on public.restaurant_tables for delete
+  using (public.get_my_role() in ('admin', 'manager'));
+
+-- orders: explicit WITH CHECK so settling (active → completed) is allowed,
+-- while changes to settled bills are stopped by the 039 guard trigger
+drop policy if exists "pos update orders" on public.restaurant_orders;
+create policy "pos update orders" on public.restaurant_orders for update
+  using (public.get_my_role() in ('admin', 'manager', 'cashier', 'kitchen_staff'))
+  with check (public.get_my_role() in ('admin', 'manager', 'cashier', 'kitchen_staff'));
+-- (no delete policy on orders: nobody deletes them directly; the empty-order
+-- purge runs as security definer, voiding uses order_status = cancelled)
+
+-- credit accounts: front desk/cashier may create and rename; only
+-- management may delete
+drop policy if exists "pms write credit accounts" on public.credit_accounts;
+drop policy if exists "staff create credit accounts" on public.credit_accounts;
+drop policy if exists "staff update credit accounts" on public.credit_accounts;
+drop policy if exists "mgmt delete credit accounts" on public.credit_accounts;
+create policy "staff create credit accounts" on public.credit_accounts for insert
+  with check (public.get_my_role() in ('admin', 'manager', 'receptionist', 'cashier'));
+create policy "staff update credit accounts" on public.credit_accounts for update
+  using (public.get_my_role() in ('admin', 'manager', 'receptionist', 'cashier'))
+  with check (public.get_my_role() in ('admin', 'manager', 'receptionist', 'cashier'));
+create policy "mgmt delete credit accounts" on public.credit_accounts for delete
+  using (public.get_my_role() in ('admin', 'manager'));
+
+-- advance payments are money received: only management may delete one
+drop policy if exists "pms delete advance payments" on public.booking_advance_payments;
+create policy "pms delete advance payments" on public.booking_advance_payments for delete
+  using (public.get_my_role() in ('admin', 'manager'));
+
+-- 3 -------------------------------------------------------------------------
+alter table public.store_items           enable row level security;
+alter table public.store_daily_snapshots enable row level security;
+alter table public.store_transactions    enable row level security;
+
+-- ---- migration-044-stock-movements-opening.sql ----
+-- ============================================================================
+-- Migration 044 — stock movement history + opening stock count
+-- ----------------------------------------------------------------------------
+-- 1. stock_movements: one row per change of inventory_items.quantity_in_stock
+--    (delta + resulting quantity + who + why), written by trigger so every
+--    path is covered:
+--      opening     rpc_record_opening_stock (go-live count / stock take)
+--      sale        recipe deduction when a bill is settled
+--      purchase    supplier bill (rpc_record_purchase) in the same transaction
+--      adjustment  anything else (manual +/- on the Inventory screen)
+-- 2. rpc_record_opening_stock(items, note): sets each item to the COUNTED
+--    quantity (absolute, >= 0) in one transaction; optional unit cost.
+-- Read-only for staff; rows are only written by the trigger.
+-- Safe to re-run.
+-- ============================================================================
+
+create table if not exists public.stock_movements (
+  id                bigint generated always as identity primary key,
+  inventory_item_id uuid not null references public.inventory_items (id) on delete cascade,
+  movement_type     text not null check (movement_type in ('opening', 'sale', 'purchase', 'adjustment')),
+  quantity          numeric(14,3) not null,           -- signed change
+  quantity_after    numeric(14,3) not null,
+  note              text,
+  created_by        uuid references public.staff_profiles (id) default auth.uid(),
+  created_at        timestamptz not null default now()
+);
+create index if not exists stock_movements_item_idx on public.stock_movements (inventory_item_id, created_at desc);
+
+alter table public.stock_movements enable row level security;
+drop policy if exists "staff read stock movements" on public.stock_movements;
+create policy "staff read stock movements" on public.stock_movements for select
+  using (public.get_my_role() is not null);
+revoke insert, update, delete, truncate on public.stock_movements from anon, authenticated;
+
+create or replace function public.tg_stock_movement()
+returns trigger
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  v_kind text := nullif(current_setting('app.stock_movement', true), '');
+  v_note text := nullif(current_setting('app.stock_movement_note', true), '');
+begin
+  if new.quantity_in_stock is not distinct from old.quantity_in_stock then
+    return null;
+  end if;
+  if v_kind is null then
+    if pg_trigger_depth() > 1 then
+      v_kind := 'sale'; -- recipe deduction fired by settling a bill
+    elsif exists (select 1 from public.purchase_items pi
+                  where pi.inventory_item_id = new.id and pi.created_at = now()) then
+      v_kind := 'purchase'; -- purchase line inserted in this same transaction
+    else
+      v_kind := 'adjustment';
+    end if;
+  end if;
+
+  insert into public.stock_movements (inventory_item_id, movement_type, quantity, quantity_after, note, created_by)
+  values (new.id, v_kind, new.quantity_in_stock - old.quantity_in_stock, new.quantity_in_stock, v_note,
+          (select id from public.staff_profiles where id = auth.uid()));
+  return null;
+end $$;
+
+drop trigger if exists trg_d_stock_movement on public.inventory_items;
+create trigger trg_d_stock_movement
+after update of quantity_in_stock on public.inventory_items
+for each row execute function public.tg_stock_movement();
+
+create or replace function public.rpc_record_opening_stock(p_items jsonb, p_note text default null)
+returns int
+language plpgsql
+security definer set search_path = public
+as $$
+declare
+  r record;
+  v_count int := 0;
+begin
+  if public.get_my_role() not in ('admin', 'manager') then
+    raise exception 'Only an admin or manager can record an opening stock count.';
+  end if;
+  if jsonb_typeof(p_items) <> 'array' or jsonb_array_length(p_items) = 0 then
+    raise exception 'Enter at least one counted item.';
+  end if;
+
+  perform set_config('app.stock_movement', 'opening', true);
+  perform set_config('app.stock_movement_note',
+                     coalesce(nullif(trim(p_note), ''), 'Opening stock count'), true);
+
+  for r in
+    select (x ->> 'inventory_item_id')::uuid as item_id,
+           (x ->> 'quantity')::numeric as qty,
+           nullif(x ->> 'unit_cost', '')::numeric as unit_cost
+    from jsonb_array_elements(p_items) x
+  loop
+    if r.qty is null or r.qty < 0 then
+      raise exception 'Counted quantity must be zero or more.';
+    end if;
+    if r.unit_cost is not null and r.unit_cost < 0 then
+      raise exception 'Unit cost must be zero or more.';
+    end if;
+    update public.inventory_items
+    set quantity_in_stock = round(r.qty, 3),
+        unit_cost = coalesce(r.unit_cost, unit_cost)
+    where id = r.item_id;
+    if not found then
+      raise exception 'Inventory item % not found.', r.item_id;
+    end if;
+    v_count := v_count + 1;
+  end loop;
+
+  perform set_config('app.stock_movement', '', true);
+  perform set_config('app.stock_movement_note', '', true);
+  return v_count;
+end $$;
+
+grant execute on function public.rpc_record_opening_stock(jsonb, text) to authenticated;
