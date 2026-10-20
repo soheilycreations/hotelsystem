@@ -128,6 +128,12 @@ begin
     'credit_adjustments', 'inventory_items', 'store_items', 'store_transactions', 'purchases',
     'purchase_items', 'hotel_settings', 'room_rate_plans', 'menu_items'
   ] loop
+    -- some tables (e.g. store_*) are missing on databases where an earlier
+    -- migration was never applied — skip them instead of failing
+    if to_regclass(format('public.%I', t)) is null then
+      raise notice 'audit: table public.% not found — skipped', t;
+      continue;
+    end if;
     execute format('drop trigger if exists trg_z_audit on public.%I', t);
     execute format('create trigger trg_z_audit after insert or update or delete on public.%I '
                    'for each row execute function public.tg_audit()', t);
@@ -160,6 +166,11 @@ begin
     ('cashier_float', 'set_by'), ('credit_accounts', 'created_by'), ('credit_repayments', 'logged_by'),
     ('credit_adjustments', 'created_by'), ('purchases', 'created_by'), ('store_transactions', 'created_by')
   ) v(tbl, col) loop
+    if not exists (select 1 from information_schema.columns
+                   where table_schema = 'public' and table_name = r.tbl and column_name = r.col) then
+      raise notice 'stamp user: public.%.% not found — skipped', r.tbl, r.col;
+      continue;
+    end if;
     execute format('drop trigger if exists trg_0_stamp_user on public.%I', r.tbl);
     execute format('create trigger trg_0_stamp_user before insert on public.%I '
                    'for each row execute function public.tg_stamp_user(%L)', r.tbl, r.col);
@@ -167,9 +178,14 @@ begin
 end $$;
 
 -- cashier_float is upserted daily: the person who last set it is who counts
-drop trigger if exists trg_0_stamp_user_upd on public.cashier_float;
-create trigger trg_0_stamp_user_upd before update on public.cashier_float
-for each row execute function public.tg_stamp_user('set_by');
+do $$
+begin
+  if to_regclass('public.cashier_float') is not null then
+    drop trigger if exists trg_0_stamp_user_upd on public.cashier_float;
+    create trigger trg_0_stamp_user_upd before update on public.cashier_float
+    for each row execute function public.tg_stamp_user('set_by');
+  end if;
+end $$;
 
 -- 3 -------------------------------------------------------------------------
 create or replace function public.assert_settled_edit_allowed(p_what text)

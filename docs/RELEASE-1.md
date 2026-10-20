@@ -3,6 +3,11 @@
 Deploy on a quiet afternoon (not during service). Takes ~20 minutes.
 
 ## Order matters
+0. **Drift check** — run `scripts/drift-check-001-037.sql` (read-only) in the SQL editor.
+   It lists anything migrations 001–037 should have created but production lacks,
+   with the migration it most likely comes from. Fix the drift (apply the missing
+   migration) before Release 1. Release 1 itself skips the store_* tables if they
+   are absent, so missing store tables (migration 034) don't block it.
 1. **Backup first** — `scripts/backup/backup-local.ps1` (see backups README).
 2. **Database migrations, in this order**, each once, in the Supabase SQL editor:
    `migration-038-pms-room-integrity.sql`, `migration-039-audit-log.sql`,

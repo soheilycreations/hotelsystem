@@ -47,11 +47,16 @@ begin
   if v_kind is null then
     if pg_trigger_depth() > 1 then
       v_kind := 'sale'; -- recipe deduction fired by settling a bill
-    elsif exists (select 1 from public.purchase_items pi
-                  where pi.inventory_item_id = new.id and pi.created_at = now()) then
-      v_kind := 'purchase'; -- purchase line inserted in this same transaction
     else
       v_kind := 'adjustment';
+      -- a purchase line inserted in this same transaction = supplier bill
+      -- (dynamic so a database without purchase_items doesn't fail here)
+      if to_regclass('public.purchase_items') is not null then
+        execute 'select case when exists (select 1 from public.purchase_items
+                                          where inventory_item_id = $1 and created_at = now())
+                             then ''purchase'' else ''adjustment'' end'
+          into v_kind using new.id;
+      end if;
     end if;
   end if;
 

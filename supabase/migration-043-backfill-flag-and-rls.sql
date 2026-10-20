@@ -121,6 +121,16 @@ create policy "pms delete advance payments" on public.booking_advance_payments f
   using (public.get_my_role() in ('admin', 'manager'));
 
 -- 3 -------------------------------------------------------------------------
-alter table public.store_items           enable row level security;
-alter table public.store_daily_snapshots enable row level security;
-alter table public.store_transactions    enable row level security;
+-- (skipped where the store tables don't exist — migration 034 never applied)
+do $$
+declare
+  t text;
+begin
+  foreach t in array array['store_items', 'store_daily_snapshots', 'store_transactions'] loop
+    if to_regclass(format('public.%I', t)) is not null then
+      execute format('alter table public.%I enable row level security', t);
+    else
+      raise notice 'public.% not found — skipped', t;
+    end if;
+  end loop;
+end $$;
