@@ -142,8 +142,11 @@ begin
     from public.credit_accounts a;
 
   -- -------------------------------------------------------------- the reset
+  -- some tables (e.g. store_*) don't exist on every database — skip those
   foreach t in array c_quiet loop
-    execute format('alter table public.%I disable trigger user', t);
+    if to_regclass(format('public.%I', t)) is not null then
+      execute format('alter table public.%I disable trigger user', t);
+    end if;
   end loop;
 
   execute 'truncate table ' ||
@@ -167,7 +170,9 @@ begin
     where id in (select room_id from cf_bookings where status = 'checked_in');
   update public.restaurant_tables set current_status = 'vacant';
   update public.inventory_items set quantity_in_stock = 0;
-  update public.store_items set current_stock = 0;
+  if to_regclass('public.store_items') is not null then
+    execute 'update public.store_items set current_stock = 0';
+  end if;
 
   insert into public.credit_adjustments (credit_account_id, amount, date, description)
     select id, balance, c_cf_date, c_cf_text from cf_credit where balance > 0;
@@ -182,7 +187,9 @@ begin
             format('Transactional data reset for go-live %s. Previous data archived in schema %s.', c_golive, c_archive));
 
   foreach t in array c_quiet loop
-    execute format('alter table public.%I enable trigger user', t);
+    if to_regclass(format('public.%I', t)) is not null then
+      execute format('alter table public.%I enable trigger user', t);
+    end if;
   end loop;
 
   -- ------------------------------------------------------------- self-check
