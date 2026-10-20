@@ -1,5 +1,5 @@
 -- ============================================================================
--- PHASE 1.7 — verify archive_20261018 against the live public tables
+-- PHASE 1.7 — verify archive_20261020 against the live public tables
 -- ----------------------------------------------------------------------------
 -- Read-only. Run in the Supabase SQL editor after phase1-archive.sql.
 -- One row per table:
@@ -21,10 +21,10 @@ begin
   if to_regclass(format('%I.%I', p_schema, p_table)) is null then
     n := null; h := null; return;
   end if;
-  if p_schema = 'public' and to_regclass(format('archive_20261018.%I', p_table)) is not null then
+  if p_schema = 'public' and to_regclass(format('archive_20261020.%I', p_table)) is not null then
     select string_agg(format('%I', a.column_name), ', ' order by a.ordinal_position) into v_cols
     from information_schema.columns a
-    where a.table_schema = 'archive_20261018' and a.table_name = p_table
+    where a.table_schema = 'archive_20261020' and a.table_name = p_table
       and exists (select 1 from information_schema.columns c
                   where c.table_schema = 'public' and c.table_name = p_table and c.column_name = a.column_name);
   end if;
@@ -38,16 +38,16 @@ with live as (
   where s.nspname = 'public' and c.relkind = 'r'
 ),
 names as (
-  select table_name from archive_20261018._manifest
+  select table_name from archive_20261020._manifest
   union
   select table_name from live
 ),
 cmp as (
   select nm.table_name, m.row_count as manifest_rows, m.md5 as manifest_md5,
-         (pg_temp.fp('archive_20261018', nm.table_name)).*,
+         (pg_temp.fp('archive_20261020', nm.table_name)).*,
          (pg_temp.fp('public', nm.table_name)) as pub
   from names nm
-  left join archive_20261018._manifest m using (table_name)
+  left join archive_20261020._manifest m using (table_name)
 )
 select table_name,
        manifest_rows,

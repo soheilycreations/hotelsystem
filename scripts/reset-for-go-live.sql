@@ -1,5 +1,5 @@
 -- ============================================================================
--- PHASE 3 — reset transactional data for go-live (2026-10-19)
+-- PHASE 3 — reset transactional data for go-live (2026-10-21)
 -- ----------------------------------------------------------------------------
 -- Run in the Supabase SQL editor. Everything happens in ONE transaction.
 --
@@ -12,7 +12,7 @@
 -- per table and the carried-forward credit balances.
 --
 -- Safety checks (refuses to run, nothing changed):
---   * archive_20261018 must exist and every public table must be identical
+--   * archive_20261020 must exist and every public table must be identical
 --     (row count + md5) to what was archived — i.e. nobody used the system
 --     since the archive. If not: re-run phase1-archive (rename the old one).
 --   * any public table not classified below → refuse (unknown data).
@@ -23,17 +23,17 @@
 --          types, rate plans, tables, menu, categories, recipes, inventory &
 --          store item definitions, expense categories, credit account names,
 --          guest registry.
--- Carries forward: pending bookings arriving >= 2026-10-19 + their advances;
---          events on/after 2026-10-19 not cancelled; the in-house bookings
+-- Carries forward: pending bookings arriving >= 2026-10-21 + their advances;
+--          events on/after 2026-10-21 not cancelled; the in-house bookings
 --          you list in v_keep_inhouse with charges, advances and open
 --          room-service orders; each credit account's balance as ONE opening
---          entry dated 2026-10-18.
+--          entry dated 2026-10-20.
 -- Clears:  everything else transactional (orders, KOTs, bills, folios,
 --          expenses, cash book, floats, purchases, store movements,
 --          activity feed). Bill counter restarts at 1.
 -- Zeroes:  inventory_items.quantity_in_stock, store_items.current_stock.
 -- Sets:    all rooms vacant (carried in-house rooms occupied), all tables
---          vacant, a Rs 0 cashier float for 2026-10-19 (enter the counted
+--          vacant, a Rs 0 cashier float for 2026-10-21 (enter the counted
 --          cash tomorrow on Finance → Simple Report).
 -- ============================================================================
 do $$
@@ -43,10 +43,10 @@ declare
   v_keep_inhouse  uuid[]  := '{}';       -- booking_ids from report section A to carry forward,
                                          -- e.g. '{b1c2..., 7f3e...}'  (empty = clear all in-house)
   -- =========================================================================
-  c_archive  constant text := 'archive_20261018';
-  c_golive   constant date := '2026-10-19';
-  c_cf_date  constant date := '2026-10-18';
-  c_cf_text  constant text := 'Opening balance carried forward (2026-10-18)';
+  c_archive  constant text := 'archive_20261020';
+  c_golive   constant date := '2026-10-21';
+  c_cf_date  constant date := '2026-10-20';
+  c_cf_text  constant text := 'Opening balance carried forward (2026-10-20)';
   v_golive_ts timestamptz := (c_golive::timestamp at time zone 'Asia/Colombo');
 
   c_master text[] := array['staff_profiles','room_types','room_rate_plans','rooms','restaurant_tables',
@@ -81,20 +81,20 @@ begin
       v_bad := v_bad || format(E'\n  %s: not classified (unknown table — refusing to guess)', r.relname);
       continue;
     end if;
-    select m.md5 into v_md5 from archive_20261018._manifest m where m.table_name = r.relname;
+    select m.md5 into v_md5 from archive_20261020._manifest m where m.table_name = r.relname;
     if v_md5 is null then
       v_bad := v_bad || format(E'\n  %s: not in archive', r.relname);
       continue;
     end if;
     execute format('select count(*), md5(coalesce(string_agg(t::text, E''\n'' order by t::text), '''')) from public.%I t',
                    r.relname) into v_n, v_md5;
-    if v_md5 is distinct from (select m.md5 from archive_20261018._manifest m where m.table_name = r.relname) then
+    if v_md5 is distinct from (select m.md5 from archive_20261020._manifest m where m.table_name = r.relname) then
       v_bad := v_bad || format(E'\n  %s: changed since archive (now %s rows, archived %s)', r.relname, v_n,
-                               (select m.row_count from archive_20261018._manifest m where m.table_name = r.relname));
+                               (select m.row_count from archive_20261020._manifest m where m.table_name = r.relname));
     end if;
     execute format('select md5(coalesce(string_agg(t::text, E''\n'' order by t::text), '''')) from %I.%I t',
                    c_archive, r.relname) into v_md5;
-    if v_md5 is distinct from (select m.md5 from archive_20261018._manifest m where m.table_name = r.relname) then
+    if v_md5 is distinct from (select m.md5 from archive_20261020._manifest m where m.table_name = r.relname) then
       v_bad := v_bad || format(E'\n  %s: ARCHIVE COPY DAMAGED', r.relname);
     end if;
   end loop;
@@ -206,7 +206,7 @@ begin
 
   -- ----------------------------------------------------------------- report
   v_report := E'\n=== ROW COUNTS AFTER RESET (archived → now) ===';
-  for r in select m.table_name, m.row_count from archive_20261018._manifest m order by 1 loop
+  for r in select m.table_name, m.row_count from archive_20261020._manifest m order by 1 loop
     execute format('select count(*) from public.%I', r.table_name) into v_n;
     v_report := v_report || format(E'\n  %-26s %6s → %s', r.table_name, r.row_count, v_n);
   end loop;
@@ -255,7 +255,7 @@ end $$;
 select 'rows' as kind, m.table_name as item, m.row_count::text as archived,
        (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from public.%I', m.table_name),
                                             false, true, '')))[1]::text as now
-from archive_20261018._manifest m
+from archive_20261020._manifest m
 union all
 select 'credit', a.name, c.balance::text,
        ( coalesce((select sum(total_amount) from public.restaurant_orders
@@ -264,5 +264,5 @@ select 'credit', a.name, c.balance::text,
                    where payment_method = 'credit' and credit_account_id = a.id), 0)
        + coalesce((select sum(amount) from public.credit_adjustments where credit_account_id = a.id), 0)
        - coalesce((select sum(amount) from public.credit_repayments where credit_account_id = a.id), 0))::text
-from public.credit_accounts a join archive_20261018._credit_balances c on c.credit_account_id = a.id
+from public.credit_accounts a join archive_20261020._credit_balances c on c.credit_account_id = a.id
 order by 1 desc, 2;

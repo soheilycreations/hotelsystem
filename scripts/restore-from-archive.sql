@@ -1,5 +1,5 @@
 -- ============================================================================
--- RESTORE public tables from archive_20261018 (undo the go-live reset)
+-- RESTORE public tables from archive_20261020 (undo the go-live reset)
 -- ----------------------------------------------------------------------------
 -- Run in the Supabase SQL editor. ONE transaction. Same dry-run convention as
 -- reset-for-go-live.sql: with v_commit := false it does the whole restore,
@@ -31,7 +31,7 @@ declare
   v_commit         boolean := false;   -- false = dry run (rolls back), true = really restore
   v_include_master boolean := true;    -- false = transactional tables only
   -- =========================================================================
-  c_archive constant text := 'archive_20261018';
+  c_archive constant text := 'archive_20261020';
   c_master text[] := array['staff_profiles','room_types','room_rate_plans','rooms','restaurant_tables',
     'menu_categories','menu_items','menu_recipe_ingredients','inventory_items','store_items',
     'expense_categories','hotel_settings','credit_accounts','guests'];
@@ -55,7 +55,7 @@ begin
   end if;
 
   -- 1. archive intact?
-  for r in select * from archive_20261018._manifest order by table_name loop
+  for r in select * from archive_20261020._manifest order by table_name loop
     if to_regclass(format('%I.%I', c_archive, r.table_name)) is null then
       v_bad := v_bad || format(E'\n  %s: missing from archive', r.table_name); continue;
     end if;
@@ -67,11 +67,11 @@ begin
 
   -- tables to restore: archived, still present in public, filtered by mode
   select array_agg(m.table_name order by m.table_name) into v_set
-  from archive_20261018._manifest m
+  from archive_20261020._manifest m
   where to_regclass(format('public.%I', m.table_name)) is not null
     and (v_include_master or not (m.table_name = any (c_master)));
 
-  for r in select table_name from archive_20261018._manifest
+  for r in select table_name from archive_20261020._manifest
            where to_regclass(format('public.%I', table_name)) is null loop
     v_report := v_report || format(E'\n  SKIPPED %s: no longer exists in public', r.table_name);
   end loop;
@@ -187,5 +187,5 @@ end $$;
 select m.table_name, m.row_count as archived_rows,
        (xpath('/row/n/text()', query_to_xml(format('select count(*) as n from public.%I', m.table_name),
                                             false, true, '')))[1]::text as public_rows_now
-from archive_20261018._manifest m
+from archive_20261020._manifest m
 order by 1;

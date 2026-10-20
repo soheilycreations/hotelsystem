@@ -13,18 +13,18 @@
 --                 v_keep_inhouse at the top of reset-for-go-live.sql.
 --                 Everyone NOT listed there is cleared (record any cash
 --                 already collected for them before the reset).
---   B_future    pending bookings arriving 2026-10-19 or later — CARRIED
+--   B_future    pending bookings arriving 2026-10-21 or later — CARRIED
 --               FORWARD automatically, with their advance payments.
---   C_noshow    pending bookings with arrival before 2026-10-19 — CLEARED
+--   C_noshow    pending bookings with arrival before 2026-10-21 — CLEARED
 --               (any advance paid on them is listed so you can refund/handle).
---   D_events    functions on/after 2026-10-19, not cancelled — CARRIED FORWARD.
+--   D_events    functions on/after 2026-10-21, not cancelled — CARRIED FORWARD.
 --   E_credit    credit-account balances (same formula as the Credit
 --               Accounts page) — re-created as one opening entry each.
 --   F_open      open (active) orders that will be CLEARED, by channel —
 --               except open room-service orders of carried-forward guests.
 -- ============================================================================
 with
-golive as (select ('2026-10-19'::date)::timestamp at time zone 'Asia/Colombo' as ts),
+golive as (select ('2026-10-21'::date)::timestamp at time zone 'Asia/Colombo' as ts),
 inh as (
   select b.*, r.room_number,
          coalesce((select sum(amount) from public.booking_charges c where c.booking_id = b.id), 0) as charges,
@@ -85,7 +85,7 @@ select 'D_events', null, e.event_name, e.id::text,
        null, null, null, null,
        'CARRIED FORWARD — ' || e.status || coalesce(', pax ' || e.pax, '')
 from public.event_bookings e
-where e.event_date >= '2026-10-19' and e.status <> 'cancelled'
+where e.event_date >= '2026-10-21' and e.status <> 'cancelled'
 
 union all
 select 'E_credit', null, name, null, null, null, null, null, balance,

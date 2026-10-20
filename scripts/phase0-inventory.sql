@@ -1,5 +1,5 @@
 -- ============================================================================
--- PHASE 0 — read-only database inventory (pre go-live reset, 2026-10-18)
+-- PHASE 0 — read-only database inventory (pre go-live reset, 2026-10-20)
 -- ----------------------------------------------------------------------------
 -- SAFE: only SELECTs from catalogs; changes nothing. Paste into the Supabase
 -- SQL editor and run. Everything is returned as ONE result grid (the editor

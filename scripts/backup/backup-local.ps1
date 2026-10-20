@@ -97,7 +97,7 @@ if (-not $ProjectUrl -and $rest -match '^db\.([a-z0-9]+)\.supabase\.co') { $Proj
 
 if (-not $OutDir) {
   $repoRoot = Split-Path (Split-Path $PSScriptRoot -Parent) -Parent
-  $OutDir = Join-Path $repoRoot 'backups\2026-10-18_pre-reset'
+  $OutDir = Join-Path $repoRoot 'backups\2026-10-20_pre-reset'
 }
 if ((Test-Path $OutDir) -and (Get-ChildItem $OutDir -Force | Select-Object -First 1)) {
   $OutDir = "$OutDir`_$(Get-Date -Format 'HHmmss')"
@@ -272,7 +272,7 @@ $($countRows -join "`n")
 ## How to restore
 
 **A. Quickest — from the in-database archive (no files needed).**
-The schema ``archive_20261018`` inside Supabase holds a copy of every table.
+The schema ``archive_20261020`` inside Supabase holds a copy of every table.
 Open ``scripts/restore-from-archive.sql`` in the Supabase SQL editor, run it once
 as a dry run (it ends with a red "DRY RUN OK" message and changes nothing), then
 set ``v_commit := true`` and run again. Current data is saved to a
