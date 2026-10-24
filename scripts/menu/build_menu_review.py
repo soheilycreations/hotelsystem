@@ -13,8 +13,15 @@ Writes
 Nothing touches the database. Usage:
   python3 scripts/menu/build_menu_review.py data/rawana_new_menu_2026.csv \
       data/current_menu_export.csv data/menu_review
-Optional: data/menu_overrides.csv (columns new_key, old_item_id) forces a
-match ("-" as old_item_id forces NEW) when the automatic one is wrong.
+Optional: data/menu_overrides.csv (columns new_key, old_item_id, role) forces
+a match when the automatic one is wrong: role "keeper" (default) = this old
+item becomes the new one; "duplicate" = hide it as a duplicate of it; "-" as
+old_item_id forces NEW.
+Optional: data/menu_keep.csv (columns old_item_id, category, item_order)
+keeps old items that are not in the new menu: moved to that category with
+their name and price unchanged. A category not in the new menu is created
+right after the category named in its "after" column (internal categories
+such as Other are used as they are).
 
 Rules (decided with the owner):
   * internal categories (Function Items, Staff Menu, Boss Site, Buffet, Party,
@@ -175,10 +182,19 @@ def main():
     new_rows = read_csv(sys.argv[1])
     old_rows = read_csv(sys.argv[2])
     out = Path(sys.argv[3])
-    overrides = {}
+    overrides, override_dups = {}, {}
     ov_path = Path(sys.argv[1]).with_name("menu_overrides.csv")
     if ov_path.exists():
-        overrides = {r["new_key"]: r["old_item_id"] for r in read_csv(ov_path)}
+        for r in read_csv(ov_path):
+            if r.get("role", "keeper") == "duplicate":
+                override_dups.setdefault(r["new_key"], []).append(r["old_item_id"])
+            else:
+                overrides[r["new_key"]] = r["old_item_id"]
+    keep_rows = []
+    keep_path = Path(sys.argv[1]).with_name("menu_keep.csv")
+    if keep_path.exists():
+        keep_rows = read_csv(keep_path)
+    keep_ids = {r["old_item_id"] for r in keep_rows}
 
     # ---- new menu
     new_items = []
@@ -216,6 +232,11 @@ def main():
             "takeaway": tokens(r["item_name"])[2],
         }
         (internal if r["category"].strip().lower() in INTERNAL_CATEGORIES else olds).append(item)
+    all_old_by_id = {o["id"]: o for o in olds}
+    unknown = keep_ids - set(all_old_by_id)
+    if unknown:
+        sys.exit(f"menu_keep.csv: unknown or internal item ids {sorted(unknown)}")
+    olds = [o for o in olds if o["id"] not in keep_ids]
     old_by_id = {o["id"]: o for o in olds}
 
     # ---- categories: rename an old one when the name is (nearly) the same
@@ -225,6 +246,20 @@ def main():
     old_cats = {}
     for r in old_rows:
         old_cats.setdefault(r["category"], r["category_id"])
+    # categories that only kept items use: insert after the named category
+    for kr in keep_rows:
+        cname = clean(kr["category"])
+        if cname.lower() in INTERNAL_CATEGORIES or cname in new_cats:
+            continue
+        after = clean(kr.get("after", ""))
+        pos = new_cats.get(after, max(new_cats.values()) if new_cats else 0)
+        for k in list(new_cats):
+            if new_cats[k] > pos:
+                new_cats[k] += 1
+        for n in new_items:
+            if n["category_order"] > pos:
+                n["category_order"] += 1
+        new_cats[cname] = pos + 1
     cat_plan, used_old_cats = [], set()
     for cname, corder in sorted(new_cats.items(), key=lambda x: x[1]):
         best, best_id, best_name = 0.0, None, None
@@ -273,6 +308,13 @@ def main():
             owner[oid] = (ni, 1.0)
 
     groups = {}
+    forced_dups = {}
+    for n_i, n in enumerate(new_items):
+        for oid in override_dups.get(n["key"], []):
+            if oid not in old_by_id:
+                sys.exit(f"menu_overrides.csv: unknown item id {oid}")
+            owner[oid] = (n_i, 1.0)
+            forced_dups.setdefault(n_i, set()).add(oid)
     for oid, (ni, s) in owner.items():
         groups.setdefault(ni, []).append((oid, s))
 
@@ -324,9 +366,11 @@ def main():
         plan_items.append({**n, "action": "MATCH", "old_id": keep_id})
         for dup_id, dup_s in cands[1:]:
             d = old_by_id[dup_id]
-            if dup_s < 0.85 or tokens(d["name"])[1] != tokens(n["name"])[1]:
+            manual_dup = dup_id in forced_dups.get(ni, set())
+            if not manual_dup and (dup_s < 0.85 or tokens(d["name"])[1] != tokens(n["name"])[1]):
                 continue  # not really the same item — reported below as "not in new menu"
-            review.append({"action": "HIDE (duplicate)", "confidence": "high" if dup_s >= 0.85 else "CHECK",
+            review.append({"action": "HIDE (duplicate)",
+                           "confidence": "MANUAL" if manual_dup else "high" if dup_s >= 0.85 else "CHECK",
                            "score": dup_s, "new_category": n["category"], "new_name": f"↳ duplicate of {n['name']}",
                            "new_key": n["key"], "old_item_id": dup_id, "old_category": d["category"],
                            "old_name": d["name"], "old_price": d["price"], "recipe_lines": d["recipe_lines"],
@@ -335,6 +379,16 @@ def main():
                                    ("HAS RECIPE LINES — recipe not moved" if d["recipe_lines"] else "")})
             plan_items.append({"action": "HIDE", "old_id": dup_id, "reason": f"duplicate of {n['name']}"})
             kept.add(dup_id)
+
+    for kr in sorted(keep_rows, key=lambda r: (clean(r["category"]), to_int(r.get("item_order")))):
+        o = all_old_by_id[kr["old_item_id"]]
+        review.append({"action": "KEEP (moved)", "confidence": "MANUAL", "new_category": clean(kr["category"]),
+                       "new_name": o["name"], "new_price": f"{o['price']:.2f}", "new_visible": "yes",
+                       "old_item_id": o["id"], "old_category": o["category"], "old_name": o["name"],
+                       "old_price": o["price"], "recipe_lines": o["recipe_lines"], "sold_qty": o["sold_qty"],
+                       "note": "kept as-is (menu_keep.csv)"})
+        plan_items.append({"action": "KEEP", "old_id": o["id"], "category": clean(kr["category"]),
+                           "item_order": to_int(kr.get("item_order"))})
 
     for o in sorted(olds, key=lambda x: (x["category"], x["name"])):
         if o["id"] in kept:
@@ -361,7 +415,9 @@ def main():
         w.writerows(review)
         w.writerow({"action": "UNTOUCHED (internal)", "note": f"{len(internal)} items in internal categories"})
 
-    plan = {"categories": cat_plan, "items": plan_items,
+    internal_cats = {r["category"]: r["category_id"] for r in old_rows
+                     if r["category"].strip().lower() in INTERNAL_CATEGORIES}
+    plan = {"categories": cat_plan, "items": plan_items, "internal_categories": internal_cats,
             "internal_untouched": [i["id"] for i in internal]}
     out.with_suffix(".json").write_text(json.dumps(plan, indent=1, ensure_ascii=False))
 
@@ -369,7 +425,7 @@ def main():
     print(f"new menu rows: {len(new_items)} | current items: {len(olds)} (+{len(internal)} internal, untouched)")
     print(f"categories: " + ", ".join(f"{a} {sum(1 for c in cat_plan if c['action'] == a)}"
                                      for a in ("KEEP", "RENAME", "CREATE")))
-    for a in ("MATCH", "NEW", "HIDE (duplicate)", "HIDE (not in new menu)"):
+    for a in ("MATCH", "NEW", "KEEP (moved)", "HIDE (duplicate)", "HIDE (not in new menu)"):
         print(f"{a}: {acts.count(a)}")
     print(f"needs a look (CHECK / LOW): {sum(1 for r in review if 'CHECK' in str(r.get('confidence', '')))}")
     print(f"wrote {out.with_suffix('.csv')} and {out.with_suffix('.json')}")

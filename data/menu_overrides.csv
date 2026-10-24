@@ -1,16 +1,19 @@
-new_key,old_item_id,why
-Desserts / Watalappan - Rawana special,-,"RAWANA SPECIAL is a Rs 1,850 main, not a dessert — add the dessert as new"
-Desserts / Fruit salad with ice cream,-,Fruit & Nut Ice Cream is a different dessert
-Bites / Fried cashew nuts,25a2e46f-03f6-4564-a1ca-78bb2daa24c2,old Bites 'Cashew nut' = the nut snack
-House Specials / Chicken cashew nut,-,new dish
-Tea & Coffee / Ginger tea,c04b988f-207d-49f4-b40b-101affbd0d02,'ginger plain tea' — not 'Ginger mik tea' (milk)
-Fried Rice / Mixed fried rice (M),80965490-54f4-4e4f-a940-6fb40a18b4b4,'MIXED RICE M' = mixed fried rice
-Rice Specials / Mixed chopsy rice (M),ffc88398-f704-447d-aa45-591d5f8d7243,'MIXED CHOPCY RICE' (no size) = medium
-Rice Specials / Mixed chopsy rice (L),c6102b38-3dcf-45c4-b9a7-2168de0abef0,'MIXED CHOPCY RICE L'
-Soft Drinks / Ginger beer,768c3d8b-28ab-43c1-a503-4cb7aeec4813,EGB = Elephant ginger beer
-House Specials / Fried large prawns (200g),59d5a323-2d24-4012-8c72-246b45f567df,'fried large prawns'
-Mains - Prawns / Fried prawns,40e5289d-2e37-49a5-b992-5ec11d6125cc,'fried prawns'
-Mains - Cuttlefish / Hot butter cuttlefish,61020c2a-c65b-4fb5-a849-b6adfcad69e6,'Hot Battered Cuttlefish' — keeps its recipe link
-Desserts / Watalappan - Classic,20a22460-03cb-49d0-8352-c377ef2bd28e,'Watalappan'
-Desserts / Ice cream - Plain,eb0f6321-c194-4dcb-984f-b5a3b72d9205,'Ice Cream Vanilla'
-Desserts / Yoghurt - Plain,fbf17ce2-f2f1-4e89-99df-0ffefb38aa56,'youghut'
+new_key,old_item_id,why,role
+Desserts / Watalappan - Rawana special,-,"RAWANA SPECIAL is a Rs 1,850 main, not a dessert — add the dessert as new",keeper
+Desserts / Fruit salad with ice cream,-,Fruit & Nut Ice Cream is a different dessert,keeper
+Bites / Fried cashew nuts,25a2e46f-03f6-4564-a1ca-78bb2daa24c2,old Bites 'Cashew nut' = the nut snack,keeper
+House Specials / Chicken cashew nut,-,new dish,keeper
+Tea & Coffee / Ginger tea,c04b988f-207d-49f4-b40b-101affbd0d02,'ginger plain tea' — not 'Ginger mik tea' (milk),keeper
+Fried Rice / Mixed fried rice (M),80965490-54f4-4e4f-a940-6fb40a18b4b4,'MIXED RICE M' = mixed fried rice,keeper
+Rice Specials / Mixed chopsy rice (M),ffc88398-f704-447d-aa45-591d5f8d7243,'MIXED CHOPCY RICE' (no size) = medium,keeper
+Rice Specials / Mixed chopsy rice (L),c6102b38-3dcf-45c4-b9a7-2168de0abef0,'MIXED CHOPCY RICE L',keeper
+Soft Drinks / Ginger beer,768c3d8b-28ab-43c1-a503-4cb7aeec4813,EGB = Elephant ginger beer,keeper
+House Specials / Fried large prawns (200g),59d5a323-2d24-4012-8c72-246b45f567df,'fried large prawns',keeper
+Mains - Prawns / Fried prawns,40e5289d-2e37-49a5-b992-5ec11d6125cc,'fried prawns',keeper
+Mains - Cuttlefish / Hot butter cuttlefish,61020c2a-c65b-4fb5-a849-b6adfcad69e6,'Hot Battered Cuttlefish' — keeps its recipe link,keeper
+Desserts / Watalappan - Classic,20a22460-03cb-49d0-8352-c377ef2bd28e,'Watalappan',keeper
+Desserts / Ice cream - Plain,eb0f6321-c194-4dcb-984f-b5a3b72d9205,'Ice Cream Vanilla',keeper
+Desserts / Yoghurt - Plain,fbf17ce2-f2f1-4e89-99df-0ffefb38aa56,'youghut',keeper
+Bites / Hadallo (200g),3de60990-0237-4540-9808-c7489ba6c58e,owner: 'hadello fish' (Rs 650) -> Hadallo (200g) at Rs 1550,keeper
+House Specials / Hodello fish,-,owner: stays a NEW item,keeper
+Rice Specials / Mixed chopsy rice (M),7f21bd21-1734-4f00-bb1f-23a2ff21482f,owner: 'Chopsy Rice ( M )' -> Mixed chopsy rice (M); MIXED CHOPCY RICE (6 sold) keeps the item so this one is hidden as its duplicate,duplicate

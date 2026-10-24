@@ -15,106 +15,113 @@
    "action": "KEEP"
   },
   {
-   "name": "Fried Rice",
+   "name": "Breakfast & Lunch",
    "sort_order": 3,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Rice Specials",
+   "name": "Fried Rice",
    "sort_order": 4,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Noodles",
+   "name": "Rice Specials",
    "sort_order": 5,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Kottu",
+   "name": "Noodles",
    "sort_order": 6,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Bites",
+   "name": "Kottu",
    "sort_order": 7,
+   "old_id": null,
+   "old_name": null,
+   "action": "CREATE"
+  },
+  {
+   "name": "Bites",
+   "sort_order": 8,
    "old_id": "4a673b5a-26a5-4d81-a21e-4408c86e2673",
    "old_name": "Bites",
    "action": "KEEP"
   },
   {
    "name": "Mains - Chicken",
-   "sort_order": 8,
-   "old_id": null,
-   "old_name": null,
-   "action": "CREATE"
-  },
-  {
-   "name": "Mains - Pork",
    "sort_order": 9,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Mains - Prawns",
+   "name": "Mains - Pork",
    "sort_order": 10,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Mains - Fish",
+   "name": "Mains - Prawns",
    "sort_order": 11,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Mains - Cuttlefish",
+   "name": "Mains - Fish",
    "sort_order": 12,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "House Specials",
+   "name": "Mains - Cuttlefish",
    "sort_order": 13,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Tea & Coffee",
+   "name": "House Specials",
    "sort_order": 14,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Soft Drinks",
+   "name": "Tea & Coffee",
    "sort_order": 15,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Fresh Juice",
+   "name": "Soft Drinks",
    "sort_order": 16,
    "old_id": null,
    "old_name": null,
    "action": "CREATE"
   },
   {
-   "name": "Desserts",
+   "name": "Fresh Juice",
    "sort_order": 17,
+   "old_id": null,
+   "old_name": null,
+   "action": "CREATE"
+  },
+  {
+   "name": "Desserts",
+   "sort_order": 18,
    "old_id": "637558d4-29ea-44b0-b2c1-264b0bf5224a",
    "old_name": "Desserts",
    "action": "KEEP"
@@ -316,7 +323,7 @@
   {
    "key": "Fried Rice / Vegetable fried rice (M)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 1,
    "name": "Vegetable fried rice (M)",
    "price": 850.0,
@@ -330,7 +337,7 @@
   {
    "key": "Fried Rice / Vegetable fried rice (L)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 2,
    "name": "Vegetable fried rice (L)",
    "price": 1100.0,
@@ -344,7 +351,7 @@
   {
    "key": "Fried Rice / Chicken fried rice (M)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 3,
    "name": "Chicken fried rice (M)",
    "price": 1200.0,
@@ -358,7 +365,7 @@
   {
    "key": "Fried Rice / Chicken fried rice (L)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 4,
    "name": "Chicken fried rice (L)",
    "price": 1550.0,
@@ -372,7 +379,7 @@
   {
    "key": "Fried Rice / Prawn fried rice (M)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 5,
    "name": "Prawn fried rice (M)",
    "price": 1350.0,
@@ -391,7 +398,7 @@
   {
    "key": "Fried Rice / Prawn fried rice (L)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 6,
    "name": "Prawn fried rice (L)",
    "price": 1750.0,
@@ -405,7 +412,7 @@
   {
    "key": "Fried Rice / Pork fried rice (M)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 7,
    "name": "Pork fried rice (M)",
    "price": 1350.0,
@@ -419,7 +426,7 @@
   {
    "key": "Fried Rice / Pork fried rice (L)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 8,
    "name": "Pork fried rice (L)",
    "price": 1750.0,
@@ -433,7 +440,7 @@
   {
    "key": "Fried Rice / Mixed fried rice (M)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 9,
    "name": "Mixed fried rice (M)",
    "price": 1450.0,
@@ -447,7 +454,7 @@
   {
    "key": "Fried Rice / Mixed fried rice (L)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 10,
    "name": "Mixed fried rice (L)",
    "price": 1850.0,
@@ -461,7 +468,7 @@
   {
    "key": "Fried Rice / Seafood rice (M)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 11,
    "name": "Seafood rice (M)",
    "price": 1350.0,
@@ -475,7 +482,7 @@
   {
    "key": "Fried Rice / Seafood rice (L)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 12,
    "name": "Seafood rice (L)",
    "price": 1750.0,
@@ -494,7 +501,7 @@
   {
    "key": "Fried Rice / Cashew nut rice (M)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 13,
    "name": "Cashew nut rice (M)",
    "price": 1450.0,
@@ -508,7 +515,7 @@
   {
    "key": "Fried Rice / Cashew nut rice (L)",
    "category": "Fried Rice",
-   "category_order": 3,
+   "category_order": 4,
    "item_order": 14,
    "name": "Cashew nut rice (L)",
    "price": 1950.0,
@@ -522,7 +529,7 @@
   {
    "key": "Rice Specials / Mongolian rice (M)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 1,
    "name": "Mongolian rice (M)",
    "price": 1350.0,
@@ -536,7 +543,7 @@
   {
    "key": "Rice Specials / Mongolian rice (L)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 2,
    "name": "Mongolian rice (L)",
    "price": 1850.0,
@@ -550,7 +557,7 @@
   {
    "key": "Rice Specials / Rawana special rice (M)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 3,
    "name": "Rawana special rice (M)",
    "price": 1250.0,
@@ -564,7 +571,7 @@
   {
    "key": "Rice Specials / Rawana special rice (L)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 4,
    "name": "Rawana special rice (L)",
    "price": 1850.0,
@@ -578,7 +585,7 @@
   {
    "key": "Rice Specials / Thai rice (M)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 5,
    "name": "Thai rice (M)",
    "price": 1250.0,
@@ -592,7 +599,7 @@
   {
    "key": "Rice Specials / Thai rice (L)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 6,
    "name": "Thai rice (L)",
    "price": 1850.0,
@@ -606,7 +613,7 @@
   {
    "key": "Rice Specials / Nasi goreng (M)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 7,
    "name": "Nasi goreng (M)",
    "price": 1250.0,
@@ -620,7 +627,7 @@
   {
    "key": "Rice Specials / Nasi goreng (L)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 8,
    "name": "Nasi goreng (L)",
    "price": 1850.0,
@@ -634,7 +641,7 @@
   {
    "key": "Rice Specials / Mixed chopsy rice (M)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 9,
    "name": "Mixed chopsy rice (M)",
    "price": 1350.0,
@@ -646,9 +653,14 @@
    "old_id": "ffc88398-f704-447d-aa45-591d5f8d7243"
   },
   {
+   "action": "HIDE",
+   "old_id": "7f21bd21-1734-4f00-bb1f-23a2ff21482f",
+   "reason": "duplicate of Mixed chopsy rice (M)"
+  },
+  {
    "key": "Rice Specials / Mixed chopsy rice (L)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 10,
    "name": "Mixed chopsy rice (L)",
    "price": 1850.0,
@@ -662,7 +674,7 @@
   {
    "key": "Rice Specials / Chicken chopsy rice (M)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 11,
    "name": "Chicken chopsy rice (M)",
    "price": 1250.0,
@@ -676,7 +688,7 @@
   {
    "key": "Rice Specials / Chicken chopsy rice (L)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 12,
    "name": "Chicken chopsy rice (L)",
    "price": 1750.0,
@@ -690,7 +702,7 @@
   {
    "key": "Rice Specials / Seafood chopsy rice (M)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 13,
    "name": "Seafood chopsy rice (M)",
    "price": 1350.0,
@@ -698,13 +710,13 @@
    "active_raw": "yes",
    "description": "Prawn, fish and cuttlefish, vegetables in gravy",
    "note": "",
-   "action": "MATCH",
-   "old_id": "7f21bd21-1734-4f00-bb1f-23a2ff21482f"
+   "action": "NEW",
+   "old_id": null
   },
   {
    "key": "Rice Specials / Seafood chopsy rice (L)",
    "category": "Rice Specials",
-   "category_order": 4,
+   "category_order": 5,
    "item_order": 14,
    "name": "Seafood chopsy rice (L)",
    "price": 1850.0,
@@ -718,7 +730,7 @@
   {
    "key": "Noodles / Vegetable noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 1,
    "name": "Vegetable noodles (M)",
    "price": 650.0,
@@ -732,7 +744,7 @@
   {
    "key": "Noodles / Vegetable noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 2,
    "name": "Vegetable noodles (L)",
    "price": 1100.0,
@@ -746,7 +758,7 @@
   {
    "key": "Noodles / Egg noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 3,
    "name": "Egg noodles (M)",
    "price": 650.0,
@@ -760,7 +772,7 @@
   {
    "key": "Noodles / Egg noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 4,
    "name": "Egg noodles (L)",
    "price": 1100.0,
@@ -774,7 +786,7 @@
   {
    "key": "Noodles / Chicken noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 5,
    "name": "Chicken noodles (M)",
    "price": 950.0,
@@ -788,7 +800,7 @@
   {
    "key": "Noodles / Chicken noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 6,
    "name": "Chicken noodles (L)",
    "price": 1550.0,
@@ -802,7 +814,7 @@
   {
    "key": "Noodles / Seafood noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 7,
    "name": "Seafood noodles (M)",
    "price": 1150.0,
@@ -816,7 +828,7 @@
   {
    "key": "Noodles / Seafood noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 8,
    "name": "Seafood noodles (L)",
    "price": 1650.0,
@@ -830,7 +842,7 @@
   {
    "key": "Noodles / Mixed noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 9,
    "name": "Mixed noodles (M)",
    "price": 1250.0,
@@ -844,7 +856,7 @@
   {
    "key": "Noodles / Mixed noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 10,
    "name": "Mixed noodles (L)",
    "price": 1850.0,
@@ -858,7 +870,7 @@
   {
    "key": "Noodles / Mixed chopsy noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 11,
    "name": "Mixed chopsy noodles (M)",
    "price": 1450.0,
@@ -872,7 +884,7 @@
   {
    "key": "Noodles / Mixed chopsy noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 12,
    "name": "Mixed chopsy noodles (L)",
    "price": 1950.0,
@@ -886,7 +898,7 @@
   {
    "key": "Noodles / Chicken chopsy noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 13,
    "name": "Chicken chopsy noodles (M)",
    "price": 1250.0,
@@ -900,7 +912,7 @@
   {
    "key": "Noodles / Chicken chopsy noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 14,
    "name": "Chicken chopsy noodles (L)",
    "price": 1750.0,
@@ -914,7 +926,7 @@
   {
    "key": "Noodles / Rawana special noodles (M)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 15,
    "name": "Rawana special noodles (M)",
    "price": 1250.0,
@@ -928,7 +940,7 @@
   {
    "key": "Noodles / Rawana special noodles (L)",
    "category": "Noodles",
-   "category_order": 5,
+   "category_order": 6,
    "item_order": 16,
    "name": "Rawana special noodles (L)",
    "price": 1850.0,
@@ -942,7 +954,7 @@
   {
    "key": "Kottu / Vegetable kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 1,
    "name": "Vegetable kottu (M)",
    "price": 850.0,
@@ -956,7 +968,7 @@
   {
    "key": "Kottu / Vegetable kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 2,
    "name": "Vegetable kottu (L)",
    "price": 1100.0,
@@ -970,7 +982,7 @@
   {
    "key": "Kottu / Egg kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 3,
    "name": "Egg kottu (M)",
    "price": 850.0,
@@ -984,7 +996,7 @@
   {
    "key": "Kottu / Egg kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 4,
    "name": "Egg kottu (L)",
    "price": 1100.0,
@@ -998,7 +1010,7 @@
   {
    "key": "Kottu / Chicken kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 5,
    "name": "Chicken kottu (M)",
    "price": 950.0,
@@ -1022,7 +1034,7 @@
   {
    "key": "Kottu / Chicken kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 6,
    "name": "Chicken kottu (L)",
    "price": 1450.0,
@@ -1041,7 +1053,7 @@
   {
    "key": "Kottu / Seafood kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 7,
    "name": "Seafood kottu (M)",
    "price": 1050.0,
@@ -1055,7 +1067,7 @@
   {
    "key": "Kottu / Seafood kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 8,
    "name": "Seafood kottu (L)",
    "price": 1550.0,
@@ -1069,7 +1081,7 @@
   {
    "key": "Kottu / Mixed kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 9,
    "name": "Mixed kottu (M)",
    "price": 1150.0,
@@ -1083,7 +1095,7 @@
   {
    "key": "Kottu / Mixed kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 10,
    "name": "Mixed kottu (L)",
    "price": 1750.0,
@@ -1097,7 +1109,7 @@
   {
    "key": "Kottu / Kochchi kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 11,
    "name": "Kochchi kottu (M)",
    "price": 1250.0,
@@ -1111,7 +1123,7 @@
   {
    "key": "Kottu / Kochchi kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 12,
    "name": "Kochchi kottu (L)",
    "price": 1750.0,
@@ -1125,7 +1137,7 @@
   {
    "key": "Kottu / Rawana special kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 13,
    "name": "Rawana special kottu (M)",
    "price": 1350.0,
@@ -1139,7 +1151,7 @@
   {
    "key": "Kottu / Rawana special kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 14,
    "name": "Rawana special kottu (L)",
    "price": 1850.0,
@@ -1153,7 +1165,7 @@
   {
    "key": "Kottu / Cheese kottu (M)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 15,
    "name": "Cheese kottu (M)",
    "price": 1350.0,
@@ -1167,7 +1179,7 @@
   {
    "key": "Kottu / Cheese kottu (L)",
    "category": "Kottu",
-   "category_order": 6,
+   "category_order": 7,
    "item_order": 16,
    "name": "Cheese kottu (L)",
    "price": 1850.0,
@@ -1181,7 +1193,7 @@
   {
    "key": "Bites / Battered onion rings",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 1,
    "name": "Battered onion rings",
    "price": 600.0,
@@ -1195,7 +1207,7 @@
   {
    "key": "Bites / Fried garlic",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 2,
    "name": "Fried garlic",
    "price": 550.0,
@@ -1209,7 +1221,7 @@
   {
    "key": "Bites / Garlic kankun",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 3,
    "name": "Garlic kankun",
    "price": 850.0,
@@ -1223,7 +1235,7 @@
   {
    "key": "Bites / French fries",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 4,
    "name": "French fries",
    "price": 550.0,
@@ -1237,7 +1249,7 @@
   {
    "key": "Bites / Hot butter mushroom",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 5,
    "name": "Hot butter mushroom",
    "price": 850.0,
@@ -1251,7 +1263,7 @@
   {
    "key": "Bites / Fried cashew nuts",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 6,
    "name": "Fried cashew nuts",
    "price": 1550.0,
@@ -1265,7 +1277,7 @@
   {
    "key": "Bites / Vegetable chop suey",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 7,
    "name": "Vegetable chop suey",
    "price": 1300.0,
@@ -1279,7 +1291,7 @@
   {
    "key": "Bites / Devilled chicken wings",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 8,
    "name": "Devilled chicken wings",
    "price": 1200.0,
@@ -1293,7 +1305,7 @@
   {
    "key": "Bites / Hadallo (200g)",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 9,
    "name": "Hadallo (200g)",
    "price": 1550.0,
@@ -1301,13 +1313,13 @@
    "active_raw": "yes",
    "description": null,
    "note": "",
-   "action": "NEW",
-   "old_id": null
+   "action": "MATCH",
+   "old_id": "3de60990-0237-4540-9808-c7489ba6c58e"
   },
   {
    "key": "Bites / Fish fingers",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 10,
    "name": "Fish fingers",
    "price": 1550.0,
@@ -1321,7 +1333,7 @@
   {
    "key": "Bites / Devilled sausages",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 11,
    "name": "Devilled sausages",
    "price": 1100.0,
@@ -1335,7 +1347,7 @@
   {
    "key": "Bites / Battered chicken, chips & salad",
    "category": "Bites",
-   "category_order": 7,
+   "category_order": 8,
    "item_order": 12,
    "name": "Battered chicken, chips & salad",
    "price": 1450.0,
@@ -1349,7 +1361,7 @@
   {
    "key": "Mains - Chicken / Devilled chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 1,
    "name": "Devilled chicken",
    "price": 1550.0,
@@ -1363,7 +1375,7 @@
   {
    "key": "Mains - Chicken / Thai hot garlic chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 2,
    "name": "Thai hot garlic chicken",
    "price": 1650.0,
@@ -1377,7 +1389,7 @@
   {
    "key": "Mains - Chicken / Chilli chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 3,
    "name": "Chilli chicken",
    "price": 1650.0,
@@ -1391,7 +1403,7 @@
   {
    "key": "Mains - Chicken / Village style chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 4,
    "name": "Village style chicken",
    "price": 1650.0,
@@ -1405,7 +1417,7 @@
   {
    "key": "Mains - Chicken / Chicken with kankun",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 5,
    "name": "Chicken with kankun",
    "price": 1650.0,
@@ -1419,7 +1431,7 @@
   {
    "key": "Mains - Chicken / Hot butter chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 6,
    "name": "Hot butter chicken",
    "price": 1800.0,
@@ -1433,7 +1445,7 @@
   {
    "key": "Mains - Chicken / Dry red chilli chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 7,
    "name": "Dry red chilli chicken",
    "price": 1650.0,
@@ -1447,7 +1459,7 @@
   {
    "key": "Mains - Chicken / Pepper chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 8,
    "name": "Pepper chicken",
    "price": 1650.0,
@@ -1461,7 +1473,7 @@
   {
    "key": "Mains - Chicken / Stew chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 9,
    "name": "Stew chicken",
    "price": 1550.0,
@@ -1480,7 +1492,7 @@
   {
    "key": "Mains - Chicken / Fried chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 10,
    "name": "Fried chicken",
    "price": 1250.0,
@@ -1494,7 +1506,7 @@
   {
    "key": "Mains - Chicken / Singapore style chicken",
    "category": "Mains - Chicken",
-   "category_order": 8,
+   "category_order": 9,
    "item_order": 11,
    "name": "Singapore style chicken",
    "price": 1650.0,
@@ -1508,7 +1520,7 @@
   {
    "key": "Mains - Pork / Devilled pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 1,
    "name": "Devilled pork",
    "price": 1850.0,
@@ -1522,7 +1534,7 @@
   {
    "key": "Mains - Pork / Thai hot garlic pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 2,
    "name": "Thai hot garlic pork",
    "price": 1850.0,
@@ -1536,7 +1548,7 @@
   {
    "key": "Mains - Pork / Chilli pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 3,
    "name": "Chilli pork",
    "price": 1850.0,
@@ -1550,7 +1562,7 @@
   {
    "key": "Mains - Pork / Village style pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 4,
    "name": "Village style pork",
    "price": 1850.0,
@@ -1564,7 +1576,7 @@
   {
    "key": "Mains - Pork / Pork with kankun",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 5,
    "name": "Pork with kankun",
    "price": 1850.0,
@@ -1578,7 +1590,7 @@
   {
    "key": "Mains - Pork / Dry red chilli pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 6,
    "name": "Dry red chilli pork",
    "price": 1850.0,
@@ -1592,7 +1604,7 @@
   {
    "key": "Mains - Pork / Pepper pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 7,
    "name": "Pepper pork",
    "price": 1850.0,
@@ -1606,7 +1618,7 @@
   {
    "key": "Mains - Pork / Stew pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 8,
    "name": "Stew pork",
    "price": 1750.0,
@@ -1625,7 +1637,7 @@
   {
    "key": "Mains - Pork / Fried pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 9,
    "name": "Fried pork",
    "price": 1600.0,
@@ -1639,7 +1651,7 @@
   {
    "key": "Mains - Pork / Singapore style pork",
    "category": "Mains - Pork",
-   "category_order": 9,
+   "category_order": 10,
    "item_order": 10,
    "name": "Singapore style pork",
    "price": 1750.0,
@@ -1653,7 +1665,7 @@
   {
    "key": "Mains - Prawns / Devilled prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 1,
    "name": "Devilled prawns",
    "price": 1850.0,
@@ -1667,7 +1679,7 @@
   {
    "key": "Mains - Prawns / Thai hot garlic prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 2,
    "name": "Thai hot garlic prawns",
    "price": 1850.0,
@@ -1681,7 +1693,7 @@
   {
    "key": "Mains - Prawns / Chilli prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 3,
    "name": "Chilli prawns",
    "price": 1850.0,
@@ -1695,7 +1707,7 @@
   {
    "key": "Mains - Prawns / Village style prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 4,
    "name": "Village style prawns",
    "price": 1850.0,
@@ -1709,7 +1721,7 @@
   {
    "key": "Mains - Prawns / Prawns with kankun",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 5,
    "name": "Prawns with kankun",
    "price": 1850.0,
@@ -1723,7 +1735,7 @@
   {
    "key": "Mains - Prawns / Hot butter prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 6,
    "name": "Hot butter prawns",
    "price": 1780.0,
@@ -1737,7 +1749,7 @@
   {
    "key": "Mains - Prawns / Dry red chilli prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 7,
    "name": "Dry red chilli prawns",
    "price": 1750.0,
@@ -1751,7 +1763,7 @@
   {
    "key": "Mains - Prawns / Pepper prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 8,
    "name": "Pepper prawns",
    "price": 1850.0,
@@ -1765,7 +1777,7 @@
   {
    "key": "Mains - Prawns / Stew prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 9,
    "name": "Stew prawns",
    "price": 1850.0,
@@ -1779,7 +1791,7 @@
   {
    "key": "Mains - Prawns / Fried prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 10,
    "name": "Fried prawns",
    "price": 1700.0,
@@ -1793,7 +1805,7 @@
   {
    "key": "Mains - Prawns / Singapore style prawns",
    "category": "Mains - Prawns",
-   "category_order": 10,
+   "category_order": 11,
    "item_order": 11,
    "name": "Singapore style prawns",
    "price": 1750.0,
@@ -1807,7 +1819,7 @@
   {
    "key": "Mains - Fish / Devilled fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 1,
    "name": "Devilled fish",
    "price": 1750.0,
@@ -1821,7 +1833,7 @@
   {
    "key": "Mains - Fish / Thai hot garlic fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 2,
    "name": "Thai hot garlic fish",
    "price": 1750.0,
@@ -1835,7 +1847,7 @@
   {
    "key": "Mains - Fish / Chilli fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 3,
    "name": "Chilli fish",
    "price": 1750.0,
@@ -1849,7 +1861,7 @@
   {
    "key": "Mains - Fish / Village style fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 4,
    "name": "Village style fish",
    "price": 1750.0,
@@ -1863,7 +1875,7 @@
   {
    "key": "Mains - Fish / Fish with kankun",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 5,
    "name": "Fish with kankun",
    "price": 1750.0,
@@ -1877,7 +1889,7 @@
   {
    "key": "Mains - Fish / Hot butter fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 6,
    "name": "Hot butter fish",
    "price": 1750.0,
@@ -1891,7 +1903,7 @@
   {
    "key": "Mains - Fish / Dry red chilli fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 7,
    "name": "Dry red chilli fish",
    "price": 1650.0,
@@ -1905,7 +1917,7 @@
   {
    "key": "Mains - Fish / Pepper fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 8,
    "name": "Pepper fish",
    "price": 1750.0,
@@ -1919,7 +1931,7 @@
   {
    "key": "Mains - Fish / Stew fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 9,
    "name": "Stew fish",
    "price": 1650.0,
@@ -1933,7 +1945,7 @@
   {
    "key": "Mains - Fish / Fried fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 10,
    "name": "Fried fish",
    "price": 1700.0,
@@ -1947,7 +1959,7 @@
   {
    "key": "Mains - Fish / Singapore style fish",
    "category": "Mains - Fish",
-   "category_order": 11,
+   "category_order": 12,
    "item_order": 11,
    "name": "Singapore style fish",
    "price": 1700.0,
@@ -1961,7 +1973,7 @@
   {
    "key": "Mains - Cuttlefish / Devilled cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 1,
    "name": "Devilled cuttlefish",
    "price": 1750.0,
@@ -1975,7 +1987,7 @@
   {
    "key": "Mains - Cuttlefish / Thai hot garlic cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 2,
    "name": "Thai hot garlic cuttlefish",
    "price": 1750.0,
@@ -1989,7 +2001,7 @@
   {
    "key": "Mains - Cuttlefish / Chilli cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 3,
    "name": "Chilli cuttlefish",
    "price": 1750.0,
@@ -2003,7 +2015,7 @@
   {
    "key": "Mains - Cuttlefish / Village style cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 4,
    "name": "Village style cuttlefish",
    "price": 1750.0,
@@ -2017,7 +2029,7 @@
   {
    "key": "Mains - Cuttlefish / Cuttlefish with kankun",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 5,
    "name": "Cuttlefish with kankun",
    "price": 1750.0,
@@ -2031,7 +2043,7 @@
   {
    "key": "Mains - Cuttlefish / Hot butter cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 6,
    "name": "Hot butter cuttlefish",
    "price": 1700.0,
@@ -2045,7 +2057,7 @@
   {
    "key": "Mains - Cuttlefish / Dry red chilli cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 7,
    "name": "Dry red chilli cuttlefish",
    "price": 1800.0,
@@ -2059,7 +2071,7 @@
   {
    "key": "Mains - Cuttlefish / Pepper cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 8,
    "name": "Pepper cuttlefish",
    "price": 1800.0,
@@ -2073,7 +2085,7 @@
   {
    "key": "Mains - Cuttlefish / Stew cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 9,
    "name": "Stew cuttlefish",
    "price": 1750.0,
@@ -2087,7 +2099,7 @@
   {
    "key": "Mains - Cuttlefish / Fried cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 10,
    "name": "Fried cuttlefish",
    "price": 1850.0,
@@ -2101,7 +2113,7 @@
   {
    "key": "Mains - Cuttlefish / Singapore style cuttlefish",
    "category": "Mains - Cuttlefish",
-   "category_order": 12,
+   "category_order": 13,
    "item_order": 11,
    "name": "Singapore style cuttlefish",
    "price": 1850.0,
@@ -2115,7 +2127,7 @@
   {
    "key": "House Specials / Mix chopsy",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 1,
    "name": "Mix chopsy",
    "price": 2350.0,
@@ -2134,7 +2146,7 @@
   {
    "key": "House Specials / Crispy chicken",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 2,
    "name": "Crispy chicken",
    "price": 1850.0,
@@ -2148,7 +2160,7 @@
   {
    "key": "House Specials / Chicken cashew nut",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 3,
    "name": "Chicken cashew nut",
    "price": 1800.0,
@@ -2162,7 +2174,7 @@
   {
    "key": "House Specials / Fried large prawns (200g)",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 4,
    "name": "Fried large prawns (200g)",
    "price": 1950.0,
@@ -2176,7 +2188,7 @@
   {
    "key": "House Specials / Sweet & sour prawns",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 5,
    "name": "Sweet & sour prawns",
    "price": 1850.0,
@@ -2190,7 +2202,7 @@
   {
    "key": "House Specials / Special chilli prawns",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 6,
    "name": "Special chilli prawns",
    "price": 1850.0,
@@ -2204,7 +2216,7 @@
   {
    "key": "House Specials / Hodello fish",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 7,
    "name": "Hodello fish",
    "price": 1550.0,
@@ -2212,13 +2224,13 @@
    "active_raw": "yes",
    "description": "Fish in coconut milk gravy",
    "note": "",
-   "action": "MATCH",
-   "old_id": "3de60990-0237-4540-9808-c7489ba6c58e"
+   "action": "NEW",
+   "old_id": null
   },
   {
    "key": "House Specials / Fish fillet (250g)",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 8,
    "name": "Fish fillet (250g)",
    "price": 1450.0,
@@ -2232,7 +2244,7 @@
   {
    "key": "House Specials / Mullet fish (250g)",
    "category": "House Specials",
-   "category_order": 13,
+   "category_order": 14,
    "item_order": 9,
    "name": "Mullet fish (250g)",
    "price": 1650.0,
@@ -2246,7 +2258,7 @@
   {
    "key": "Tea & Coffee / Plain tea",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 1,
    "name": "Plain tea",
    "price": 150.0,
@@ -2260,7 +2272,7 @@
   {
    "key": "Tea & Coffee / Milk tea",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 2,
    "name": "Milk tea",
    "price": 250.0,
@@ -2274,7 +2286,7 @@
   {
    "key": "Tea & Coffee / Ginger tea",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 3,
    "name": "Ginger tea",
    "price": 250.0,
@@ -2288,7 +2300,7 @@
   {
    "key": "Tea & Coffee / Lemon tea",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 4,
    "name": "Lemon tea",
    "price": 250.0,
@@ -2302,7 +2314,7 @@
   {
    "key": "Tea & Coffee / Iced tea",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 5,
    "name": "Iced tea",
    "price": 250.0,
@@ -2316,7 +2328,7 @@
   {
    "key": "Tea & Coffee / Black coffee",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 6,
    "name": "Black coffee",
    "price": 150.0,
@@ -2330,7 +2342,7 @@
   {
    "key": "Tea & Coffee / Milk coffee",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 7,
    "name": "Milk coffee",
    "price": 250.0,
@@ -2344,7 +2356,7 @@
   {
    "key": "Tea & Coffee / Iced coffee",
    "category": "Tea & Coffee",
-   "category_order": 14,
+   "category_order": 15,
    "item_order": 8,
    "name": "Iced coffee",
    "price": 350.0,
@@ -2358,7 +2370,7 @@
   {
    "key": "Soft Drinks / Coca-Cola",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 1,
    "name": "Coca-Cola",
    "price": 250.0,
@@ -2382,7 +2394,7 @@
   {
    "key": "Soft Drinks / Sprite",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 2,
    "name": "Sprite",
    "price": 250.0,
@@ -2401,7 +2413,7 @@
   {
    "key": "Soft Drinks / Soda",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 3,
    "name": "Soda",
    "price": 250.0,
@@ -2415,7 +2427,7 @@
   {
    "key": "Soft Drinks / RIDE",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 4,
    "name": "RIDE",
    "price": 650.0,
@@ -2429,7 +2441,7 @@
   {
    "key": "Soft Drinks / Ginger beer",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 5,
    "name": "Ginger beer",
    "price": 250.0,
@@ -2443,7 +2455,7 @@
   {
    "key": "Soft Drinks / Coca-Cola 1L",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 6,
    "name": "Coca-Cola 1L",
    "price": 450.0,
@@ -2462,7 +2474,7 @@
   {
    "key": "Soft Drinks / Sprite 1L",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 7,
    "name": "Sprite 1L",
    "price": 450.0,
@@ -2476,7 +2488,7 @@
   {
    "key": "Soft Drinks / Soda 1L",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 8,
    "name": "Soda 1L",
    "price": 450.0,
@@ -2490,7 +2502,7 @@
   {
    "key": "Soft Drinks / Water 500ml",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 9,
    "name": "Water 500ml",
    "price": 150.0,
@@ -2504,7 +2516,7 @@
   {
    "key": "Soft Drinks / Water bottle 1L",
    "category": "Soft Drinks",
-   "category_order": 15,
+   "category_order": 16,
    "item_order": 10,
    "name": "Water bottle 1L",
    "price": 200.0,
@@ -2518,7 +2530,7 @@
   {
    "key": "Fresh Juice / Fresh mango juice",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 1,
    "name": "Fresh mango juice",
    "price": 650.0,
@@ -2532,7 +2544,7 @@
   {
    "key": "Fresh Juice / Mango lassi",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 2,
    "name": "Mango lassi",
    "price": 0.0,
@@ -2546,7 +2558,7 @@
   {
    "key": "Fresh Juice / Mango shake",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 3,
    "name": "Mango shake",
    "price": 0.0,
@@ -2560,7 +2572,7 @@
   {
    "key": "Fresh Juice / Mango smoothie",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 4,
    "name": "Mango smoothie",
    "price": 0.0,
@@ -2574,7 +2586,7 @@
   {
    "key": "Fresh Juice / Fresh banana juice",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 5,
    "name": "Fresh banana juice",
    "price": 0.0,
@@ -2588,7 +2600,7 @@
   {
    "key": "Fresh Juice / Banana lassi",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 6,
    "name": "Banana lassi",
    "price": 0.0,
@@ -2602,7 +2614,7 @@
   {
    "key": "Fresh Juice / Banana shake",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 7,
    "name": "Banana shake",
    "price": 0.0,
@@ -2616,7 +2628,7 @@
   {
    "key": "Fresh Juice / Banana smoothie",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 8,
    "name": "Banana smoothie",
    "price": 0.0,
@@ -2630,7 +2642,7 @@
   {
    "key": "Fresh Juice / Fresh pineapple juice",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 9,
    "name": "Fresh pineapple juice",
    "price": 650.0,
@@ -2644,7 +2656,7 @@
   {
    "key": "Fresh Juice / Pineapple lassi",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 10,
    "name": "Pineapple lassi",
    "price": 0.0,
@@ -2658,7 +2670,7 @@
   {
    "key": "Fresh Juice / Pineapple shake",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 11,
    "name": "Pineapple shake",
    "price": 0.0,
@@ -2672,7 +2684,7 @@
   {
    "key": "Fresh Juice / Pineapple smoothie",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 12,
    "name": "Pineapple smoothie",
    "price": 0.0,
@@ -2686,7 +2698,7 @@
   {
    "key": "Fresh Juice / Fresh watermelon juice",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 13,
    "name": "Fresh watermelon juice",
    "price": 650.0,
@@ -2700,7 +2712,7 @@
   {
    "key": "Fresh Juice / Watermelon lassi",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 14,
    "name": "Watermelon lassi",
    "price": 0.0,
@@ -2714,7 +2726,7 @@
   {
    "key": "Fresh Juice / Watermelon shake",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 15,
    "name": "Watermelon shake",
    "price": 0.0,
@@ -2728,7 +2740,7 @@
   {
    "key": "Fresh Juice / Watermelon smoothie",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 16,
    "name": "Watermelon smoothie",
    "price": 0.0,
@@ -2742,7 +2754,7 @@
   {
    "key": "Fresh Juice / Faluda",
    "category": "Fresh Juice",
-   "category_order": 16,
+   "category_order": 17,
    "item_order": 17,
    "name": "Faluda",
    "price": 650.0,
@@ -2756,7 +2768,7 @@
   {
    "key": "Desserts / Watalappan - Classic",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 1,
    "name": "Watalappan - Classic",
    "price": 350.0,
@@ -2770,7 +2782,7 @@
   {
    "key": "Desserts / Watalappan - Rawana special",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 2,
    "name": "Watalappan - Rawana special",
    "price": 0.0,
@@ -2784,7 +2796,7 @@
   {
    "key": "Desserts / Caramel pudding",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 3,
    "name": "Caramel pudding",
    "price": 350.0,
@@ -2798,7 +2810,7 @@
   {
    "key": "Desserts / Jelly",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 4,
    "name": "Jelly",
    "price": 150.0,
@@ -2812,7 +2824,7 @@
   {
    "key": "Desserts / Jelly with ice cream",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 5,
    "name": "Jelly with ice cream",
    "price": 0.0,
@@ -2826,7 +2838,7 @@
   {
    "key": "Desserts / Fruit salad",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 6,
    "name": "Fruit salad",
    "price": 250.0,
@@ -2840,7 +2852,7 @@
   {
    "key": "Desserts / Fruit salad with ice cream",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 7,
    "name": "Fruit salad with ice cream",
    "price": 0.0,
@@ -2854,7 +2866,7 @@
   {
    "key": "Desserts / Ice cream - Plain",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 8,
    "name": "Ice cream - Plain",
    "price": 250.0,
@@ -2868,7 +2880,7 @@
   {
    "key": "Desserts / Ice cream with cashew nuts & kithul treacle",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 9,
    "name": "Ice cream with cashew nuts & kithul treacle",
    "price": 0.0,
@@ -2882,7 +2894,7 @@
   {
    "key": "Desserts / Yoghurt - Plain",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 10,
    "name": "Yoghurt - Plain",
    "price": 120.0,
@@ -2896,7 +2908,7 @@
   {
    "key": "Desserts / Yoghurt with cashew nuts & kithul treacle",
    "category": "Desserts",
-   "category_order": 17,
+   "category_order": 18,
    "item_order": 11,
    "name": "Yoghurt with cashew nuts & kithul treacle",
    "price": 0.0,
@@ -2906,6 +2918,96 @@
    "note": "",
    "action": "NEW",
    "old_id": null
+  },
+  {
+   "action": "KEEP",
+   "old_id": "2c2ec76c-f746-4871-a996-e54aaa3ac4ec",
+   "category": "Breakfast & Lunch",
+   "item_order": 1
+  },
+  {
+   "action": "KEEP",
+   "old_id": "86fed741-a5c9-4677-867a-cd1eab04a658",
+   "category": "Breakfast & Lunch",
+   "item_order": 2
+  },
+  {
+   "action": "KEEP",
+   "old_id": "f80fb850-3369-44df-a59a-5a4f78fd44c4",
+   "category": "Breakfast & Lunch",
+   "item_order": 3
+  },
+  {
+   "action": "KEEP",
+   "old_id": "2b51a2bd-3169-426a-92a7-07baf164da01",
+   "category": "Breakfast & Lunch",
+   "item_order": 4
+  },
+  {
+   "action": "KEEP",
+   "old_id": "b6a4b2a5-5400-42d0-bf1a-5f43f9afe278",
+   "category": "Breakfast & Lunch",
+   "item_order": 5
+  },
+  {
+   "action": "KEEP",
+   "old_id": "27283f9f-dbdc-4039-b018-52e1d7c3aca8",
+   "category": "Breakfast & Lunch",
+   "item_order": 6
+  },
+  {
+   "action": "KEEP",
+   "old_id": "dd2d9c15-bcb6-4dfb-8bbc-498cda435597",
+   "category": "Breakfast & Lunch",
+   "item_order": 7
+  },
+  {
+   "action": "KEEP",
+   "old_id": "e5c2d501-32be-4e7d-b324-0cc4b933980b",
+   "category": "Breakfast & Lunch",
+   "item_order": 8
+  },
+  {
+   "action": "KEEP",
+   "old_id": "aa53be6b-50b1-4c37-80ec-58a75b3a8e96",
+   "category": "Breakfast & Lunch",
+   "item_order": 9
+  },
+  {
+   "action": "KEEP",
+   "old_id": "cebb3c4a-01fb-4b67-b49b-aea2a0fb4f55",
+   "category": "Other",
+   "item_order": 0
+  },
+  {
+   "action": "KEEP",
+   "old_id": "040cafda-873d-4d9f-a065-32db575bc336",
+   "category": "Other",
+   "item_order": 0
+  },
+  {
+   "action": "KEEP",
+   "old_id": "82ed28a0-3c30-4709-9f3e-8a6babfffe8c",
+   "category": "Other",
+   "item_order": 0
+  },
+  {
+   "action": "KEEP",
+   "old_id": "e6c95d63-ae12-48c3-87e3-82f9fbba9ad7",
+   "category": "Other",
+   "item_order": 0
+  },
+  {
+   "action": "KEEP",
+   "old_id": "29a5e61b-7fee-44bc-b03e-727a1b51448c",
+   "category": "Other",
+   "item_order": 0
+  },
+  {
+   "action": "KEEP",
+   "old_id": "470ff97b-5479-4cc3-ab2f-ebe8087306bc",
+   "category": "Other",
+   "item_order": 0
   },
   {
    "action": "HIDE",
@@ -2939,11 +3041,6 @@
   },
   {
    "action": "HIDE",
-   "old_id": "82ed28a0-3c30-4709-9f3e-8a6babfffe8c",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
    "old_id": "ea382fdb-c9ec-497c-887a-6cd728da0042",
    "reason": "not in new menu"
   },
@@ -2965,11 +3062,6 @@
   {
    "action": "HIDE",
    "old_id": "d01391f2-3ec4-406c-9d56-6008edb7197d",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "040cafda-873d-4d9f-a065-32db575bc336",
    "reason": "not in new menu"
   },
   {
@@ -3034,22 +3126,12 @@
   },
   {
    "action": "HIDE",
-   "old_id": "e6c95d63-ae12-48c3-87e3-82f9fbba9ad7",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
    "old_id": "4291343c-bb2b-4013-bf51-75aedbf814ea",
    "reason": "not in new menu"
   },
   {
    "action": "HIDE",
    "old_id": "047ce39c-69e8-4310-8642-b3a7b5de4cc5",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "470ff97b-5479-4cc3-ab2f-ebe8087306bc",
    "reason": "not in new menu"
   },
   {
@@ -3070,11 +3152,6 @@
   {
    "action": "HIDE",
    "old_id": "ccdee2a9-d48d-4c31-8e28-9ce7e3b3630e",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "29a5e61b-7fee-44bc-b03e-727a1b51448c",
    "reason": "not in new menu"
   },
   {
@@ -3204,11 +3281,6 @@
   },
   {
    "action": "HIDE",
-   "old_id": "aa53be6b-50b1-4c37-80ec-58a75b3a8e96",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
    "old_id": "afce2d18-08b7-407a-aedf-b6145e228d14",
    "reason": "not in new menu"
   },
@@ -3220,11 +3292,6 @@
   {
    "action": "HIDE",
    "old_id": "79651cbc-188f-4345-9bd7-4fcf6769b355",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "dd2d9c15-bcb6-4dfb-8bbc-498cda435597",
    "reason": "not in new menu"
   },
   {
@@ -3269,11 +3336,6 @@
   },
   {
    "action": "HIDE",
-   "old_id": "cebb3c4a-01fb-4b67-b49b-aea2a0fb4f55",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
    "old_id": "e52b717e-c785-44e7-a053-4643e52829e2",
    "reason": "not in new menu"
   },
@@ -3295,11 +3357,6 @@
   {
    "action": "HIDE",
    "old_id": "7b5daf38-6a42-46f3-be9e-714f1317e103",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "e5c2d501-32be-4e7d-b324-0cc4b933980b",
    "reason": "not in new menu"
   },
   {
@@ -3329,17 +3386,7 @@
   },
   {
    "action": "HIDE",
-   "old_id": "27283f9f-dbdc-4039-b018-52e1d7c3aca8",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
    "old_id": "60b55d52-e902-460f-ad41-ecd2b6245c74",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "b6a4b2a5-5400-42d0-bf1a-5f43f9afe278",
    "reason": "not in new menu"
   },
   {
@@ -3354,16 +3401,6 @@
   },
   {
    "action": "HIDE",
-   "old_id": "86fed741-a5c9-4677-867a-cd1eab04a658",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "f80fb850-3369-44df-a59a-5a4f78fd44c4",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
    "old_id": "b4d8eb88-7690-4e46-89d9-7c6352530cc7",
    "reason": "not in new menu"
   },
@@ -3374,20 +3411,17 @@
   },
   {
    "action": "HIDE",
-   "old_id": "2c2ec76c-f746-4871-a996-e54aaa3ac4ec",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
-   "old_id": "2b51a2bd-3169-426a-92a7-07baf164da01",
-   "reason": "not in new menu"
-  },
-  {
-   "action": "HIDE",
    "old_id": "bbff5c39-42de-4582-82a1-633b1ef12399",
    "reason": "not in new menu"
   }
  ],
+ "internal_categories": {
+  "Function Items": "19efeaa3-19bd-4cd3-a335-5df20a842368",
+  "Staff Menu": "2833169d-6974-4b6a-961f-91a46f3dadd2",
+  "Other": "51dfc58a-1df7-4973-82fa-13f2202f1c0f",
+  "Boss Site": "89702eba-9cee-40f4-acc7-6f2bf8e07042",
+  "Party": "15e97dba-9d98-47dc-bc7c-09e4f1b138e0"
+ },
  "internal_untouched": [
   "bc6177f7-34cc-4757-ad4a-f5c86a3786db",
   "bcb8014d-931f-4414-bd4a-7c6d68de8531",
