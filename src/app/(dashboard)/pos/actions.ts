@@ -119,11 +119,12 @@ export async function addOrderItem(
 
     const { data: menuItem } = await supabase
       .from("menu_items")
-      .select("selling_price, is_available, service_chargeable")
+      .select("selling_price, is_available, is_archived, service_chargeable")
       .eq("id", menuItemId)
       .single();
     if (!menuItem) return { ok: false, error: "Menu item not found." };
-    if (!menuItem.is_available) return { ok: false, error: "That item is marked unavailable." };
+    if (!menuItem.is_available || menuItem.is_archived)
+      return { ok: false, error: "That item is marked unavailable." };
 
     // Merge only with a line that hasn't gone to the kitchen yet — once a line
     // is on a KOT, further additions create a NEW line so the next KOT prints them.
@@ -202,11 +203,12 @@ export async function setOrderItemQuantity(
     } else {
       const { data: menuItem } = await supabase
         .from("menu_items")
-        .select("selling_price, is_available, service_chargeable")
+        .select("selling_price, is_available, is_archived, service_chargeable")
         .eq("id", menuItemId)
         .single();
       if (!menuItem) return { ok: false, error: "Menu item not found." };
-      if (!menuItem.is_available) return { ok: false, error: "That item is marked unavailable." };
+      if (!menuItem.is_available || menuItem.is_archived)
+        return { ok: false, error: "That item is marked unavailable." };
 
       const { error } = await supabase.from("order_items").insert({
         order_id: orderId,

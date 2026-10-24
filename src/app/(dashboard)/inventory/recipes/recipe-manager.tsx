@@ -33,12 +33,15 @@ export function RecipeManager({
   inventory: InventoryItem[];
   categories: MenuCategoryRow[];
 }) {
-  const [selectedId, setSelectedId] = useState<string | null>(menuItems[0]?.id ?? null);
+  const firstActive = menuItems.find((m) => !m.is_archived) ?? menuItems[0];
+  const [selectedId, setSelectedId] = useState<string | null>(firstActive?.id ?? null);
   const [search, setSearch] = useState("");
+  const [showArchived, setShowArchived] = useState(false);
   const query = search.trim().toLowerCase();
+  const archivedCount = menuItems.filter((m) => m.is_archived).length;
   const selected = useMemo(
-    () => menuItems.find((m) => m.id === selectedId) ?? menuItems[0] ?? null,
-    [menuItems, selectedId]
+    () => menuItems.find((m) => m.id === selectedId) ?? firstActive ?? null,
+    [menuItems, selectedId, firstActive]
   );
 
   if (menuItems.length === 0) {
@@ -70,12 +73,28 @@ export function RecipeManager({
               className="pl-8"
             />
           </div>
+          {archivedCount > 0 && (
+            <label className="flex items-center gap-2 text-xs text-muted-foreground">
+              <input
+                type="checkbox"
+                checked={showArchived}
+                onChange={(e) => setShowArchived(e.target.checked)}
+                className="h-3.5 w-3.5"
+              />
+              Show archived items ({archivedCount})
+            </label>
+          )}
         </CardHeader>
         <CardContent className="min-h-0 flex-1 space-y-1 overflow-y-auto px-3 pb-3">
           {categories.map((cat) => {
-            const group = menuItems.filter(
-              (m) => m.category_id === cat.id && (!query || m.name.toLowerCase().includes(query))
-            );
+            const group = menuItems
+              .filter(
+                (m) =>
+                  m.category_id === cat.id &&
+                  (showArchived || !m.is_archived) &&
+                  (!query || m.name.toLowerCase().includes(query))
+              )
+              .sort((a, b) => (a.sort_order ?? 0) - (b.sort_order ?? 0) || a.name.localeCompare(b.name));
             if (group.length === 0) return null;
             return (
               <div key={cat.id} className="pb-2">
@@ -96,7 +115,9 @@ export function RecipeManager({
                         (active ? "bg-muted" : "hover:bg-muted/50")
                       }
                     >
-                      <span className="font-medium">{item.name}</span>
+                      <span className={"font-medium" + (item.is_archived ? " text-muted-foreground line-through" : "")}>
+                        {item.name}
+                      </span>
                       <span
                         className={
                           "tabular-nums text-xs " +

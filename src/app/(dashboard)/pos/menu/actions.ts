@@ -34,6 +34,8 @@ function parseMenuForm(formData: FormData):
       serviceChargeable: boolean;
       imageUrl: string | null;
       station: "kitchen" | "bar" | null;
+      sortOrder: number;
+      description: string | null;
     }
   | { ok: false; error: string } {
   const name = String(formData.get("name") ?? "").trim();
@@ -44,6 +46,8 @@ function parseMenuForm(formData: FormData):
   const imageUrl = String(formData.get("image_url") ?? "").trim() || null;
   const stationRaw = String(formData.get("station") ?? "");
   const station = stationRaw === "kitchen" || stationRaw === "bar" ? stationRaw : null;
+  const sortOrder = Number(formData.get("sort_order") ?? 0) || 0;
+  const description = String(formData.get("description") ?? "").trim() || null;
 
   if (!name) return { ok: false, error: "Item name is required." };
   if (!categoryId) return { ok: false, error: "Pick a category." };
@@ -51,7 +55,9 @@ function parseMenuForm(formData: FormData):
     return { ok: false, error: "Selling price must be greater than zero." };
   if (!Number.isFinite(otherCost) || otherCost < 0)
     return { ok: false, error: "Other costs can't be negative." };
-  return { ok: true, name, categoryId, price, otherCost, serviceChargeable, imageUrl, station };
+  if (!Number.isInteger(sortOrder) || sortOrder < 0)
+    return { ok: false, error: "Position must be a whole number, 0 or more." };
+  return { ok: true, name, categoryId, price, otherCost, serviceChargeable, imageUrl, station, sortOrder, description };
 }
 
 export async function createMenuItem(formData: FormData): Promise<ActionResult> {
@@ -69,6 +75,8 @@ export async function createMenuItem(formData: FormData): Promise<ActionResult> 
       service_chargeable: parsed.serviceChargeable,
       image_url: parsed.imageUrl,
       station: parsed.station,
+      sort_order: parsed.sortOrder,
+      description: parsed.description,
       is_available: true,
     });
     if (error) return { ok: false, error: error.message };
@@ -102,6 +110,8 @@ export async function updateMenuItem(
         service_chargeable: parsed.serviceChargeable,
         image_url: parsed.imageUrl,
         station: parsed.station,
+        sort_order: parsed.sortOrder,
+        description: parsed.description,
       })
       .eq("id", menuItemId);
     if (error) return { ok: false, error: error.message };
@@ -133,23 +143,19 @@ export async function toggleMenuItemAvailability(
   }
 }
 
-export async function deleteMenuItem(menuItemId: string): Promise<ActionResult> {
+/** Archive = retire an item for good without deleting it: off the POS and
+ * out of the menu/recipe lists (unless "Show archived" is ticked). Past
+ * bills and recipe links stay intact. Restoring brings it back to the lists;
+ * switch it on separately to put it back on the POS. */
+export async function setMenuItemArchived(menuItemId: string, archived: boolean): Promise<ActionResult> {
   try {
     await assertMenuRole();
     const supabase = await createClient();
-    // order_items.menu_item_id is ON DELETE RESTRICT — an item that was ever
-    // sold can't be removed, only hidden. Recipe links cascade automatically.
-    const { error } = await supabase.from("menu_items").delete().eq("id", menuItemId);
-    if (error) {
-      if (error.code === "23503") {
-        return {
-          ok: false,
-          error:
-            "This item has past orders and can't be deleted — switch it off instead so it's hidden from the POS.",
-        };
-      }
-      return { ok: false, error: error.message };
-    }
+    const { error } = await supabase
+      .from("menu_items")
+      .update(archived ? { is_archived: true, is_available: false } : { is_archived: false })
+      .eq("id", menuItemId);
+    if (error) return { ok: false, error: error.message };
 
     revalidateMenu();
     return { ok: true };

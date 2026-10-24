@@ -95,6 +95,7 @@ export default async function SettledRecordsPage({
       .from("menu_items")
       .select("id, name, selling_price, service_chargeable")
       .eq("is_available", true)
+      .eq("is_archived", false)
       .order("name"),
   ]);
 

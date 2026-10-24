@@ -177,6 +177,9 @@ create table public.menu_items (
   is_available  boolean not null default true,
   image_url     text, -- public URL in the 'menu-images' storage bucket, see section 11
   station       kitchen_station, -- null = use the category's station; set = override it for this item
+  sort_order    int not null default 0, -- position inside its category (migration 045)
+  description   text,
+  is_archived   boolean not null default false, -- retired: off the POS and menu/recipe lists, never deleted
   created_at    timestamptz not null default now(),
   updated_at    timestamptz not null default now()
 );
@@ -500,6 +503,7 @@ create table public.system_logs (
 -- ---------------------------------------------------------------------------
 -- 4. INDEXES (hot query paths)
 -- ---------------------------------------------------------------------------
+create index idx_menu_items_category_sort on public.menu_items (category_id, sort_order, name);
 create index idx_rooms_status              on public.rooms (status);
 create index idx_rooms_type                on public.rooms (type_id);
 create index idx_bookings_status           on public.bookings (status);

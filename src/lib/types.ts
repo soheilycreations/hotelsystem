@@ -189,6 +189,9 @@ export interface MenuItem {
   is_available: boolean;
   image_url: string | null;
   station: KitchenStation | null; // null = inherit the category's station
+  sort_order: number; // position inside its category (migration 045)
+  description: string | null;
+  is_archived: boolean; // retired: hidden from POS and menu/recipe lists, never deleted
   created_at: string;
   updated_at: string;
   menu_categories?: MenuCategoryRow; // joined
@@ -460,3 +463,15 @@ export const ROLE_HOME: Record<StaffRole, string> = {
   cashier: "/pos/active",
   kitchen_staff: "/pos/active",
 };
+
+/** Menu display order: category order, then the item's position, then name. */
+export function compareMenuItems(
+  a: { name: string; sort_order?: number | null; menu_categories?: { sort_order: number } | null },
+  b: { name: string; sort_order?: number | null; menu_categories?: { sort_order: number } | null }
+): number {
+  return (
+    (a.menu_categories?.sort_order ?? 0) - (b.menu_categories?.sort_order ?? 0) ||
+    (a.sort_order ?? 0) - (b.sort_order ?? 0) ||
+    a.name.localeCompare(b.name)
+  );
+}
