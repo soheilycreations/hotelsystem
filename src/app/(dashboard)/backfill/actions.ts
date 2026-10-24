@@ -3,21 +3,42 @@
 import { revalidatePath } from "next/cache";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { PaymentMethod } from "@/lib/types";
-import { addCustomOrderItem, openOrder, setOrderBusinessDate, settleOrder } from "../pos/actions";
+import { addCustomOrderItem, openOrder, settleOrder } from "../pos/actions";
 
 interface ActionResult {
   ok: boolean;
   error?: string;
 }
 
-const BACKFILL_ROLES = ["admin", "manager"];
-
+/** Backfill = backdated sales. Admin only, and only while an admin has
+ * switched it on (hotel_settings.backfill_enabled — the database refuses
+ * backdated rows while it's off, migration 043). */
 async function assertBackfillRole() {
   const profile = await getSessionProfile();
-  if (!profile || !BACKFILL_ROLES.includes(profile.role)) {
+  if (!profile || profile.role !== "admin") {
     throw new Error("Not authorized to backfill historical records.");
   }
+  const supabase = await createClient();
+  const { data } = await supabase.from("hotel_settings").select("backfill_enabled").eq("id", 1).maybeSingle();
+  if (!data?.backfill_enabled) {
+    throw new Error("Backfill is switched off — no backdated sales in the live system.");
+  }
   return profile;
+}
+
+/** Admin switch for the whole Backfill feature. */
+export async function setBackfillEnabled(enabled: boolean): Promise<ActionResult> {
+  try {
+    const profile = await getSessionProfile();
+    if (!profile || profile.role !== "admin") return { ok: false, error: "Only an admin can change this." };
+    const supabase = await createClient();
+    const { error } = await supabase.from("hotel_settings").update({ backfill_enabled: enabled }).eq("id", 1);
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/backfill");
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
 }
 
 function revalidateBackfill(): void {
@@ -131,9 +152,14 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
     if (!opened.ok || !opened.orderId) return { ok: false, error: opened.error ?? "Could not open." };
 
     // Flag it so channel-mix reports separate this from real Banquet
-    // function revenue instead of lumping them together.
+    // function revenue instead of lumping them together. Historical rows are
+    // the only ones whose business_date survives settlement (migration 041).
     const supabase = await createClient();
-    await supabase.from("restaurant_orders").update({ is_historical: true }).eq("id", opened.orderId);
+    const { error: flagError } = await supabase
+      .from("restaurant_orders")
+      .update({ is_historical: true, business_date: input.date })
+      .eq("id", opened.orderId);
+    if (flagError) return { ok: false, error: flagError.message };
 
     const lineAdded = await addCustomOrderItem({
       orderId: opened.orderId,
@@ -143,9 +169,6 @@ export async function createHistoricalSale(input: HistoricalSaleInput): Promise<
       logAsExpense: false,
     });
     if (!lineAdded.ok) return lineAdded;
-
-    const dated = await setOrderBusinessDate(opened.orderId, input.date);
-    if (!dated.ok) return dated;
 
     const settled = await settleOrder(opened.orderId, input.paymentMethod, false, input.creditAccountId);
     if (!settled.ok) return settled;

@@ -1,5 +1,5 @@
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import type { CreditAccount, HotelSettings, RestaurantOrder } from "@/lib/types";
+import type { Booking, CreditAccount, HotelSettings, RestaurantOrder } from "@/lib/types";
 import { LiveRefresher } from "../../live-refresher";
 import { BillingDesk } from "./billing-desk";
 
@@ -10,7 +10,11 @@ export default async function BillingPage() {
   const profile = await getSessionProfile();
   const canVoid = profile?.role === "admin";
 
-  const [{ data: orders }, { data: hotel }, { data: creditAccounts }] = await Promise.all([
+  // Abandoned Rs 0 orders (opened, nothing added) are removed after 30 min
+  // and their tables freed — see rpc_purge_empty_orders (migration 042).
+  await supabase.rpc("rpc_purge_empty_orders", { p_min_age_minutes: 30 });
+
+  const [{ data: orders }, { data: hotel }, { data: creditAccounts }, { data: guests }] = await Promise.all([
     supabase
       .from("restaurant_orders")
       .select(
@@ -20,6 +24,11 @@ export default async function BillingPage() {
       .order("created_at", { ascending: true }),
     supabase.from("hotel_settings").select("*").eq("id", 1).maybeSingle(),
     supabase.from("credit_accounts").select("*").order("name"),
+    supabase
+      .from("bookings")
+      .select("id, guest_name, rooms(room_number)")
+      .eq("status", "checked_in")
+      .order("guest_name"),
   ]);
 
   return (
@@ -36,6 +45,7 @@ export default async function BillingPage() {
         hotel={(hotel as HotelSettings | null) ?? null}
         creditAccounts={(creditAccounts as CreditAccount[] | null) ?? []}
         canVoid={canVoid}
+        guests={(guests ?? []) as unknown as Pick<Booking, "id" | "guest_name" | "rooms">[]}
       />
     </div>
   );

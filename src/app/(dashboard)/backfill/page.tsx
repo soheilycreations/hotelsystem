@@ -1,5 +1,6 @@
 import { createClient } from "@/lib/supabase/server";
 import type { CreditAccount, Room } from "@/lib/types";
+import { BackfillSwitch } from "./backfill-switch";
 import { BackfillView } from "./backfill-view";
 
 export const dynamic = "force-dynamic";
@@ -7,7 +8,8 @@ export const metadata = { title: "Backfill Historical Data" };
 
 export default async function BackfillPage() {
   const supabase = await createClient();
-  const [{ data: rooms }, { data: creditAccounts }] = await Promise.all([
+  const [{ data: settings }, { data: rooms }, { data: creditAccounts }] = await Promise.all([
+    supabase.from("hotel_settings").select("backfill_enabled").eq("id", 1).maybeSingle(),
     supabase.from("rooms").select("*, room_types(*)").order("room_number"),
     supabase.from("credit_accounts").select("*").order("name"),
   ]);
@@ -22,10 +24,13 @@ export default async function BackfillPage() {
           real room status is never touched by this.
         </p>
       </div>
-      <BackfillView
-        rooms={(rooms as Room[] | null) ?? []}
-        creditAccounts={(creditAccounts as CreditAccount[] | null) ?? []}
-      />
+      <BackfillSwitch enabled={Boolean(settings?.backfill_enabled)} />
+      {settings?.backfill_enabled ? (
+        <BackfillView
+          rooms={(rooms as Room[] | null) ?? []}
+          creditAccounts={(creditAccounts as CreditAccount[] | null) ?? []}
+        />
+      ) : null}
     </div>
   );
 }

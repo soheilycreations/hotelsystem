@@ -1,0 +1,325 @@
+﻿action,confidence,score,new_category,new_name,new_price,new_visible,old_category,old_name,old_price,price_change,recipe_lines,sold_qty,note,old_item_id,new_key
+CATEGORY RENAME,,,Soups,sort 1,,,Soup,,,,,,,,
+CATEGORY KEEP,,,Rice & Curry,sort 2,,,Rice & Curry,,,,,,,,
+CATEGORY CREATE,,,Breakfast & Lunch,sort 3,,,,,,,,,,,
+CATEGORY CREATE,,,Fried Rice,sort 4,,,,,,,,,,,
+CATEGORY CREATE,,,Rice Specials,sort 5,,,,,,,,,,,
+CATEGORY CREATE,,,Noodles,sort 6,,,,,,,,,,,
+CATEGORY CREATE,,,Kottu,sort 7,,,,,,,,,,,
+CATEGORY KEEP,,,Bites,sort 8,,,Bites,,,,,,,,
+CATEGORY CREATE,,,Mains - Chicken,sort 9,,,,,,,,,,,
+CATEGORY CREATE,,,Mains - Pork,sort 10,,,,,,,,,,,
+CATEGORY CREATE,,,Mains - Prawns,sort 11,,,,,,,,,,,
+CATEGORY CREATE,,,Mains - Fish,sort 12,,,,,,,,,,,
+CATEGORY CREATE,,,Mains - Cuttlefish,sort 13,,,,,,,,,,,
+CATEGORY CREATE,,,House Specials,sort 14,,,,,,,,,,,
+CATEGORY CREATE,,,Tea & Coffee,sort 15,,,,,,,,,,,
+CATEGORY CREATE,,,Soft Drinks,sort 16,,,,,,,,,,,
+CATEGORY CREATE,,,Fresh Juice,sort 17,,,,,,,,,,,
+CATEGORY KEEP,,,Desserts,sort 18,,,Desserts,,,,,,,,
+MATCH,high,1.0,Soups,Vegetable soup,450.00,yes,Soup,Vegitable Soup,450.0,,6,2,,510503a9-2e66-4ab4-9a03-ae9f9545ddb2,Soups / Vegetable soup
+MATCH,high,1.0,Soups,Onion soup,450.00,yes,Soup,Onion Soup,450.0,,4,0,,3100bb8c-bca4-43fa-b4dc-1be9d722935d,Soups / Onion soup
+MATCH,high,1.0,Soups,Chicken soup,650.00,yes,Soup,Chicken soup,650.0,,3,2,,119576dc-7156-4969-8aa1-ad4887aa3b31,Soups / Chicken soup
+MATCH,high,1.0,Soups,Seafood soup,750.00,yes,Soup,Sea Food Soup,750.0,,3,0,,4959b8e0-d91e-4410-bf65-99b04567842c,Soups / Seafood soup
+MATCH,high,1.0,Soups,Soup noodles,700.00,yes,Soup,Soup Noodles,700.0,,4,0,,a32b2a22-e5c3-489f-be2c-379823a43552,Soups / Soup noodles
+MATCH,CHECK,0.8,Soups,Cream of chicken,750.00,yes,Soup,Cream of Chicken (soup),750.0,,3,0,,df28dbc5-8ec8-4bf3-bb1e-c6306555b55f,Soups / Cream of chicken
+MATCH,high,1.0,Soups,Cream of crab soup,850.00,yes,Soup,Cream of Crab (Soup),850.0,,4,0,,0d6e3da4-7289-4b85-89b4-2a42844100a4,Soups / Cream of crab soup
+MATCH,high,1.0,Soups,Tom yum soup,900.00,yes,Soup,TOM YUM SOUP,900.0,,0,0,,a7d5129d-b8b7-4e8e-92d2-dfc0590960fd,Soups / Tom yum soup
+MATCH,high,1.0,Rice & Curry,Rice & curry - Vegetable,450.00,yes,Rice & Curry,Rice and Curry Vegetable,400.0,+50.00,1,0,,a30b2177-2ed8-4cd2-a3c7-1d212a973e40,Rice & Curry / Rice & curry - Vegetable
+MATCH,high,1.0,Rice & Curry,Rice & curry - Egg,450.00,yes,Rice & Curry,Rice and Curry Egg,400.0,+50.00,2,0,,03aa93a8-24bf-4839-8016-537026f87c12,Rice & Curry / Rice & curry - Egg
+MATCH,high,1.0,Rice & Curry,Rice & curry - Chicken,550.00,yes,Rice & Curry,Rice and Curry Chicken,450.0,+100.00,4,47,,d1098b7e-6e38-4884-8b68-ee965ae8b4ed,Rice & Curry / Rice & curry - Chicken
+MATCH,high,1.0,Rice & Curry,Rice & curry - Fish,550.00,yes,Rice & Curry,Rice and Curry Fish,450.0,+100.00,3,2,,d019e3a5-4ca3-4bb0-8961-d463ab4b7d0c,Rice & Curry / Rice & curry - Fish
+HIDE (duplicate),high,0.97,Rice & Curry,↳ duplicate of Rice & curry - Fish,,,Rice & Curry,Fish Rice & Curry - Takeaway,450.0,,0,21,takeaway duplicate,436f8a23-ce4e-4c0e-b5e2-ad335f55f2df,Rice & Curry / Rice & curry - Fish
+HIDE (duplicate),high,1.0,Rice & Curry,↳ duplicate of Rice & curry - Fish,,,Rice & Curry,Rice & Curry Fish,450.0,,0,0,,69061565-846a-4592-a0fb-81806437ab71,Rice & Curry / Rice & curry - Fish
+MATCH,high,1.0,Rice & Curry,Rice & curry - Pork,650.00,yes,Rice & Curry,Rice and Curry Pork,550.0,+100.00,3,0,,59d76ea5-2c5b-4d81-ba13-724803eccd6d,Rice & Curry / Rice & curry - Pork
+MATCH,high,1.0,Fried Rice,Vegetable fried rice (M),850.00,yes,Rice,Veg Fried Rice ( M ),950.0,-100.00,0,0,,b4f8797d-c612-4752-8a5d-b35aa324ed1c,Fried Rice / Vegetable fried rice (M)
+MATCH,high,1.0,Fried Rice,Vegetable fried rice (L),1100.00,yes,Rice,Veg Fried Rice ( L),1100.0,,0,0,,ebdd6f85-9976-46ef-bdf8-a237ead9f96f,Fried Rice / Vegetable fried rice (L)
+MATCH,high,1.0,Fried Rice,Chicken fried rice (M),1200.00,yes,Mains,CHICKEN FRIED RICE ( M ),1200.0,,3,21,,23255b5d-54d5-4eaa-aad3-08486e69e091,Fried Rice / Chicken fried rice (M)
+MATCH,high,1.0,Fried Rice,Chicken fried rice (L),1550.00,yes,Mains,CHICKEN FRIED RICE (L),1550.0,,0,22,,ab979571-1794-4813-bca1-2994cecf87cc,Fried Rice / Chicken fried rice (L)
+MATCH,high,1.0,Fried Rice,Prawn fried rice (M),1350.00,yes,Bites,Prawns Fried Rice ( M ),1250.0,+100.00,0,1,,f51f6d81-4693-48d1-84e9-13072ed1726c,Fried Rice / Prawn fried rice (M)
+HIDE (duplicate),high,1.0,Fried Rice,↳ duplicate of Prawn fried rice (M),,,Rice,Prawns Fried Rice ( M ),1250.0,,0,0,,1cc9d708-ae83-4ccb-936b-88637116641d,Fried Rice / Prawn fried rice (M)
+MATCH,high,1.0,Fried Rice,Prawn fried rice (L),1750.00,yes,Rice,Prawns Fried Rice ( L ),1650.0,+100.00,0,0,,ea9376f7-52bc-446f-8027-757f6c801c08,Fried Rice / Prawn fried rice (L)
+MATCH,high,1.0,Fried Rice,Pork fried rice (M),1350.00,yes,Mains,Pork Fried Rice ( M ),1650.0,-300.00,0,1,,bd1e36b0-a6ea-47b3-85d8-7bb54836bb34,Fried Rice / Pork fried rice (M)
+MATCH,CHECK (size),0.92,Fried Rice,Pork fried rice (L),1750.00,yes,Mains,Pork Fride Rice,1650.0,+100.00,1,2,,7453df5f-6ef8-4d2c-a1df-28de53082297,Fried Rice / Pork fried rice (L)
+MATCH,MANUAL,1.0,Fried Rice,Mixed fried rice (M),1450.00,yes,Bites,MIXED RICE M,1250.0,+200.00,0,1,,80965490-54f4-4e4f-a940-6fb40a18b4b4,Fried Rice / Mixed fried rice (M)
+MATCH,high,1.0,Fried Rice,Mixed fried rice (L),1850.00,yes,Mains,MIXED FRIED RICE (Large),1750.0,+100.00,0,6,,ee2e5b0f-f853-4b63-b95a-cb92d7c15422,Fried Rice / Mixed fried rice (L)
+MATCH,high,1.0,Fried Rice,Seafood rice (M),1350.00,yes,Mains,SEAFOOD RICE ( M ),1600.0,-250.00,0,2,,21d0471b-92d6-4587-a1d8-56d986e91327,Fried Rice / Seafood rice (M)
+MATCH,high,1.0,Fried Rice,Seafood rice (L),1750.00,yes,Mains,Seafood Rice ( L ),1650.0,+100.00,0,9,,86b121f4-fbf4-441e-892e-8dde0c00ad40,Fried Rice / Seafood rice (L)
+HIDE (duplicate),high,1.0,Fried Rice,↳ duplicate of Seafood rice (L),,,Bites,Seafood Rice ( L ),1750.0,,0,1,,d462c261-3bd6-4820-a330-c1eb660d118d,Fried Rice / Seafood rice (L)
+MATCH,CHECK (size),0.92,Fried Rice,Cashew nut rice (M),1450.00,yes,Mains,Cashew nut rice,1600.0,-150.00,0,1,,164eee98-a314-47ec-b541-f35ded02743c,Fried Rice / Cashew nut rice (M)
+NEW,,,Fried Rice,Cashew nut rice (L),1950.00,yes,,,,,,,,,Fried Rice / Cashew nut rice (L)
+MATCH,CHECK,0.8,Rice Specials,Mongolian rice (M),1350.00,yes,Mains,MIXED MONGOLIYAN RICE (M),1600.0,-250.00,0,2,,c2a3affe-e10e-4aaa-98cd-99bf167cbb93,Rice Specials / Mongolian rice (M)
+MATCH,CHECK (size),0.92,Rice Specials,Mongolian rice (L),1850.00,yes,Mains,MONGOLIAN RICE,1950.0,-100.00,0,1,,eae5a0c6-956f-4b46-bb6e-a62b56629961,Rice Specials / Mongolian rice (L)
+NEW,,,Rice Specials,Rawana special rice (M),1250.00,yes,,,,,,,,,Rice Specials / Rawana special rice (M)
+NEW,,,Rice Specials,Rawana special rice (L),1850.00,yes,,,,,,,,,Rice Specials / Rawana special rice (L)
+NEW,,,Rice Specials,Thai rice (M),1250.00,yes,,,,,,,,,Rice Specials / Thai rice (M)
+NEW,,,Rice Specials,Thai rice (L),1850.00,yes,,,,,,,,,Rice Specials / Thai rice (L)
+MATCH,CHECK,0.736,Rice Specials,Nasi goreng (M),1250.00,yes,Mains,Nasi goreng Rice,1400.0,-150.00,0,0,,7154ed69-ffdc-4781-af86-f1dd6253cc72,Rice Specials / Nasi goreng (M)
+MATCH,CHECK,0.736,Rice Specials,Nasi goreng (L),1850.00,yes,Mains,NASIGORENG CHIKEN,1850.0,,0,1,,fb0b44b9-589f-4126-aab5-c154a85c6ac5,Rice Specials / Nasi goreng (L)
+MATCH,MANUAL,1.0,Rice Specials,Mixed chopsy rice (M),1350.00,yes,Mains,MIXED CHOPCY RICE,1650.0,-300.00,0,6,,ffc88398-f704-447d-aa45-591d5f8d7243,Rice Specials / Mixed chopsy rice (M)
+HIDE (duplicate),MANUAL,1.0,Rice Specials,↳ duplicate of Mixed chopsy rice (M),,,Bites,Chopsy Rice ( M ),1600.0,,0,3,,7f21bd21-1734-4f00-bb1f-23a2ff21482f,Rice Specials / Mixed chopsy rice (M)
+MATCH,MANUAL,1.0,Rice Specials,Mixed chopsy rice (L),1850.00,yes,Mains,MIXED CHOPCY RICE L,2350.0,-500.00,0,3,,c6102b38-3dcf-45c4-b9a7-2168de0abef0,Rice Specials / Mixed chopsy rice (L)
+NEW,,,Rice Specials,Chicken chopsy rice (M),1250.00,yes,,,,,,,,,Rice Specials / Chicken chopsy rice (M)
+NEW,,,Rice Specials,Chicken chopsy rice (L),1750.00,yes,,,,,,,,,Rice Specials / Chicken chopsy rice (L)
+NEW,,,Rice Specials,Seafood chopsy rice (M),1350.00,yes,,,,,,,,,Rice Specials / Seafood chopsy rice (M)
+NEW,,,Rice Specials,Seafood chopsy rice (L),1850.00,yes,,,,,,,,,Rice Specials / Seafood chopsy rice (L)
+NEW,,,Noodles,Vegetable noodles (M),650.00,yes,,,,,,,,,Noodles / Vegetable noodles (M)
+NEW,,,Noodles,Vegetable noodles (L),1100.00,yes,,,,,,,,,Noodles / Vegetable noodles (L)
+NEW,,,Noodles,Egg noodles (M),650.00,yes,,,,,,,,,Noodles / Egg noodles (M)
+MATCH,CHECK (size),0.92,Noodles,Egg noodles (L),1100.00,yes,Mains,EGG NOODLES,1100.0,,0,3,,ead8dbd8-1dd1-4423-bd10-68fa73a4d226,Noodles / Egg noodles (L)
+NEW,,,Noodles,Chicken noodles (M),950.00,yes,,,,,,,,,Noodles / Chicken noodles (M)
+MATCH,high,1.0,Noodles,Chicken noodles (L),1550.00,yes,Mains,CHICKEN NOODLES ( L ),1400.0,+150.00,0,4,,f3bee533-7863-4efd-8053-a00d8fa5226a,Noodles / Chicken noodles (L)
+NEW,,,Noodles,Seafood noodles (M),1150.00,yes,,,,,,,,,Noodles / Seafood noodles (M)
+NEW,,,Noodles,Seafood noodles (L),1650.00,yes,,,,,,,,,Noodles / Seafood noodles (L)
+NEW,,,Noodles,Mixed noodles (M),1250.00,yes,,,,,,,,,Noodles / Mixed noodles (M)
+MATCH,CHECK (size),0.92,Noodles,Mixed noodles (L),1850.00,yes,Mains,MIX NOODLS,1750.0,+100.00,0,1,,a3105366-965f-42a9-9fa4-fa2a758dfc97,Noodles / Mixed noodles (L)
+MATCH,CHECK (size),0.92,Noodles,Mixed chopsy noodles (M),1450.00,yes,Mains,MIXED CHOPCY NOODLES,1450.0,,0,1,,3950f886-8093-4a44-a1a0-56dbb2c4bfc8,Noodles / Mixed chopsy noodles (M)
+NEW,,,Noodles,Mixed chopsy noodles (L),1950.00,yes,,,,,,,,,Noodles / Mixed chopsy noodles (L)
+NEW,,,Noodles,Chicken chopsy noodles (M),1250.00,yes,,,,,,,,,Noodles / Chicken chopsy noodles (M)
+NEW,,,Noodles,Chicken chopsy noodles (L),1750.00,yes,,,,,,,,,Noodles / Chicken chopsy noodles (L)
+NEW,,,Noodles,Rawana special noodles (M),1250.00,yes,,,,,,,,,Noodles / Rawana special noodles (M)
+NEW,,,Noodles,Rawana special noodles (L),1850.00,yes,,,,,,,,,Noodles / Rawana special noodles (L)
+NEW,,,Kottu,Vegetable kottu (M),850.00,yes,,,,,,,,,Kottu / Vegetable kottu (M)
+MATCH,CHECK (size),0.92,Kottu,Vegetable kottu (L),1100.00,yes,Mains,VEGITABLE KOTTU,1400.0,-300.00,0,0,,bb796b41-ba75-4540-addb-f2b00e0c98d6,Kottu / Vegetable kottu (L)
+NEW,,,Kottu,Egg kottu (M),850.00,yes,,,,,,,,,Kottu / Egg kottu (M)
+NEW,,,Kottu,Egg kottu (L),1100.00,yes,,,,,,,,,Kottu / Egg kottu (L)
+MATCH,high,1.0,Kottu,Chicken kottu (M),950.00,yes,Mains,CHICKEN KOTTU ( M ),1300.0,-350.00,0,7,,ef8f7910-0170-4b2b-9e48-61051134aae9,Kottu / Chicken kottu (M)
+HIDE (duplicate),high,1.0,Kottu,↳ duplicate of Chicken kottu (M),,,Mains,Chicken Kottu - Reguler,1000.0,,0,2,,194f5954-1abf-44c9-86f1-0cc04a9fb662,Kottu / Chicken kottu (M)
+HIDE (duplicate),high,1.0,Kottu,↳ duplicate of Chicken kottu (M),,,Bites,chiken kottu medium,950.0,,0,1,,38793323-8a6b-466e-96ed-75a3d0398d3c,Kottu / Chicken kottu (M)
+MATCH,high,1.0,Kottu,Chicken kottu (L),1450.00,yes,Mains,CHICKEN KOTTU ( Full ),1450.0,,0,13,,b4b64b24-1883-4d46-bc76-7eaab9df610e,Kottu / Chicken kottu (L)
+HIDE (duplicate),high,0.97,Kottu,↳ duplicate of Chicken kottu (L),,,Mains,chicken kottu full take away,1500.0,,0,0,takeaway duplicate,63974dd6-e698-4b55-8b0c-4754f6426000,Kottu / Chicken kottu (L)
+NEW,,,Kottu,Seafood kottu (M),1050.00,yes,,,,,,,,,Kottu / Seafood kottu (M)
+NEW,,,Kottu,Seafood kottu (L),1550.00,yes,,,,,,,,,Kottu / Seafood kottu (L)
+NEW,,,Kottu,Mixed kottu (M),1150.00,yes,,,,,,,,,Kottu / Mixed kottu (M)
+MATCH,high,1.0,Kottu,Mixed kottu (L),1750.00,yes,Mains,Mix Kottu ( Full ),1680.0,+70.00,0,1,,03911e88-2655-447c-927f-3c9a1bf0e6d7,Kottu / Mixed kottu (L)
+NEW,,,Kottu,Kochchi kottu (M),1250.00,yes,,,,,,,,,Kottu / Kochchi kottu (M)
+MATCH,CHECK,0.736,Kottu,Kochchi kottu (L),1750.00,yes,Mains,Kochchi Mix Kottu,1850.0,-100.00,0,1,,45115111-571c-44ad-aaf1-941e57fcc1ef,Kottu / Kochchi kottu (L)
+NEW,,,Kottu,Rawana special kottu (M),1350.00,yes,,,,,,,,,Kottu / Rawana special kottu (M)
+NEW,,,Kottu,Rawana special kottu (L),1850.00,yes,,,,,,,,,Kottu / Rawana special kottu (L)
+MATCH,high,1.0,Kottu,Cheese kottu (M),1350.00,yes,Mains,CHEESE KOTTU ( M ),1300.0,+50.00,0,1,,57607bb6-0376-4aeb-9711-1fcad76d72ec,Kottu / Cheese kottu (M)
+MATCH,high,1.0,Kottu,Cheese kottu (L),1850.00,yes,Mains,CHEESE KOTTU (Full),1500.0,+350.00,0,3,,0cd5bd2a-e358-4fda-8da4-1673b6a57ce0,Kottu / Cheese kottu (L)
+MATCH,high,1.0,Bites,Battered onion rings,600.00,yes,Bites,Battered Onion Rings,600.0,,0,1,,5658b66c-cea3-4a8e-82b6-2aef8ab08f2e,Bites / Battered onion rings
+MATCH,high,1.0,Bites,Fried garlic,550.00,yes,Bites,Fride  Garlik,550.0,,0,2,,d2a6f6b1-82f3-4bfa-a1d0-5ab35222b88c,Bites / Fried garlic
+NEW,,,Bites,Garlic kankun,850.00,yes,,,,,,,,,Bites / Garlic kankun
+MATCH,high,1.0,Bites,French fries,550.00,yes,Bites,French Fries,550.0,,0,10,,62d6a00b-599b-4b7e-be85-d62b3dff8138,Bites / French fries
+NEW,,,Bites,Hot butter mushroom,850.00,yes,,,,,,,,,Bites / Hot butter mushroom
+MATCH,MANUAL,1.0,Bites,Fried cashew nuts,1550.00,yes,Bites,Cashew nut,1800.0,-250.00,0,5,,25a2e46f-03f6-4564-a1ca-78bb2daa24c2,Bites / Fried cashew nuts
+MATCH,high,1.0,Bites,Vegetable chop suey,1300.00,yes,Mains,veg chopcy,1300.0,,0,0,,eafcd71c-1f05-4f1b-8c79-e169f6969871,Bites / Vegetable chop suey
+NEW,,,Bites,Devilled chicken wings,1200.00,yes,,,,,,,,,Bites / Devilled chicken wings
+MATCH,MANUAL,1.0,Bites,Hadallo (200g),1550.00,yes,Bites,hadello fish,650.0,+900.00,0,1,,3de60990-0237-4540-9808-c7489ba6c58e,Bites / Hadallo (200g)
+NEW,,,Bites,Fish fingers,1550.00,yes,,,,,,,,,Bites / Fish fingers
+MATCH,high,1.0,Bites,Devilled sausages,1100.00,yes,Bites,Devilled Sausage,950.0,+150.00,0,1,,b5933d6c-159c-4742-bd84-4e59c94184a5,Bites / Devilled sausages
+NEW,,,Bites,"Battered chicken, chips & salad",1450.00,yes,,,,,,,,,"Bites / Battered chicken, chips & salad"
+MATCH,high,1.0,Mains - Chicken,Devilled chicken,1550.00,yes,Bites,Devilled Chicken,1780.0,-230.00,0,5,,8758e0db-06b1-4bfb-a8c0-e38eedb3b080,Mains - Chicken / Devilled chicken
+MATCH,high,1.0,Mains - Chicken,Thai hot garlic chicken,1650.00,yes,Bites,THAI HOT GARLIC CHICKEN,1650.0,,1,1,,51a1b1a5-6140-462e-a04e-79c68172a069,Mains - Chicken / Thai hot garlic chicken
+MATCH,high,1.0,Mains - Chicken,Chilli chicken,1650.00,yes,Bites,CHILLIE CHICKEN,1700.0,-50.00,0,0,,3c8bf28e-898b-4cc9-8a19-470d106cf7bf,Mains - Chicken / Chilli chicken
+NEW,,,Mains - Chicken,Village style chicken,1650.00,yes,,,,,,,,,Mains - Chicken / Village style chicken
+NEW,,,Mains - Chicken,Chicken with kankun,1650.00,yes,,,,,,,,,Mains - Chicken / Chicken with kankun
+MATCH,high,1.0,Mains - Chicken,Hot butter chicken,1800.00,yes,Bites,hotbuter chicken,1800.0,,0,0,,8d0def5c-acd2-40b3-bd55-bc70f6eacd3f,Mains - Chicken / Hot butter chicken
+NEW,,,Mains - Chicken,Dry red chilli chicken,1650.00,yes,,,,,,,,,Mains - Chicken / Dry red chilli chicken
+NEW,,,Mains - Chicken,Pepper chicken,1650.00,yes,,,,,,,,,Mains - Chicken / Pepper chicken
+MATCH,high,1.0,Mains - Chicken,Stew chicken,1550.00,yes,Bites,CHIKEN STEW,1550.0,,0,1,,bbac8dfa-de1d-4ea3-abf9-16ecf4df879e,Mains - Chicken / Stew chicken
+HIDE (duplicate),high,1.0,Mains - Chicken,↳ duplicate of Stew chicken,,,Bites,CHICKEN STEW,1900.0,,0,1,,0b74da47-eef2-4e1e-99d8-35fc8b5bd108,Mains - Chicken / Stew chicken
+MATCH,high,1.0,Mains - Chicken,Fried chicken,1250.00,yes,Bites,FRIED CHICKEN,1250.0,,0,6,,72943f61-905b-407a-a790-fb8a0b6e7aff,Mains - Chicken / Fried chicken
+MATCH,high,1.0,Mains - Chicken,Singapore style chicken,1650.00,yes,Bites,singapore style chiken,1650.0,,0,1,,f9bcd537-6146-4331-bf47-56ce291c08b5,Mains - Chicken / Singapore style chicken
+MATCH,high,1.0,Mains - Pork,Devilled pork,1850.00,yes,Bites,Devilled Pork,1950.0,-100.00,0,1,,dc5965f8-4d16-47f8-96a1-8aa35af49ae5,Mains - Pork / Devilled pork
+NEW,,,Mains - Pork,Thai hot garlic pork,1850.00,yes,,,,,,,,,Mains - Pork / Thai hot garlic pork
+NEW,,,Mains - Pork,Chilli pork,1850.00,yes,,,,,,,,,Mains - Pork / Chilli pork
+NEW,,,Mains - Pork,Village style pork,1850.00,yes,,,,,,,,,Mains - Pork / Village style pork
+NEW,,,Mains - Pork,Pork with kankun,1850.00,yes,,,,,,,,,Mains - Pork / Pork with kankun
+NEW,,,Mains - Pork,Dry red chilli pork,1850.00,yes,,,,,,,,,Mains - Pork / Dry red chilli pork
+MATCH,high,1.0,Mains - Pork,Pepper pork,1850.00,yes,Bites,Pepper Pork,1850.0,,0,2,,fc6ee66b-a02b-4ce7-9397-48d1a0f66e49,Mains - Pork / Pepper pork
+MATCH,high,1.0,Mains - Pork,Stew pork,1750.00,yes,Bites,pork stew,1800.0,-50.00,0,8,,64eaca1c-fc74-424d-bbd3-bd61a751520d,Mains - Pork / Stew pork
+HIDE (duplicate),high,1.0,Mains - Pork,↳ duplicate of Stew pork,,,Bites,PORK STEW,2100.0,,0,3,,a9dc28ae-6b32-4f47-9727-693c90943fe1,Mains - Pork / Stew pork
+NEW,,,Mains - Pork,Fried pork,1600.00,yes,,,,,,,,,Mains - Pork / Fried pork
+NEW,,,Mains - Pork,Singapore style pork,1750.00,yes,,,,,,,,,Mains - Pork / Singapore style pork
+MATCH,high,1.0,Mains - Prawns,Devilled prawns,1850.00,yes,Bites,DEVILLED PRAWNS,1780.0,+70.00,0,1,,2051068a-fe7c-4a66-b4ba-3f353d996ab6,Mains - Prawns / Devilled prawns
+NEW,,,Mains - Prawns,Thai hot garlic prawns,1850.00,yes,,,,,,,,,Mains - Prawns / Thai hot garlic prawns
+NEW,,,Mains - Prawns,Chilli prawns,1850.00,yes,,,,,,,,,Mains - Prawns / Chilli prawns
+NEW,,,Mains - Prawns,Village style prawns,1850.00,yes,,,,,,,,,Mains - Prawns / Village style prawns
+NEW,,,Mains - Prawns,Prawns with kankun,1850.00,yes,,,,,,,,,Mains - Prawns / Prawns with kankun
+NEW,,,Mains - Prawns,Hot butter prawns,1780.00,yes,,,,,,,,,Mains - Prawns / Hot butter prawns
+NEW,,,Mains - Prawns,Dry red chilli prawns,1750.00,yes,,,,,,,,,Mains - Prawns / Dry red chilli prawns
+NEW,,,Mains - Prawns,Pepper prawns,1850.00,yes,,,,,,,,,Mains - Prawns / Pepper prawns
+NEW,,,Mains - Prawns,Stew prawns,1850.00,yes,,,,,,,,,Mains - Prawns / Stew prawns
+MATCH,MANUAL,1.0,Mains - Prawns,Fried prawns,1700.00,yes,Bites,fried prawns,1850.0,-150.00,0,0,,40e5289d-2e37-49a5-b992-5ec11d6125cc,Mains - Prawns / Fried prawns
+NEW,,,Mains - Prawns,Singapore style prawns,1750.00,yes,,,,,,,,,Mains - Prawns / Singapore style prawns
+MATCH,high,1.0,Mains - Fish,Devilled fish,1750.00,yes,Bites,DEVIELD FISH,1780.0,-30.00,0,1,,819b59e7-9df7-4c05-8186-7f7d9fe374b5,Mains - Fish / Devilled fish
+NEW,,,Mains - Fish,Thai hot garlic fish,1750.00,yes,,,,,,,,,Mains - Fish / Thai hot garlic fish
+MATCH,high,1.0,Mains - Fish,Chilli fish,1750.00,yes,Bites,CHILLIE FISH,1600.0,+150.00,0,1,,d792fb21-86bf-4c7e-8af6-eb08fb53e357,Mains - Fish / Chilli fish
+NEW,,,Mains - Fish,Village style fish,1750.00,yes,,,,,,,,,Mains - Fish / Village style fish
+NEW,,,Mains - Fish,Fish with kankun,1750.00,yes,,,,,,,,,Mains - Fish / Fish with kankun
+NEW,,,Mains - Fish,Hot butter fish,1750.00,yes,,,,,,,,,Mains - Fish / Hot butter fish
+NEW,,,Mains - Fish,Dry red chilli fish,1650.00,yes,,,,,,,,,Mains - Fish / Dry red chilli fish
+NEW,,,Mains - Fish,Pepper fish,1750.00,yes,,,,,,,,,Mains - Fish / Pepper fish
+NEW,,,Mains - Fish,Stew fish,1650.00,yes,,,,,,,,,Mains - Fish / Stew fish
+MATCH,CHECK (size),0.92,Mains - Fish,Fried fish,1700.00,yes,Bites,FRIED FISH 1KG,1800.0,-100.00,0,1,,d4f1b791-5528-4331-9366-6dfccd105167,Mains - Fish / Fried fish
+NEW,,,Mains - Fish,Singapore style fish,1700.00,yes,,,,,,,,,Mains - Fish / Singapore style fish
+MATCH,high,1.0,Mains - Cuttlefish,Devilled cuttlefish,1750.00,yes,Bites,DEVILLED CUTTELFISH,1750.0,,0,0,,f407b358-3a9c-476a-9070-876e26b7594c,Mains - Cuttlefish / Devilled cuttlefish
+NEW,,,Mains - Cuttlefish,Thai hot garlic cuttlefish,1750.00,yes,,,,,,,,,Mains - Cuttlefish / Thai hot garlic cuttlefish
+NEW,,,Mains - Cuttlefish,Chilli cuttlefish,1750.00,yes,,,,,,,,,Mains - Cuttlefish / Chilli cuttlefish
+NEW,,,Mains - Cuttlefish,Village style cuttlefish,1750.00,yes,,,,,,,,,Mains - Cuttlefish / Village style cuttlefish
+NEW,,,Mains - Cuttlefish,Cuttlefish with kankun,1750.00,yes,,,,,,,,,Mains - Cuttlefish / Cuttlefish with kankun
+MATCH,MANUAL,1.0,Mains - Cuttlefish,Hot butter cuttlefish,1700.00,yes,Bites,Hot Battered Cuttlefish,1700.0,,1,4,,61020c2a-c65b-4fb5-a849-b6adfcad69e6,Mains - Cuttlefish / Hot butter cuttlefish
+NEW,,,Mains - Cuttlefish,Dry red chilli cuttlefish,1800.00,yes,,,,,,,,,Mains - Cuttlefish / Dry red chilli cuttlefish
+NEW,,,Mains - Cuttlefish,Pepper cuttlefish,1800.00,yes,,,,,,,,,Mains - Cuttlefish / Pepper cuttlefish
+NEW,,,Mains - Cuttlefish,Stew cuttlefish,1750.00,yes,,,,,,,,,Mains - Cuttlefish / Stew cuttlefish
+NEW,,,Mains - Cuttlefish,Fried cuttlefish,1850.00,yes,,,,,,,,,Mains - Cuttlefish / Fried cuttlefish
+NEW,,,Mains - Cuttlefish,Singapore style cuttlefish,1850.00,yes,,,,,,,,,Mains - Cuttlefish / Singapore style cuttlefish
+MATCH,CHECK (size),0.92,House Specials,Mix chopsy,2350.00,yes,Mains,MIX CHOPCY L,2350.0,,0,5,,5d090693-ebcb-42ed-aaee-7ea32ac85f13,House Specials / Mix chopsy
+HIDE (duplicate),high,1.0,House Specials,↳ duplicate of Mix chopsy,,,Bites,MIX CHOPSY,2500.0,,0,2,,0a04c248-2a17-473c-9c75-757b2d1f5882,House Specials / Mix chopsy
+MATCH,high,1.0,House Specials,Crispy chicken,1850.00,yes,Bites,Cryspy Chicken,1780.0,+70.00,0,0,,8e74dc6c-9da8-4b11-84fc-4b66ebaafc40,House Specials / Crispy chicken
+NEW,MANUAL,,House Specials,Chicken cashew nut,1800.00,yes,,,,,,,set to NEW by hand (menu_overrides.csv),,House Specials / Chicken cashew nut
+MATCH,MANUAL,1.0,House Specials,Fried large prawns (200g),1950.00,yes,Bites,fried large prawns,1950.0,,0,1,,59d5a323-2d24-4012-8c72-246b45f567df,House Specials / Fried large prawns (200g)
+NEW,,,House Specials,Sweet & sour prawns,1850.00,yes,,,,,,,,,House Specials / Sweet & sour prawns
+NEW,,,House Specials,Special chilli prawns,1850.00,yes,,,,,,,,,House Specials / Special chilli prawns
+NEW,MANUAL,,House Specials,Hodello fish,1550.00,yes,,,,,,,set to NEW by hand (menu_overrides.csv),,House Specials / Hodello fish
+NEW,,,House Specials,Fish fillet (250g),1450.00,yes,,,,,,,,,House Specials / Fish fillet (250g)
+NEW,,,House Specials,Mullet fish (250g),1650.00,yes,,,,,,,,,House Specials / Mullet fish (250g)
+MATCH,high,1.0,Tea & Coffee,Plain tea,150.00,yes,Drinks,plain tea,150.0,,0,30,,d7ad2c9d-171b-4b5a-b81e-5ab134821138,Tea & Coffee / Plain tea
+MATCH,high,1.0,Tea & Coffee,Milk tea,250.00,yes,Drinks,milk tea,250.0,,0,49,,831fc9e2-26db-4861-90c2-19ab552baf8c,Tea & Coffee / Milk tea
+MATCH,MANUAL,1.0,Tea & Coffee,Ginger tea,250.00,yes,Drinks,ginger plain tea,180.0,+70.00,0,0,,c04b988f-207d-49f4-b40b-101affbd0d02,Tea & Coffee / Ginger tea
+NEW,,,Tea & Coffee,Lemon tea,250.00,yes,,,,,,,,,Tea & Coffee / Lemon tea
+NEW,,,Tea & Coffee,Iced tea,250.00,yes,,,,,,,,,Tea & Coffee / Iced tea
+MATCH,high,1.0,Tea & Coffee,Black coffee,150.00,yes,Drinks,black coffe,150.0,,0,16,,52d62362-0b7a-4c9a-91db-a5414a0914c7,Tea & Coffee / Black coffee
+MATCH,high,1.0,Tea & Coffee,Milk coffee,250.00,yes,Mains,milk coffe,280.0,-30.00,0,0,,d7d1d69b-48e2-48ed-a0fd-4f60ba13d512,Tea & Coffee / Milk coffee
+NEW,,,Tea & Coffee,Iced coffee,350.00,yes,,,,,,,,,Tea & Coffee / Iced coffee
+MATCH,CHECK (size),0.92,Soft Drinks,Coca-Cola,250.00,yes,Drinks,Cola (Small),250.0,,1,17,,9b8c69d6-9dcf-4026-a4d9-3fb7a6578ba4,Soft Drinks / Coca-Cola
+HIDE (duplicate),high,1.0,Soft Drinks,↳ duplicate of Coca-Cola,,,Drinks,Cola,350.0,,0,0,,f4e15232-940b-4b37-80ab-ea7205264272,Soft Drinks / Coca-Cola
+HIDE (duplicate),high,1.0,Soft Drinks,↳ duplicate of Coca-Cola,,,Drinks,Cola,350.0,,0,0,,002050ca-fcb6-4028-b700-41c0677776b6,Soft Drinks / Coca-Cola
+MATCH,CHECK (size),0.92,Soft Drinks,Sprite,250.00,yes,Drinks,Sprite (Small),250.0,,1,25,,56acb2d0-eb7a-4719-8043-4fa8be7f4dd1,Soft Drinks / Sprite
+HIDE (duplicate),high,1.0,Soft Drinks,↳ duplicate of Sprite,,,Drinks,Sprite,350.0,,0,1,,ecaa1d57-6dab-4ccf-a6a6-d135c16e2518,Soft Drinks / Sprite
+MATCH,high,1.0,Soft Drinks,Soda,250.00,yes,Drinks,Soda,350.0,-100.00,0,14,,6e821e66-2cb8-4b6d-a364-ebb4b8b2727b,Soft Drinks / Soda
+MATCH,high,1.0,Soft Drinks,RIDE,650.00,yes,Mains,RIDE,550.0,+100.00,0,4,,3cf72812-c7f6-4e4f-b799-fbf9654b3213,Soft Drinks / RIDE
+MATCH,MANUAL,1.0,Soft Drinks,Ginger beer,250.00,yes,Drinks,EGB,250.0,,0,4,,768c3d8b-28ab-43c1-a503-4cb7aeec4813,Soft Drinks / Ginger beer
+MATCH,high,1.0,Soft Drinks,Coca-Cola 1L,450.00,yes,Drinks,Cola 1L,450.0,,1,15,,ecc11cf8-cfe5-4013-90ad-36adb0f63505,Soft Drinks / Coca-Cola 1L
+HIDE (duplicate),high,1.0,Soft Drinks,↳ duplicate of Coca-Cola 1L,,,Drinks,cola 1L,450.0,,1,6,HAS RECIPE LINES — recipe not moved,f7762135-5ab3-4da0-88e2-c73fc13b37f3,Soft Drinks / Coca-Cola 1L
+MATCH,high,1.0,Soft Drinks,Sprite 1L,450.00,yes,Drinks,Sprite 1L,450.0,,1,18,,f817f9a6-7fda-48b8-bfd4-bb3f31cda8db,Soft Drinks / Sprite 1L
+NEW,,,Soft Drinks,Soda 1L,450.00,yes,,,,,,,,,Soft Drinks / Soda 1L
+MATCH,high,1.0,Soft Drinks,Water 500ml,150.00,yes,Drinks,water 500ml,150.0,,1,9,,49c6cbee-8198-4784-ac32-999b5470273b,Soft Drinks / Water 500ml
+MATCH,high,1.0,Soft Drinks,Water bottle 1L,200.00,yes,Drinks,Water Bottle (1l),200.0,,1,85,,52794ebc-ed26-44ac-b77a-facf0c479d8e,Soft Drinks / Water bottle 1L
+MATCH,CHECK,0.8,Fresh Juice,Fresh mango juice,650.00,yes,Drinks,Mango Juice,650.0,,0,1,,91c9b1a2-a744-4f7a-82d8-dc768d86014f,Fresh Juice / Fresh mango juice
+NEW,,,Fresh Juice,Mango lassi,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Mango lassi
+NEW,,,Fresh Juice,Mango shake,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Mango shake
+NEW,,,Fresh Juice,Mango smoothie,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Mango smoothie
+NEW,,,Fresh Juice,Fresh banana juice,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Fresh banana juice
+NEW,,,Fresh Juice,Banana lassi,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Banana lassi
+NEW,,,Fresh Juice,Banana shake,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Banana shake
+NEW,,,Fresh Juice,Banana smoothie,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Banana smoothie
+MATCH,CHECK,0.8,Fresh Juice,Fresh pineapple juice,650.00,yes,Drinks,Pineapple Juice,650.0,,0,0,,dddd0d1b-f62c-4640-8933-042b71f92a71,Fresh Juice / Fresh pineapple juice
+NEW,,,Fresh Juice,Pineapple lassi,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Pineapple lassi
+NEW,,,Fresh Juice,Pineapple shake,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Pineapple shake
+NEW,,,Fresh Juice,Pineapple smoothie,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Pineapple smoothie
+MATCH,CHECK,0.8,Fresh Juice,Fresh watermelon juice,650.00,yes,Drinks,Watermelon Juice,350.0,+300.00,0,0,,316b121e-f8f3-4365-b5ad-41faa6b8cc76,Fresh Juice / Fresh watermelon juice
+NEW,,,Fresh Juice,Watermelon lassi,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Watermelon lassi
+NEW,,,Fresh Juice,Watermelon shake,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Watermelon shake
+NEW,,,Fresh Juice,Watermelon smoothie,0.00,HIDDEN (price TBD),,,,,,,,,Fresh Juice / Watermelon smoothie
+NEW,,,Fresh Juice,Faluda,650.00,yes,,,,,,,,,Fresh Juice / Faluda
+MATCH,MANUAL,1.0,Desserts,Watalappan - Classic,350.00,yes,Desserts,Watalappan,550.0,-200.00,0,0,,20a22460-03cb-49d0-8352-c377ef2bd28e,Desserts / Watalappan - Classic
+NEW,MANUAL,,Desserts,Watalappan - Rawana special,0.00,HIDDEN (price TBD),,,,,,,set to NEW by hand (menu_overrides.csv),,Desserts / Watalappan - Rawana special
+NEW,,,Desserts,Caramel pudding,350.00,yes,,,,,,,,,Desserts / Caramel pudding
+NEW,,,Desserts,Jelly,150.00,yes,,,,,,,,,Desserts / Jelly
+NEW,,,Desserts,Jelly with ice cream,0.00,HIDDEN (price TBD),,,,,,,,,Desserts / Jelly with ice cream
+MATCH,high,1.0,Desserts,Fruit salad,250.00,yes,Mains,FRUIT SALAD,350.0,-100.00,0,2,,1d240801-9828-463b-8cce-83159439f92a,Desserts / Fruit salad
+NEW,MANUAL,,Desserts,Fruit salad with ice cream,0.00,HIDDEN (price TBD),,,,,,,set to NEW by hand (menu_overrides.csv),,Desserts / Fruit salad with ice cream
+MATCH,MANUAL,1.0,Desserts,Ice cream - Plain,250.00,yes,Desserts,Ice Cream Vanilla,400.0,-150.00,0,18,,eb0f6321-c194-4dcb-984f-b5a3b72d9205,Desserts / Ice cream - Plain
+NEW,,,Desserts,Ice cream with cashew nuts & kithul treacle,0.00,HIDDEN (price TBD),,,,,,,,,Desserts / Ice cream with cashew nuts & kithul treacle
+MATCH,MANUAL,1.0,Desserts,Yoghurt - Plain,120.00,yes,Desserts,youghut,120.0,,0,20,,fbf17ce2-f2f1-4e89-99df-0ffefb38aa56,Desserts / Yoghurt - Plain
+NEW,,,Desserts,Yoghurt with cashew nuts & kithul treacle,0.00,HIDDEN (price TBD),,,,,,,,,Desserts / Yoghurt with cashew nuts & kithul treacle
+KEEP (moved),MANUAL,,Breakfast & Lunch,Rice & Curry Pkt,450.00,yes,Rice & Curry,Rice & Curry Pkt,450.0,,0,26,kept as-is (menu_keep.csv),2c2ec76c-f746-4871-a996-e54aaa3ac4ec,
+KEEP (moved),MANUAL,,Breakfast & Lunch,Breakfast Rice & Curry,250.00,yes,Rice & Curry,Breakfast Rice & Curry,250.0,,0,23,kept as-is (menu_keep.csv),86fed741-a5c9-4677-867a-cd1eab04a658,
+KEEP (moved),MANUAL,,Breakfast & Lunch,Breakfast Rice & Curry (Table),350.00,yes,Rice & Curry,Breakfast Rice & Curry (Table),350.0,,0,7,kept as-is (menu_keep.csv),f80fb850-3369-44df-a59a-5a4f78fd44c4,
+KEEP (moved),MANUAL,,Breakfast & Lunch,Rice and Curry - Breakfast,200.00,yes,Rice & Curry,Rice and Curry - Breakfast,200.0,,1,0,kept as-is (menu_keep.csv),2b51a2bd-3169-426a-92a7-07baf164da01,
+KEEP (moved),MANUAL,,Breakfast & Lunch,string hoppers,350.00,yes,Mains,string hoppers,350.0,,0,22,kept as-is (menu_keep.csv),b6a4b2a5-5400-42d0-bf1a-5f43f9afe278,
+KEEP (moved),MANUAL,,Breakfast & Lunch,string hopper breakfast ( outside),120.00,yes,Mains,string hopper breakfast ( outside),120.0,,0,9,kept as-is (menu_keep.csv),27283f9f-dbdc-4039-b018-52e1d7c3aca8,
+KEEP (moved),MANUAL,,Breakfast & Lunch,Lunch,450.00,yes,Mains,Lunch,450.0,,0,16,kept as-is (menu_keep.csv),dd2d9c15-bcb6-4dfb-8bbc-498cda435597,
+KEEP (moved),MANUAL,,Breakfast & Lunch,egg rice 1 plate,1350.00,yes,Mains,egg rice 1 plate,1350.0,,0,15,kept as-is (menu_keep.csv),e5c2d501-32be-4e7d-b324-0cc4b933980b,
+KEEP (moved),MANUAL,,Breakfast & Lunch,Chinees breckfrist,1300.00,yes,Mains,Chinees breckfrist,1300.0,,0,8,kept as-is (menu_keep.csv),aa53be6b-50b1-4c37-80ec-58a75b3a8e96,
+KEEP (moved),MANUAL,,Other,ROTI,150.00,yes,Mains,ROTI,150.0,,0,5,kept as-is (menu_keep.csv),cebb3c4a-01fb-4b67-b49b-aea2a0fb4f55,
+KEEP (moved),MANUAL,,Other,Cucumber Plate,250.00,yes,Bites,Cucumber Plate,250.0,,0,5,kept as-is (menu_keep.csv),040cafda-873d-4d9f-a065-32db575bc336,
+KEEP (moved),MANUAL,,Other,Bulsai,150.00,yes,Bites,Bulsai,150.0,,0,5,kept as-is (menu_keep.csv),82ed28a0-3c30-4709-9f3e-8a6babfffe8c,
+KEEP (moved),MANUAL,,Other,SIGARAT,250.00,yes,Bites,SIGARAT,250.0,,0,5,kept as-is (menu_keep.csv),e6c95d63-ae12-48c3-87e3-82f9fbba9ad7,
+KEEP (moved),MANUAL,,Other,tonic small,250.00,yes,Bites,tonic small,250.0,,0,5,kept as-is (menu_keep.csv),29a5e61b-7fee-44bc-b03e-727a1b51448c,
+KEEP (moved),MANUAL,,Other,boil egg,150.00,yes,Bites,boil egg,150.0,,1,2,kept as-is (menu_keep.csv),470ff97b-5479-4cc3-ab2f-ebe8087306bc,
+HIDE (not in new menu),,,,,,,Bites,Apple Plate,400.0,,0,0,,5e45b6ef-6760-48c9-8364-336c9d5e017b,
+HIDE (not in new menu),,,,,,,Bites,BATTERD MUSHROOM,4500.0,,0,0,,a99b78a7-07b1-4512-a7e6-d8ba20b98f84,
+HIDE (not in new menu),,,,,,,Bites,BOILED VEGITABLES,1100.0,,0,0,,455101e1-997c-4378-9b45-ef64675e505a,
+HIDE (not in new menu),,,,,,,Bites,BOILED VEGITABLES (1KG),3500.0,,0,0,,3461510d-59a6-4dd9-ad69-c13c824effa4,
+HIDE (not in new menu),,,,,,,Bites,Battered Fish (Thalapath),1500.0,,0,0,,3345859a-fe4f-4f8f-bb0b-21b6f1514fef,
+HIDE (not in new menu),,,,,,,Bites,Battered Mushroom,600.0,,0,0,,6246088c-6bc4-4218-98cd-6d3f61e6aa13,
+HIDE (not in new menu),,,,,,,Bites,CHEESE OMLET,900.0,,0,4,,ea382fdb-c9ec-497c-887a-6cd728da0042,
+HIDE (not in new menu),,,,,,,Bites,CHICKEN BLACK CURRY,1700.0,,0,2,,4def4e5f-7c59-4f1e-b980-f71cad4ebefb,
+HIDE (not in new menu),,,,,,,Bites,CHIK PEAS 1KG,3400.0,,0,3,,eb9a3ab3-b451-4891-b673-c2c0d08b2544,
+HIDE (not in new menu),,,,,,,Bites,Chilly Chicken (250g),1400.0,,0,0,,231ce58d-edce-40b9-bbc2-fff32f7111e5,
+HIDE (not in new menu),,,,,,,Bites,Crispy Chicken (250g),1780.0,,0,0,,d01391f2-3ec4-406c-9d56-6008edb7197d,
+HIDE (not in new menu),,,,,,,Bites,DEVILLED CHICKEN (1Kg),5500.0,,0,0,,d6207ed0-d429-47df-a0ad-d75b0cd45e2c,
+HIDE (not in new menu),,,,,,,Bites,DEVILLED CHIKEN T,1550.0,,0,4,,b3afb989-b98c-414a-9a27-5a346b796a67,
+HIDE (not in new menu),,,,,,,Bites,Deep Fried Sausage,900.0,,0,0,,c7f46c67-13b5-4124-9bc6-6f4639d03c45,
+HIDE (not in new menu),,,,,,,Bites,FRUIT PLATE,1500.0,,0,1,,4b159c05-7c83-4719-b884-7ba0c59a0ea6,
+HIDE (not in new menu),,,,,,,Bites,Fried Chicken (250g),1890.0,,0,0,,0cd95ec5-d806-4e38-9b9b-29258fe3caf8,
+HIDE (not in new menu),,,,,,,Bites,Fried Sausage,600.0,,0,0,,f19d2ac2-9eb0-481e-8d10-13afee4abff0,
+HIDE (not in new menu),,,,,,,Bites,Fruit Platter,1200.0,,0,2,,a40b2da1-8a14-4a6e-87a8-a87a7885891c,
+HIDE (not in new menu),,,,,,,Bites,Ice Cube,550.0,,0,1,,6c6786d2-1191-4e77-8bd3-7dc2f1f03d25,
+HIDE (not in new menu),,,,,,,Bites,Ice Cube,550.0,,0,4,,c3bd9d1f-19d4-4a51-ab26-c21a73ca72a2,
+HIDE (not in new menu),,,,,,,Bites,Omelate,550.0,,0,1,,d2fb115a-6250-4cd2-8dca-22affde7932c,
+HIDE (not in new menu),,,,,,,Bites,PORK 500G,3000.0,,0,0,,4d371dbb-a8f6-4156-8b09-5a4433ab3056,
+HIDE (not in new menu),,,,,,,Bites,PORK BLACK CURRY 250G,1950.0,,0,3,,887f94c0-e978-4ca8-aee6-f3c2bd7b60ee,
+HIDE (not in new menu),,,,,,,Bites,Sri Lankan Omelate,900.0,,0,1,,4291343c-bb2b-4013-bf51-75aedbf814ea,
+HIDE (not in new menu),,,,,,,Bites,boil egg,550.0,,0,1,,047ce39c-69e8-4310-8642-b3a7b5de4cc5,
+HIDE (not in new menu),,,,,,,Bites,cheese chiken omlet,900.0,,0,1,,7256b6c3-8db2-48ba-87f7-e91905e6823e,
+HIDE (not in new menu),,,,,,,Bites,chiken kottu,950.0,,0,1,,f8c6a172-fd0b-4813-a488-5dca38f23173,
+HIDE (not in new menu),,,,,,,Bites,devilled chiken  1kg,5500.0,,0,3,,fcc2ac76-6aec-4fd1-8ec6-02545a09273e,
+HIDE (not in new menu),,,,,,,Bites,fruit plate,3500.0,,0,0,,ccdee2a9-d48d-4c31-8e28-9ce7e3b3630e,
+HIDE (not in new menu),,,,,,,Desserts,Fruit & Nut Ice Cream,450.0,,0,2,,e116b8b9-3766-445c-b0ec-536ae1c36f13,
+HIDE (not in new menu),,,,,,,Desserts,Ice Cream Chocolate,400.0,,0,0,,7dfed86a-1c24-454e-af6b-6b467daa7572,
+HIDE (not in new menu),,,,,,,Drinks,Corkage Soft Drink 1Bot,150.0,,0,4,,72d19db8-2763-4b06-b2e4-23e4e2964c1a,
+HIDE (not in new menu),,,,,,,Drinks,Fresh Lime Juice,350.0,,0,1,,b5a845c3-4017-4f24-bd5b-73600881e67b,
+HIDE (not in new menu),,,,,,,Drinks,Fresh Milk,250.0,,0,1,,f1b270af-6697-48cf-b443-4c5702e4d33c,
+HIDE (not in new menu),,,,,,,Drinks,Ginger mik tea,280.0,,0,0,,5f7e5e56-7bdc-4bdb-94cb-57d73eba7102,
+HIDE (not in new menu),,,,,,,Drinks,Orange Juice (Cordial),350.0,,0,0,,9adad4c1-cc7f-4636-a655-920ea4c1b4e9,
+HIDE (not in new menu),,,,,,,Drinks,Other Drink,1200.0,,0,0,,51fcaa67-6359-4ca4-a3f7-4c9509c6ccf2,
+HIDE (not in new menu),,,,,,,Drinks,SMACK 1L,850.0,,0,0,,c9085ca0-d055-449c-a2a1-5ccdad86cda3,
+HIDE (not in new menu),,,,,,,Drinks,SPRITE 1.25L,650.0,,0,1,,1cd43c2d-ab45-48d3-9dd8-464372901f86,
+HIDE (not in new menu),,,,,,,Drinks,Soda 1.5L,520.0,,0,1,,eaf4862e-56ce-4549-bdec-2b9b7d151e75,
+HIDE (not in new menu),,,,,,,Drinks,Sunquick Cordial,500.0,,0,1,,af1df1e5-cdea-4bb9-b3bb-d239809d719b,
+HIDE (not in new menu),,,,,,,Drinks,Tea,150.0,,0,0,,5c6089cb-c436-4f6d-a80c-9c062d606aa9,
+HIDE (not in new menu),,,,,,,Drinks,chocalate milk shake,500.0,,0,0,,4c8bef4d-0d8f-4061-9572-4ca8811b13f5,
+HIDE (not in new menu),,,,,,,Drinks,fresh milk,400.0,,0,1,,cc0ce6b4-1427-408a-a763-6b0ce2154448,
+HIDE (not in new menu),,,,,,,Drinks,lemonade,250.0,,0,0,,9bd9211b-a3f8-4215-a0ae-385385ec12a4,
+HIDE (not in new menu),,,,,,,Drinks,sprite 2l,800.0,,0,3,,d08cb8e6-5618-4df4-ad1c-ec754b3d000b,
+HIDE (not in new menu),,,,,,,Mains,Bread and Currys,350.0,,0,0,,60fa5848-6665-4e71-b3a4-e21da703892e,
+HIDE (not in new menu),,,,,,,Mains,Breakfast  - බත්,250.0,,0,3,,072f8236-baa8-418a-82df-5b1669becc98,
+HIDE (not in new menu),,,,,,,Mains,CHIKEN CURRY,350.0,,0,1,,21df32c8-86b0-4de3-bd88-7b4973ea56bb,
+HIDE (not in new menu),,,,,,,Mains,CHIKEN RICE,1200.0,,0,1,,4058092f-f1da-4082-b731-2fcaada38044,
+HIDE (not in new menu),,,,,,,Mains,CHIKEN RICE    L TAKE AWAY,1500.0,,0,2,takeaway duplicate,8598ed44-22fe-4ad7-bca1-674f02b5ab96,
+HIDE (not in new menu),,,,,,,Mains,Cheese Chicken Pasta,1600.0,,0,1,,bbdfe1e1-b9c8-4fd5-9c54-de1221bb5de5,
+HIDE (not in new menu),,,,,,,Mains,Chicken Kottu Kinsly,1000.0,,0,0,,3d19dc9a-a783-452d-8f0b-9b4dafe58c5a,
+HIDE (not in new menu),,,,,,,Mains,Chicken Rice ( Full ) Takeaway,1600.0,,0,0,takeaway duplicate,3b5e561c-66b6-4285-aab8-b7c971f3ab60,
+HIDE (not in new menu),,,,,,,Mains,Doctor's Party 32 Pax x 2400.00,76800.0,,0,0,,afce2d18-08b7-407a-aedf-b6145e228d14,
+HIDE (not in new menu),,,,,,,Mains,FISH CURRY,1600.0,,0,1,,4882d6de-47eb-4f9a-b810-11a695b4be51,
+HIDE (not in new menu),,,,,,,Mains,Half Board,6000.0,,0,0,,79651cbc-188f-4345-9bd7-4fcf6769b355,
+HIDE (not in new menu),,,,,,,Mains,Milk Rice,350.0,,0,2,,015625b9-9e85-470e-96e3-8e1d0b86d4e3,
+HIDE (not in new menu),,,,,,,Mains,Mix Cheese Pasta,1650.0,,0,1,,a1756cc3-f73b-45ae-9d38-a9abdddab05d,
+HIDE (not in new menu),,,,,,,Mains,NC room,3000.0,,0,0,,ca613670-c2b3-4441-9939-ed385e6e9949,
+HIDE (not in new menu),,,,,,,Mains,Nazi Gurang Chicken,1850.0,,0,0,,5c0cc529-8b98-459c-a155-f5ab0f0aefae,
+HIDE (not in new menu),,,,,,,Mains,RAWANA SPECIAL,1850.0,,0,1,,b66fdd30-c771-4a6d-a5dd-1b85ccc58ed5,
+HIDE (not in new menu),,,,,,,Mains,RAWANA SPECIAL,1850.0,,0,0,,0d89f018-942a-4968-8c2e-541e59cc21ee,
+HIDE (not in new menu),,,,,,,Mains,ROOM,2500.0,,0,4,,559305c8-67ea-4e1b-a5bf-c6a8af34f696,
+HIDE (not in new menu),,,,,,,Mains,ROOMS,4500.0,,0,0,,36c6136f-703f-4554-bc38-39577f928cf5,
+HIDE (not in new menu),,,,,,,Mains,SEAFOOD SAWANA,4000.0,,0,2,,e52b717e-c785-44e7-a053-4643e52829e2,
+HIDE (not in new menu),,,,,,,Mains,chicken gravy,70.0,,0,0,,24bd2770-c321-45a0-96dc-b04e8e5a2dd8,
+HIDE (not in new menu),,,,,,,Mains,chopcy  500 g,1900.0,,0,1,,caaccec6-c1bc-4306-9442-89165434818f,
+HIDE (not in new menu),,,,,,,Mains,chopcy 1kg,3800.0,,0,1,,1972911b-1a78-42b3-b660-6854fa946b3f,
+HIDE (not in new menu),,,,,,,Mains,dhal portion,50.0,,0,0,,7b5daf38-6a42-46f3-be9e-714f1317e103,
+HIDE (not in new menu),,,,,,,Mains,egg salad,1850.0,,0,1,,795e1133-df1a-48ae-b2c5-872af75d853f,
+HIDE (not in new menu),,,,,,,Mains,fresh milk,750.0,,0,1,,664beff7-23f1-4f7d-abd5-cfd9c83aeee8,
+HIDE (not in new menu),,,,,,,Mains,seafood rice L table,1650.0,,0,1,,084619de-bef9-4ac1-ba59-c3e8716ab3e4,
+HIDE (not in new menu),,,,,,,Mains,strin hopper,200.0,,0,1,,592d4632-d610-431a-b315-3cda74ed32c1,
+HIDE (not in new menu),,,,,,,Mains,string hopper breakfast,150.0,,0,3,,3d2be1a4-0435-4a60-8870-a83a89769bbf,
+HIDE (not in new menu),,,,,,,Mains,string hopper with chiken,450.0,,0,4,,60b55d52-e902-460f-ad41-ecd2b6245c74,
+HIDE (not in new menu),,,,,,,Mains,string hoppers,70.0,,0,0,,f076a767-c447-4141-b050-2c5045cc56f1,
+HIDE (not in new menu),,,,,,,Rice & Curry,Breakfast Noodles Pkt,200.0,,0,4,,06813744-02b1-418e-b6a7-d8cec2a812c8,
+HIDE (not in new menu),,,,,,,Rice & Curry,Chicken Curry,350.0,,0,1,,b4d8eb88-7690-4e46-89d9-7c6352530cc7,
+HIDE (not in new menu),,,,,,,Rice & Curry,Fish Curry ( Kiri Malu ),350.0,,0,1,,f0cd54b4-795c-4565-b57f-3e4770d75682,
+HIDE (not in new menu),,,,,,,Rice & Curry,Stream Hoppers - Breakfast,250.0,,0,2,,bbff5c39-42de-4582-82a1-633b1ef12399,
+UNTOUCHED (internal),,,,,,,,,,,,,25 items in internal categories,,

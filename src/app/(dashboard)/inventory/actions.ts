@@ -292,3 +292,36 @@ export async function recordPurchase(
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }
 }
+
+export interface OpeningStockLine {
+  inventoryItemId: string;
+  quantity: number;
+  unitCost: number | null;
+}
+
+/** Records a physical stock count — each item is SET to the counted
+ * quantity and logged as an "opening" stock movement (migration 044). */
+export async function recordOpeningStock(
+  lines: OpeningStockLine[],
+  note: string
+): Promise<ActionResult & { count?: number }> {
+  try {
+    await assertRole(RECIPE_ROLES);
+    if (lines.length === 0) return { ok: false, error: "Enter at least one counted item." };
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("rpc_record_opening_stock", {
+      p_items: lines.map((l) => ({
+        inventory_item_id: l.inventoryItemId,
+        quantity: l.quantity,
+        unit_cost: l.unitCost,
+      })),
+      p_note: note,
+    });
+    if (error) return { ok: false, error: error.message };
+    revalidatePath("/inventory");
+    revalidatePath("/inventory/opening-stock");
+    return { ok: true, count: data as number };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}

@@ -84,7 +84,7 @@ export default async function ReservePage() {
       </div>
       <div className="grid gap-6 lg:grid-cols-5">
         <div className="lg:col-span-2">
-          <BookingForm rooms={rooms} ratePlans={ratePlans} />
+          <BookingForm rooms={rooms} ratePlans={ratePlans} holds={bookings} />
         </div>
         <div className="lg:col-span-3">
           <BookingList

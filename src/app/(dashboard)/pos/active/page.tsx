@@ -16,6 +16,10 @@ export default async function PosActivePage() {
   const canManageTables = profile ? canAccess(profile.role, "/pos/tables") : false;
   const canVoid = profile?.role === "admin";
 
+  // Abandoned Rs 0 orders (opened, nothing added) are removed after 30 min
+  // and their tables freed — see rpc_purge_empty_orders (migration 042).
+  await supabase.rpc("rpc_purge_empty_orders", { p_min_age_minutes: 30 });
+
   const [tablesRes, categoriesRes, menuRes, ordersRes, guestsRes, hotelRes, creditAccountsRes] = await Promise.all([
     supabase.from("restaurant_tables").select("*").order("table_number"),
     supabase.from("menu_categories").select("*").order("sort_order"),

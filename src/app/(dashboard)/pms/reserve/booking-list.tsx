@@ -15,7 +15,7 @@ import {
   XCircle,
 } from "lucide-react";
 import type { Booking, CreditAccount, HotelSettings, PaymentMethod } from "@/lib/types";
-import { formatDate, formatLKR } from "@/lib/utils";
+import { formatDate, formatLKR, formatOverdue } from "@/lib/utils";
 import { useThermalPrint, type FolioPayload } from "@/hooks/useThermalPrint";
 import { buildWhatsAppUrl, generateFolioPdf, openPdf, uploadBillPdf } from "@/lib/bill-pdf";
 import {
@@ -26,7 +26,6 @@ import {
   setBookingStatus,
   shortenOvernightStay,
 } from "../actions";
-import { ensureOrderNumber } from "../../pos/actions";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card";
@@ -60,10 +59,32 @@ export function StayCountdown({ booking }: { booking: Booking }) {
     return () => clearInterval(t);
   }, []);
 
-  if (booking.stay_type !== "short_stay" || booking.status !== "checked_in") return null;
+  if (booking.status !== "checked_in") return null;
 
   const end = new Date(booking.check_out_date).getTime();
   const diffMin = Math.round((end - now) / 60_000);
+
+  // Overnight stays: only flag when due out within 2h or already overdue —
+  // a running countdown over several nights would just be noise.
+  if (booking.stay_type !== "short_stay") {
+    if (diffMin < 0) {
+      return (
+        <Badge variant="danger">
+          <Timer className="mr-1 h-3 w-3" />
+          Overdue by {formatOverdue(-diffMin)}
+        </Badge>
+      );
+    }
+    if (diffMin <= 120) {
+      return (
+        <Badge variant="warning">
+          <Timer className="mr-1 h-3 w-3" />
+          Due out in {formatOverdue(diffMin)}
+        </Badge>
+      );
+    }
+    return null;
+  }
   const abs = Math.abs(diffMin);
   const h = Math.floor(abs / 60);
   const m = abs % 60;
@@ -73,7 +94,7 @@ export function StayCountdown({ booking }: { booking: Booking }) {
     return (
       <Badge variant="danger">
         <Timer className="mr-1 h-3 w-3" />
-        Over by {label}
+        Overdue by {label}
       </Badge>
     );
   }
@@ -129,18 +150,10 @@ export function BookingList({
   };
 
   /** Full bill payload — settled folio + still-unsettled room-service
-   * orders. Printing a folio counts as "issuing a bill" for those pending
-   * sub-orders too, so any still missing a number get one assigned now. */
+   * orders (those have no bill number yet; numbers are issued at settle). */
   const buildPayload = async (b: Booking): Promise<FolioPayload> => {
     const settled = serviceOrdersByBooking[b.id] ?? [];
-    const pendingRaw = pendingServiceByBooking[b.id] ?? [];
-    const pending = await Promise.all(
-      pendingRaw.map(async (o) => {
-        if (o.orderNumber != null) return o;
-        const res = await ensureOrderNumber(o.id);
-        return res.ok && res.orderNumber ? { ...o, orderNumber: res.orderNumber } : o;
-      })
-    );
+    const pending = pendingServiceByBooking[b.id] ?? [];
     const serviceOrders = [...settled, ...pending];
     const settledTotal = settled.reduce((sum, o) => sum + o.amount, 0);
     const pendingTotal = pending.reduce((sum, o) => sum + o.amount, 0);
