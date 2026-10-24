@@ -11,39 +11,12 @@ import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Select } from "@/components/ui/select";
 
-/** An open (pending / in-house) booking, for greying out taken rooms. */
-export interface RoomHold {
-  room_id: string | null;
-  status: string;
-  guest_name: string;
-  check_in_date: string;
-  check_out_date: string;
-}
-
-/** Same rule as the database guard (migration 038): an in-house guest holds
- * the room until actually checked out, even past their planned checkout. */
-function findClash(holds: RoomHold[], roomId: string, start: number, end: number): RoomHold | null {
-  const now = Date.now();
-  for (const h of holds) {
-    if (h.room_id !== roomId) continue;
-    const hStart = new Date(h.check_in_date).getTime();
-    const hEnd =
-      h.status === "checked_in"
-        ? Math.max(new Date(h.check_out_date).getTime(), now)
-        : new Date(h.check_out_date).getTime();
-    if (hStart < end && start < hEnd) return h;
-  }
-  return null;
-}
-
 export function BookingForm({
   rooms,
   ratePlans,
-  holds = [],
 }: {
   rooms: Room[];
   ratePlans: RoomRatePlan[];
-  holds?: RoomHold[];
 }) {
   const formRef = useRef<HTMLFormElement>(null);
   const [message, setMessage] = useState<{ ok: boolean; text: string } | null>(null);
@@ -78,25 +51,6 @@ export function BookingForm({
   }
 
   const selectedRoom = rooms.find((r) => r.id === roomId);
-
-  // Window being booked: the chosen dates, or "right now" until dates are set
-  // (so a room with a guest in it is never offered for a walk-in).
-  const span = useMemo(() => {
-    const s = checkIn ? new Date(checkIn).getTime() : NaN;
-    const e = checkOut ? new Date(checkOut).getTime() : NaN;
-    if (Number.isFinite(s) && Number.isFinite(e) && e > s) return { start: s, end: e };
-    const now = Date.now();
-    return { start: now, end: now + 60_000 };
-  }, [checkIn, checkOut]);
-  const clashByRoom = useMemo(() => {
-    const map = new Map<string, RoomHold>();
-    for (const r of rooms) {
-      const c = findClash(holds, r.id, span.start, span.end);
-      if (c) map.set(r.id, c);
-    }
-    return map;
-  }, [rooms, holds, span]);
-  const selectedClash = selectedRoom ? clashByRoom.get(selectedRoom.id) : undefined;
   const availablePlans = useMemo(
     () =>
       selectedRoom
@@ -256,28 +210,12 @@ export function BookingForm({
               <option value="" disabled>
                 Select a room…
               </option>
-              {rooms.map((room) => {
-                const clash = clashByRoom.get(room.id);
-                return (
-                  <option
-                    key={room.id}
-                    value={room.id}
-                    disabled={room.status === "maintenance" || Boolean(clash)}
-                  >
-                    {room.room_number} — {room.room_types?.name} ·{" "}
-                    {clash
-                      ? `taken: ${clash.guest_name} (${clash.status === "checked_in" ? "in house" : "reserved"})`
-                      : room.status}
-                  </option>
-                );
-              })}
+              {rooms.map((room) => (
+                <option key={room.id} value={room.id} disabled={room.status === "maintenance"}>
+                  {room.room_number} — {room.room_types?.name} · {room.status}
+                </option>
+              ))}
             </Select>
-            {selectedClash ? (
-              <p className="text-xs text-destructive">
-                Room {selectedRoom?.room_number} is taken by {selectedClash.guest_name} for these dates —
-                pick another room or change the dates.
-              </p>
-            ) : null}
           </div>
 
           {selectedRoom && (
@@ -400,7 +338,7 @@ export function BookingForm({
             </p>
           ) : null}
 
-          <Button type="submit" className="w-full" disabled={pending || Boolean(selectedClash)}>
+          <Button type="submit" className="w-full" disabled={pending}>
             {pending ? <Loader2 className="animate-spin" /> : <CalendarPlus />}
             {pending ? "Saving…" : "Create booking"}
           </Button>

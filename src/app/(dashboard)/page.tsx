@@ -1,11 +1,10 @@
 import { Suspense } from "react";
 import { createClient } from "@/lib/supabase/server";
 import { colomboDateKey, colomboDaysAgo, colomboToday } from "@/lib/colombo-date";
-import { formatDateTime, formatOrderNumber, formatOverdue } from "@/lib/utils";
-import { getFinanceChannels, getFinanceSummary } from "@/lib/finance/revenue";
+import { formatDateTime, formatOrderNumber } from "@/lib/utils";
 import type { Booking, ChannelType, Expense, Room } from "@/lib/types";
 import { LiveRefresher } from "./live-refresher";
-import { OverviewView, type ActivityItem, type ActivityKind, type OverviewAlert, type OverviewData } from "./overview-view";
+import { OverviewView, type ActivityItem, type ActivityKind, type OverviewData } from "./overview-view";
 import { OverviewSkeleton } from "./overview-skeleton";
 
 export const dynamic = "force-dynamic";
@@ -43,16 +42,10 @@ async function OverviewContent() {
   const supabase = await createClient();
   const today = colomboToday();
   const sinceDate = colomboDaysAgo(13);
-  const dayAgoIso = new Date(Date.now() - 24 * 3600 * 1000).toISOString();
-
-  // Abandoned Rs 0 orders are cleared before counting (migration 042).
-  await supabase.rpc("rpc_purge_empty_orders", { p_min_age_minutes: 30 });
 
   const [
-    boardRes,
-    finance,
-    channelRevenue,
-    settledRes,
+    roomsRes,
+    ordersRes,
     expensesRes,
     logsRes,
     folioRes,
@@ -60,81 +53,118 @@ async function OverviewContent() {
     todayBookingsRes,
     kotRes,
     inventoryRes,
-    staleOrdersRes,
+    checkoutsRes,
   ] = await Promise.all([
-    // Rooms come from the same server-side room board as the room grid
-    // (migration 038) — never silently empty.
-    supabase.rpc("rpc_room_board"),
-    // Revenue/expenses: the shared finance source, same as Daily Summary
-    // and Reports (src/lib/finance/revenue.ts).
-    getFinanceSummary(supabase, sinceDate, today),
-    getFinanceChannels(supabase, sinceDate, today),
-    // Settled bills for the activity feed, at their real settle time.
+    supabase.from("rooms").select("id, status"),
     supabase
       .from("restaurant_orders")
-      .select("order_number, total_amount, channel_type, business_date, settled_at")
-      .eq("order_status", "completed")
-      .not("settled_at", "is", null)
-      .gte("settled_at", `${sinceDate}T00:00:00+05:30`)
-      .order("settled_at", { ascending: false })
-      .limit(10),
+      .select("id, order_number, total_amount, order_status, channel_type, business_date, is_historical")
+      .or("payment_method.neq.complimentary,payment_method.is.null")
+      .gte("business_date", sinceDate),
     supabase
       .from("expenses")
       .select("amount, date, description, category_id, created_at, expense_categories(name)")
-      .gte("date", sinceDate)
-      .order("created_at", { ascending: false })
-      .limit(10),
+      .gte("date", sinceDate),
     supabase.from("system_logs").select("*").order("created_at", { ascending: false }).limit(8),
     supabase.from("bookings").select("total_folio_amount").in("status", ["checked_in"]),
     // Recent check-ins/check-outs for the activity feed (last 13 days)
     supabase
       .from("bookings")
       .select("guest_name, actual_check_in, actual_check_out, status")
-      .or(`actual_check_in.gte.${sinceDate}T00:00:00+05:30,actual_check_out.gte.${sinceDate}T00:00:00+05:30`),
+      .or(`actual_check_in.gte.${sinceDate},actual_check_out.gte.${sinceDate}`),
     // Today's arrivals/departures for the snapshot row
     supabase
       .from("bookings")
       .select("id, actual_check_in, actual_check_out")
-      .or(`actual_check_in.gte.${today}T00:00:00+05:30,actual_check_out.gte.${today}T00:00:00+05:30`),
+      .or(`actual_check_in.gte.${today}T00:00:00,actual_check_out.gte.${today}T00:00:00`),
     supabase
       .from("restaurant_orders")
       .select("id, order_items(is_custom, kot_printed_at)")
       .eq("order_status", "active"),
     supabase.from("inventory_items").select("id, name, quantity_in_stock, reorder_level"),
+    // Room revenue for the chart — checkouts in the window (business_date has
+    // no equivalent on bookings, so actual_check_out is the correct anchor).
     supabase
-      .from("restaurant_orders")
-      .select("id, created_at")
-      .eq("order_status", "active")
-      .lt("created_at", dayAgoIso)
-      .order("created_at"),
+      .from("bookings")
+      .select("id, total_folio_amount, actual_check_out")
+      .eq("status", "checked_out")
+      .or("payment_method.neq.complimentary,payment_method.is.null")
+      .gte("actual_check_out", `${sinceDate}T00:00:00+05:30`),
   ]);
 
-  // ----- Rooms -----
-  const board = (boardRes.data ?? []) as RoomBoardRow[];
-  const roomsError = boardRes.error ? boardRes.error.message : null;
-  const occupied = board.filter((r) => r.status === "occupied").length;
-  const occupancyPct = board.length ? Math.round((occupied / board.length) * 100) : 0;
-  const overdueStays = board
-    .filter((r) => r.booking_id && r.overdue_minutes != null && r.overdue_minutes > 0)
-    .map((r) => ({
-      room: r.room_number,
-      guest: r.guest_name ?? "Guest",
-      overdue: formatOverdue(r.overdue_minutes ?? 0),
-    }));
+  const rooms = (roomsRes.data ?? []) as Pick<Room, "id" | "status">[];
+  const orders = (ordersRes.data ?? []) as {
+    id: string;
+    order_number: number | null;
+    total_amount: number;
+    order_status: string;
+    channel_type: ChannelType;
+    business_date: string;
+    is_historical: boolean;
+  }[];
+  const expenses = (expensesRes.data ?? []) as unknown as (Pick<
+    Expense,
+    "amount" | "date" | "description" | "category_id"
+  > & { created_at: string; expense_categories: { name: string }[] | { name: string } | null })[];
 
-  // ----- Money (shared definition) -----
-  const totals = finance.totals;
-  const days = finance.days.map((d) => ({
-    day: dayLabel(d.day),
-    revenue: d.totalRevenue,
-    expenses: d.expensesOperating,
-  }));
-  const todayRevenue = finance.days[finance.days.length - 1]?.totalRevenue ?? 0;
-  const yesterdayRevenue = finance.days[finance.days.length - 2]?.totalRevenue ?? 0;
-  const revenueDelta = Math.round((todayRevenue - yesterdayRevenue) * 100) / 100;
+  const occupied = rooms.filter((r) => r.status === "occupied").length;
+  const occupancyPct = rooms.length ? Math.round((occupied / rooms.length) * 100) : 0;
 
+  const completed = orders.filter((o) => o.order_status === "completed");
+  const posRevenue = completed.reduce((sum, o) => sum + Number(o.total_amount), 0);
+  const activeOrders = orders.filter((o) => o.order_status === "active").length;
+  const totalExpenses = expenses.reduce((sum, e) => sum + Number(e.amount), 0);
   const folioRows = folioRes.data ?? [];
-  const openFolios = folioRows.reduce((sum, b) => sum + Math.round(Number(b.total_folio_amount) * 100), 0) / 100;
+  const openFolios = folioRows.reduce((sum, b) => sum + Number(b.total_folio_amount), 0);
+
+  // Room revenue for the chart — room-service orders are counted in POS
+  // revenue AND posted onto folios by Trigger B, so subtract them per
+  // booking here (same de-dupe as the P&L report) to avoid double counting.
+  const checkouts = (checkoutsRes.data ?? []) as {
+    id: string;
+    total_folio_amount: number;
+    actual_check_out: string | null;
+  }[];
+  const checkoutIds = checkouts.map((b) => b.id);
+  const roomServiceByBooking = new Map<string, number>();
+  if (checkoutIds.length > 0) {
+    const { data: rsOrders } = await supabase
+      .from("restaurant_orders")
+      .select("booking_id, total_amount")
+      .eq("order_status", "completed")
+      .eq("channel_type", "room_service")
+      .in("booking_id", checkoutIds);
+    for (const o of rsOrders ?? []) {
+      if (!o.booking_id) continue;
+      roomServiceByBooking.set(
+        o.booking_id,
+        (roomServiceByBooking.get(o.booking_id) ?? 0) + Number(o.total_amount)
+      );
+    }
+  }
+  const roomRevenue14d = checkouts.reduce(
+    (sum, b) => sum + Math.max(0, Number(b.total_folio_amount) - (roomServiceByBooking.get(b.id) ?? 0)),
+    0
+  );
+
+  // 14-day total revenue (room + POS) vs expenses series — bucketed by
+  // business_date / actual_check_out so a bill or checkout dated to an
+  // earlier day lands on the right bar, not "today's".
+  const days: { day: string; revenue: number; expenses: number }[] = [];
+  for (let i = 13; i >= 0; i--) {
+    const key = colomboDateKey(Date.now() - i * 86_400_000);
+    const posForDay = completed
+      .filter((o) => o.business_date === key)
+      .reduce((s, o) => s + Number(o.total_amount), 0);
+    const roomForDay = checkouts
+      .filter((b) => b.actual_check_out && colomboDateKey(new Date(b.actual_check_out).getTime()) === key)
+      .reduce((s, b) => s + Math.max(0, Number(b.total_folio_amount) - (roomServiceByBooking.get(b.id) ?? 0)), 0);
+    days.push({
+      day: new Date(`${key}T00:00:00`).toLocaleDateString("en-GB", { day: "2-digit", month: "short" }),
+      revenue: posForDay + roomForDay,
+      expenses: expenses.filter((e) => e.date === key).reduce((s, e) => s + Number(e.amount), 0),
+    });
+  }
 
   // Today's snapshot
   const todayBookings = (todayBookingsRes.data ?? []) as Pick<
@@ -147,13 +177,15 @@ async function OverviewContent() {
   const todayCheckOuts = todayBookings.filter(
     (b) => b.actual_check_out && colomboDateKey(new Date(b.actual_check_out).getTime()) === today
   ).length;
+  const todayRevenue = days[days.length - 1]?.revenue ?? 0;
+  const yesterdayRevenue = days[days.length - 2]?.revenue ?? 0;
+  const revenueDelta = todayRevenue - yesterdayRevenue;
 
   // KOT-pending bill count
   const kotOrders = (kotRes.data ?? []) as {
     id: string;
     order_items: { is_custom: boolean; kot_printed_at: string | null }[];
   }[];
-  const activeOrders = kotOrders.length;
   const kotPendingCount = kotOrders.filter((o) =>
     (o.order_items ?? []).some((i) => !i.is_custom && !i.kot_printed_at)
   ).length;
@@ -167,48 +199,34 @@ async function OverviewContent() {
   }[];
   const lowStockItems = inventory.filter((i) => Number(i.quantity_in_stock) < Number(i.reorder_level));
 
-  // Channel mix (14 days) — historical banquet backfills shown separately.
+  // Channel mix (14 days) — same split as before: historical banquet
+  // backfills are shown separately rather than under "banquet".
   const channels = (["dine_in", "room_service", "takeaway", "delivery", "banquet"] as ChannelType[]).map(
-    (channel) => ({
-      channel,
-      value: channelRevenue[channel]?.revenue ?? 0,
-      count: channelRevenue[channel]?.bills ?? 0,
-    })
+    (channel) => {
+      const channelOrders = completed.filter(
+        (o) => o.channel_type === channel && !(channel === "banquet" && o.is_historical)
+      );
+      return {
+        channel,
+        value: channelOrders.reduce((s, o) => s + Number(o.total_amount), 0),
+        count: channelOrders.length,
+      };
+    }
   );
+  const historicalOrders = completed.filter((o) => o.is_historical);
   const historical = {
-    value: channelRevenue.historical?.revenue ?? 0,
-    count: channelRevenue.historical?.bills ?? 0,
+    value: historicalOrders.reduce((s, o) => s + Number(o.total_amount), 0),
+    count: historicalOrders.length,
   };
 
-  // ----- Warnings -----
-  const staleOrders = (staleOrdersRes.data ?? []) as { id: string; created_at: string }[];
-  const alerts: OverviewAlert[] = [];
-  for (const s of overdueStays) {
-    alerts.push({
-      tone: "red",
-      text: `Room ${s.room} — ${s.guest} is overdue by ${s.overdue} (planned checkout passed)`,
-      href: "/pms/reserve",
-    });
-  }
-  if (staleOrders.length > 0) {
-    alerts.push({
-      tone: "amber",
-      text: `${staleOrders.length} open order${staleOrders.length > 1 ? "s" : ""} older than 24h — oldest opened ${formatDateTime(staleOrders[0]!.created_at)}. Settle or void ${staleOrders.length > 1 ? "them" : "it"}.`,
-      href: "/pos/billing",
-    });
-  }
-
-  // ----- Activity feed — real timestamps (bills at settled_at) -----
+  // Unified activity feed — merge check-ins/outs, settled bills, expenses and
+  // system alerts into one timeline, most recent first, top 10.
   const recentBookings = (recentBookingsRes.data ?? []) as {
     guest_name: string;
     actual_check_in: string | null;
     actual_check_out: string | null;
     status: string;
   }[];
-  const expenses = (expensesRes.data ?? []) as unknown as (Pick<
-    Expense,
-    "amount" | "date" | "description" | "category_id"
-  > & { created_at: string; expense_categories: { name: string }[] | { name: string } | null })[];
 
   const activity: (ActivityItem & { sortAt: string })[] = [];
   for (const b of recentBookings) {
@@ -219,19 +237,13 @@ async function OverviewContent() {
       activity.push({ kind: "check_out", name: b.guest_name, sortAt: b.actual_check_out, at: "" });
     }
   }
-  for (const o of (settledRes.data ?? []) as {
-    order_number: number | null;
-    total_amount: number;
-    channel_type: ChannelType;
-    business_date: string;
-    settled_at: string;
-  }[]) {
+  for (const o of completed) {
     activity.push({
       kind: "bill",
       name: formatOrderNumber(o.business_date, o.order_number),
       channel: o.channel_type,
       amount: Number(o.total_amount),
-      sortAt: o.settled_at,
+      sortAt: o.business_date,
       at: "",
     });
   }
@@ -271,23 +283,18 @@ async function OverviewContent() {
     rangeLabel: `${dayLabel(sinceDate)} – ${dayLabel(today, true)}`,
     todayRevenue,
     revenueDelta,
-    posRevenue: totals.restaurantRevenue,
-    roomRevenue: totals.roomRevenue,
-    totalExpenses: totals.expensesTotal,
-    operatingExpenses: totals.expensesOperating,
-    netProfit: totals.netProfit,
+    posRevenue,
+    roomRevenue: roomRevenue14d,
+    totalExpenses,
     openFolios,
     openFolioCount: folioRows.length,
-    settledBillCount: totals.bills,
+    settledBillCount: completed.length,
     todayCheckIns,
     todayCheckOuts,
     occupied,
-    vacant: board.filter((r) => r.status === "vacant").length,
-    totalRooms: board.length,
+    vacant: rooms.filter((r) => r.status === "vacant").length,
+    totalRooms: rooms.length,
     occupancyPct,
-    roomsError,
-    overdueStays,
-    alerts,
     activeOrders,
     kotPendingCount,
     lowStockCount: lowStockItems.length,
@@ -298,13 +305,4 @@ async function OverviewContent() {
   };
 
   return <OverviewView data={data} />;
-}
-
-interface RoomBoardRow {
-  room_id: string;
-  room_number: string;
-  status: Room["status"];
-  booking_id: string | null;
-  guest_name: string | null;
-  overdue_minutes: number | null;
 }

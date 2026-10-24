@@ -229,8 +229,6 @@ Checkout is blocked while a guest still has an **unsettled room-service bill**. 
 - Adding a dish again *after* its line went to the kitchen creates a **new line**, so the next KOT prints the addition.
 - Billing shows a **KOT sent / KOT pending** badge. Settling a bill with unsent items shows a warning first — press settle again to proceed anyway.
 
-> **Release 1 (go-live, Oct 2026):** after the earlier migrations, run **038 → 044** in order — see [`docs/RELEASE-1.md`](docs/RELEASE-1.md) for the deploy order (migrations before the app).
-
 > **Upgrading an existing database?** Run migrations **001 → 016** in the SQL Editor, in order, each once: `migration-001-kot.sql`, `migration-002-rateplans-hotel.sql`, `migration-003-service-charge.sql`, `migration-004-times-pdf.sql`, `migration-005-categories-recipe-cost.sql`, `migration-006-banquet.sql`, `migration-007-billing-date-sc-flag.sql`, `migration-008-historical-flag.sql`, `migration-009-expense-categories.sql`, `migration-010-guest-id-number.sql`, `migration-011-cash-book.sql`, `migration-012-comp-sc-waiver.sql`, `migration-013-calendar.sql`, `migration-014-expense-division.sql`, `migration-015-credit-accounts.sql`, `migration-016-credit-adjustments.sql` — do **not** re-run the full `schema.sql`. Migration 002 auto-creates a "Full Night" plan per category at the current nightly rate, so pricing keeps working immediately. Fresh installs get everything from `schema.sql` alone.
 
 ## RBAC matrix
