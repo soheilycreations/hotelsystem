@@ -1,7 +1,7 @@
 "use client";
 
 import { useMemo, useState, useTransition } from "react";
-import { AlertTriangle, Beer, ChefHat, ImagePlus, Pencil, Plus, Settings2, Trash2, UtensilsCrossed } from "lucide-react";
+import { AlertTriangle, Archive, ArchiveRestore, Beer, ChefHat, ImagePlus, Pencil, Plus, Settings2, Trash2, UtensilsCrossed } from "lucide-react";
 import { createClient } from "@/lib/supabase/client";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -28,15 +28,15 @@ import {
   TableRow,
 } from "@/components/ui/table";
 import { formatLKR } from "@/lib/utils";
-import type { MenuCategoryRow } from "@/lib/types";
+import { compareMenuItems, type MenuCategoryRow } from "@/lib/types";
 import type { MenuItemWithRecipeCount } from "./page";
 import {
   createMenuCategory,
   createMenuItem,
   deleteMenuCategory,
-  deleteMenuItem,
   renameMenuCategory,
   setMenuCategoryStation,
+  setMenuItemArchived,
   toggleMenuItemAvailability,
   updateMenuItem,
 } from "./actions";
@@ -53,16 +53,20 @@ export function MenuManager({
   const [addOpen, setAddOpen] = useState(false);
   const [categoriesOpen, setCategoriesOpen] = useState(false);
   const [feedback, setFeedback] = useState<string | null>(null);
+  const [showArchived, setShowArchived] = useState(false);
   const [pending, startTransition] = useTransition();
 
+  const archivedCount = useMemo(() => items.filter((i) => i.is_archived).length, [items]);
   const filtered = useMemo(() => {
     const q = query.trim().toLowerCase();
-    if (!q) return items;
-    return items.filter((i) => i.name.toLowerCase().includes(q));
-  }, [items, query]);
+    return items
+      .filter((i) => showArchived || !i.is_archived)
+      .filter((i) => !q || i.name.toLowerCase().includes(q))
+      .sort(compareMenuItems);
+  }, [items, query, showArchived]);
 
   const missingRecipes = useMemo(
-    () => items.filter((i) => i.menu_recipe_ingredients.length === 0).length,
+    () => items.filter((i) => !i.is_archived && i.menu_recipe_ingredients.length === 0).length,
     [items]
   );
 
@@ -77,10 +81,16 @@ export function MenuManager({
     });
   }
 
-  function handleDelete(item: MenuItemWithRecipeCount) {
+  function handleArchive(item: MenuItemWithRecipeCount) {
     startTransition(async () => {
-      const res = await deleteMenuItem(item.id);
-      setFeedback(res.ok ? `${item.name} deleted.` : res.error ?? "Could not delete.");
+      const res = await setMenuItemArchived(item.id, !item.is_archived);
+      setFeedback(
+        res.ok
+          ? item.is_archived
+            ? `${item.name} restored — switch it on to show it on the POS again.`
+            : `${item.name} archived — off the POS; past bills and its recipe are kept.`
+          : res.error ?? "Could not update the item."
+      );
     });
   }
 
@@ -93,6 +103,17 @@ export function MenuManager({
           onChange={(e) => setQuery(e.target.value)}
           className="max-w-xs"
         />
+        {archivedCount > 0 && (
+          <label className="flex items-center gap-2 text-sm text-muted-foreground">
+            <input
+              type="checkbox"
+              checked={showArchived}
+              onChange={(e) => setShowArchived(e.target.checked)}
+              className="h-3.5 w-3.5"
+            />
+            Show archived ({archivedCount})
+          </label>
+        )}
         <div className="ml-auto flex items-center gap-3">
           {missingRecipes > 0 && (
             <Badge variant="warning">
@@ -112,7 +133,7 @@ export function MenuManager({
               itemCountByCategory={Object.fromEntries(
                 categories.map((c) => [
                   c.id,
-                  items.filter((i) => i.category_id === c.id).length,
+                  items.filter((i) => i.category_id === c.id && !i.is_archived).length,
                 ])
               )}
               onFeedback={setFeedback}
@@ -159,7 +180,7 @@ export function MenuManager({
             </TableHeader>
             <TableBody>
               {filtered.map((item) => (
-                <TableRow key={item.id} className={item.is_available ? "" : "opacity-60"}>
+                <TableRow key={item.id} className={item.is_available && !item.is_archived ? "" : "opacity-60"}>
                   <TableCell className="font-medium">
                     <div className="flex items-center gap-2.5">
                       {item.image_url ? (
@@ -170,7 +191,17 @@ export function MenuManager({
                           <UtensilsCrossed className="h-4 w-4 text-muted-foreground" />
                         </span>
                       )}
-                      {item.name}
+                      <div>
+                        {item.name}
+                        {item.is_archived && (
+                          <Badge variant="outline" className="ml-2">
+                            archived
+                          </Badge>
+                        )}
+                        {item.description && (
+                          <p className="text-xs font-normal text-muted-foreground">{item.description}</p>
+                        )}
+                      </div>
                     </div>
                   </TableCell>
                   <TableCell>
@@ -238,12 +269,13 @@ export function MenuManager({
                       <Button
                         size="icon"
                         variant="ghost"
-                        className="h-8 w-8 text-destructive hover:text-destructive"
+                        className="h-8 w-8"
                         disabled={pending}
-                        title="Delete — only possible if it was never ordered"
-                        onClick={() => handleDelete(item)}
+                        title={item.is_archived ? "Restore to the menu lists" : "Archive — off the POS, kept for past bills"}
+                        aria-label={item.is_archived ? `Restore ${item.name}` : `Archive ${item.name}`}
+                        onClick={() => handleArchive(item)}
                       >
-                        <Trash2 className="h-3.5 w-3.5" />
+                        {item.is_archived ? <ArchiveRestore className="h-3.5 w-3.5" /> : <Archive className="h-3.5 w-3.5" />}
                       </Button>
                     </div>
                   </TableCell>
@@ -374,6 +406,28 @@ function MenuItemDialog({
             placeholder="e.g. Kottu Roti — Chicken"
             required
           />
+        </div>
+        <div className="grid grid-cols-[8rem_1fr] gap-3">
+          <div className="space-y-1.5">
+            <Label htmlFor="menu-sort">Position</Label>
+            <Input
+              id="menu-sort"
+              name="sort_order"
+              type="number"
+              min="0"
+              step="1"
+              defaultValue={item?.sort_order ?? 0}
+            />
+          </div>
+          <div className="space-y-1.5">
+            <Label htmlFor="menu-description">Description (optional)</Label>
+            <Input
+              id="menu-description"
+              name="description"
+              defaultValue={item?.description ?? ""}
+              placeholder="e.g. Prawn, fish and cuttlefish"
+            />
+          </div>
         </div>
         <div className="grid grid-cols-2 gap-3">
           <div className="space-y-1.5">

@@ -23,6 +23,8 @@ export default async function PosActivePage() {
       .from("menu_items")
       .select("*, menu_categories(*)")
       .eq("is_available", true)
+      .eq("is_archived", false)
+      .order("sort_order")
       .order("name"),
     supabase
       .from("restaurant_orders")
@@ -57,7 +59,11 @@ export default async function PosActivePage() {
       </div>
       <PosTerminal
         tables={(tablesRes.data ?? []) as RestaurantTable[]}
-        categories={(categoriesRes.data ?? []) as MenuCategoryRow[]}
+        // only categories with something sellable — a category left holding
+        // nothing but archived/switched-off items is not shown as a tab
+        categories={((categoriesRes.data ?? []) as MenuCategoryRow[]).filter((c) =>
+          ((menuRes.data ?? []) as MenuItem[]).some((m) => m.category_id === c.id)
+        )}
         menu={(menuRes.data ?? []) as MenuItem[]}
         orders={(ordersRes.data ?? []) as RestaurantOrder[]}
         guests={(guestsRes.data ?? []) as unknown as Pick<Booking, "id" | "guest_name" | "rooms">[]}
