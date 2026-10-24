@@ -37,8 +37,22 @@ from pathlib import Path
 
 INTERNAL_CATEGORIES = {"function items", "staff menu", "boss site", "buffet", "party", "other"}
 
+# multi-word fixes applied to the lower-cased text before splitting
+PHRASE_MAP = [
+    (r"\bsea\s+food\b", "seafood"),
+    (r"\bchop\s+suey\b", "chopsy"),
+    (r"\bcoca[\s-]*cola\b", "cola"),
+    (r"\bhot\s*but+er\b", "hot butter"),
+    (r"\bnasi\s*goreng\b|\bnasigoreng\b|\bnazi\s+gurang\b", "nasi goreng"),
+]
+
 # canonical spellings / synonyms (after lower-casing)
 WORD_MAP = {
+    "chopcy": "chopsy", "vegitable": "vegetable", "vegitables": "vegetable",
+    "mongoliyan": "mongolian", "noodls": "noodle", "noodle": "noodle",
+    "devield": "devilled", "cuttelfish": "cuttlefish", "chillie": "chilli", "chilly": "chilli",
+    "cryspy": "crispy", "garlik": "garlic", "coffe": "coffee", "youghut": "yoghurt",
+    "mix": "mixed", "omlet": "omelette", "omelate": "omelette",
     "chiken": "chicken", "chickn": "chicken", "chicke": "chicken",
     "batterd": "battered", "baterd": "battered",
     "deviled": "devilled", "devil": "devilled",
@@ -56,8 +70,8 @@ SIZE_WORDS = {
     "small": "s", "sml": "s", "s": "s",
     "medium": "m", "med": "m", "m": "m",
     "large": "l", "lrg": "l", "l": "l",
-    "regular": "r", "reg": "r",
-    "full": "full", "half": "half", "quarter": "quarter",
+    "regular": "m", "reguler": "m", "reg": "m",   # kottu "Reguler" = medium
+    "full": "l",                                  # kottu/rice "( Full )" = large "half": "half", "quarter": "quarter",
     "single": "single", "double": "double",
 }
 TAKEAWAY_RE = re.compile(r"[-–(\s]*take\s*-?\s*away\s*\)?\s*$", re.I)
@@ -70,7 +84,9 @@ def clean(s):
 
 def display_name(name, size):
     name, size = clean(name), clean(size)
-    return f"{name} ({size})" if size else name
+    if not size or name.lower().endswith(f"({size.lower()})"):
+        return name  # the CSV name may already carry the size
+    return f"{name} ({size})"
 
 
 def tokens(text):
@@ -84,6 +100,8 @@ def tokens(text):
     t = re.sub(r"(\d+(?:\.\d+)?)\s*(l|ltr|litre|liter|lt)\b", r"\1l ", t)
     t = re.sub(r"(\d+(?:\.\d+)?)\s*(ml)\b", r"\1ml ", t)
     t = t.replace("&", " and ")
+    for pat, rep_ in PHRASE_MAP:
+        t = re.sub(pat, rep_, t)
     raw = re.findall(r"[a-z0-9.]+", t)
     words, sizes = [], []
     for w in raw:
@@ -233,8 +251,12 @@ def main():
             if o["takeaway"]:
                 s = round(s * 0.97, 3)
             if s >= 0.6:
-                pairs.append((s, ni, o["id"]))
+                gap = abs((n["price"] or 0) - (o["price"] or 0)) if n["price"] and o["price"] else 1e9
+                pairs.append((s, -gap, ni, o["id"]))
+    # best score first; equal scores (e.g. an unsized old item vs the M and L
+    # versions) go to the new item with the closest price
     pairs.sort(reverse=True)
+    pairs = [(s, ni, oid) for s, _gap, ni, oid in pairs]
 
     # each old item belongs to the new item it matches best
     owner = {}
@@ -260,20 +282,37 @@ def main():
         if forced.get(ni) == "-":
             cands = []
         # keeper: recipe links, then sales, then not-takeaway, then match score
-        cands.sort(key=lambda c: (old_by_id[c[0]]["recipe_lines"] > 0, old_by_id[c[0]]["sold_qty"],
-                                  not old_by_id[c[0]]["takeaway"], c[1]), reverse=True)
+        def closeness(oid):
+            op = old_by_id[oid]["price"]
+            return -abs((n["price"] or 0) - (op or 0)) if n["price"] is not None and op is not None else -1e9
+        # only near-best name matches compete for keeper; among those: recipe
+        # links, then sales, then not-takeaway, then score, then price
+        if cands:
+            best = max(c[1] for c in cands)
+            top = [c for c in cands if c[1] >= best - 0.1]
+            rest = [c for c in cands if c[1] < best - 0.1]
+            top.sort(key=lambda c: (old_by_id[c[0]]["recipe_lines"] > 0, old_by_id[c[0]]["sold_qty"],
+                                    not old_by_id[c[0]]["takeaway"], c[1], closeness(c[0])), reverse=True)
+            cands = top + sorted(rest, key=lambda c: c[1], reverse=True)
+            if forced.get(ni) in old_by_id:  # a manual match always keeps the item
+                cands.sort(key=lambda c: c[0] != forced[ni])
         base = {"new_category": n["category"], "new_name": n["name"],
                 "new_price": "" if n["price"] is None else f"{n['price']:.2f}",
                 "new_visible": "yes" if n["visible"] else "HIDDEN (price TBD)" if "tbd" in n["active_raw"].lower() else "HIDDEN",
                 "new_key": n["key"]}
         if not cands:
-            review.append({**base, "action": "NEW", "confidence": "", "score": ""})
+            review.append({**base, "action": "NEW", "confidence": "MANUAL" if forced.get(ni) == "-" else "",
+                           "score": "", "note": "set to NEW by hand (menu_overrides.csv)" if forced.get(ni) == "-" else ""})
             plan_items.append({**n, "action": "NEW", "old_id": None})
             continue
         keep_id, keep_s = cands[0]
         o = old_by_id[keep_id]
         kept.add(keep_id)
         conf = "high" if keep_s >= 0.85 else "CHECK" if keep_s >= 0.7 else "LOW — CHECK"
+        if bool(tokens(n["name"])[1]) != bool(tokens(o["name"])[1]) and conf == "high":
+            conf = "CHECK (size)"
+        if forced.get(ni) == keep_id:
+            conf = "MANUAL"
         price_change = ""
         if n["price"] is not None and o["price"] is not None and n["price"] != o["price"]:
             price_change = f"{n['price'] - o['price']:+.2f}"
@@ -285,6 +324,8 @@ def main():
         plan_items.append({**n, "action": "MATCH", "old_id": keep_id})
         for dup_id, dup_s in cands[1:]:
             d = old_by_id[dup_id]
+            if dup_s < 0.85 or tokens(d["name"])[1] != tokens(n["name"])[1]:
+                continue  # not really the same item — reported below as "not in new menu"
             review.append({"action": "HIDE (duplicate)", "confidence": "high" if dup_s >= 0.85 else "CHECK",
                            "score": dup_s, "new_category": n["category"], "new_name": f"↳ duplicate of {n['name']}",
                            "new_key": n["key"], "old_item_id": dup_id, "old_category": d["category"],
@@ -298,7 +339,9 @@ def main():
     for o in sorted(olds, key=lambda x: (x["category"], x["name"])):
         if o["id"] in kept:
             continue
-        review.append({"action": "HIDE (not in new menu)", "old_item_id": o["id"], "old_category": o["category"],
+        review.append({"action": "HIDE (not in new menu)",
+                       "confidence": f"SOLD {o['sold_qty']} — check" if o["sold_qty"] >= 5 else "",
+                       "old_item_id": o["id"], "old_category": o["category"],
                        "old_name": o["name"], "old_price": o["price"], "recipe_lines": o["recipe_lines"],
                        "sold_qty": o["sold_qty"],
                        "note": "takeaway duplicate" if o["takeaway"] else
