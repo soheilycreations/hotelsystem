@@ -42,7 +42,6 @@ export function RoomGrid({
   const [selected, setSelected] = useState<Room | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [pending, startTransition] = useTransition();
-  const inHouse = selected ? Boolean(bookingByRoom[selected.id]) : false;
 
   const changeStatus = (status: RoomStatus) => {
     if (!selected) return;
@@ -132,25 +131,17 @@ export function RoomGrid({
             </div>
           ) : null}
 
-          {selected && bookingByRoom[selected.id] ? (
-            <p className="rounded-md bg-muted px-3 py-2 text-xs text-muted-foreground">
-              A guest is staying in this room, so it stays <strong>occupied</strong>. Daily cleaning
-              doesn&apos;t change that — check the guest out on the Bookings screen and the room flips to
-              dirty automatically.
-            </p>
-          ) : null}
-
           <div className="grid grid-cols-2 gap-2">
             <Button
               variant="outline"
-              disabled={pending || selected?.status === "vacant" || inHouse}
+              disabled={pending || selected?.status === "vacant"}
               onClick={() => changeStatus("vacant")}
             >
               {pending ? <Loader2 className="animate-spin" /> : <Brush />} Mark cleaned
             </Button>
             <Button
               variant="outline"
-              disabled={pending || selected?.status === "maintenance" || inHouse}
+              disabled={pending || selected?.status === "maintenance"}
               onClick={() => changeStatus("maintenance")}
             >
               <Wrench /> Maintenance
@@ -158,7 +149,7 @@ export function RoomGrid({
             <Button
               variant="outline"
               className="col-span-2"
-              disabled={pending || selected?.status === "dirty" || inHouse}
+              disabled={pending || selected?.status === "dirty"}
               onClick={() => changeStatus("dirty")}
             >
               Flag for housekeeping

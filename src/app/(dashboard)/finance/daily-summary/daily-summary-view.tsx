@@ -119,10 +119,7 @@ export function DailySummaryView({
   const restaurantBalance = posTotal - restaurantExpenses;
 
   const nonCashPosTotal =
-    (posRevenueByMethod.card ?? 0) +
-    (posRevenueByMethod.bank_transfer ?? 0) +
-    (posRevenueByMethod.credit ?? 0) +
-    (posRevenueByMethod.room ?? 0); // posted to a guest folio — paid at checkout
+    (posRevenueByMethod.card ?? 0) + (posRevenueByMethod.bank_transfer ?? 0) + (posRevenueByMethod.credit ?? 0);
 
   const expenseTotalsByMethod = expenses.reduce((acc, e) => {
     acc[e.paymentMethod] = (acc[e.paymentMethod] ?? 0) + e.amount;
@@ -333,10 +330,7 @@ export function DailySummaryView({
           actually came in today" is one glance instead of adding up rows. */}
       <Card>
         <CardHeader>
-          <CardTitle className="text-base">{t("Money received by payment method")}</CardTitle>
-          <p className="text-xs text-muted-foreground">
-            {t("Includes advance payments taken today; bills charged to a room folio are paid at checkout.")}
-          </p>
+          <CardTitle className="text-base">{t("Revenue by payment method")}</CardTitle>
         </CardHeader>
         <CardContent className="flex flex-wrap gap-x-6 gap-y-2">
           {(Object.keys(PAYMENT_LABEL) as PaymentMethod[])

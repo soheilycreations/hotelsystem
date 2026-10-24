@@ -1,7 +1,6 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
-import { formatOrderNumber } from "@/lib/utils";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
 import type { ChannelType, DeliveryStatus, PaymentMethod } from "@/lib/types";
 import { colomboToday } from "@/lib/colombo-date";
@@ -11,8 +10,6 @@ interface ActionResult {
   error?: string;
   orderId?: string;
   orderNumber?: number;
-  /** "20261019-001" — the bill number issued at settle */
-  billLabel?: string;
 }
 
 const POS_ROLES = ["admin", "manager", "cashier"];
@@ -33,6 +30,26 @@ function revalidatePos(): void {
   revalidatePath("/pos/active");
   revalidatePath("/pos/billing");
   revalidatePath("/pms/reserve");
+}
+
+/**
+ * Lazily assigns this order's bill number the first time it's actually
+ * needed — a bill is printed, or the order is settled — never at insert
+ * time, so a table opened and abandoned never burns a number and leaves a
+ * gap in the visible sequence. Safe to call repeatedly: a number already
+ * assigned is just returned as-is.
+ */
+export async function ensureOrderNumber(orderId: string): Promise<ActionResult> {
+  try {
+    await assertRole(POS_ROLES);
+    const supabase = await createClient();
+    const { data, error } = await supabase.rpc("rpc_ensure_order_number", { p_order_id: orderId });
+    if (error) return { ok: false, error: error.message };
+    revalidatePos();
+    return { ok: true, orderNumber: data as number };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
 }
 
 export interface OpenOrderInput {
@@ -76,8 +93,12 @@ export async function openOrder(input: OpenOrderInput): Promise<ActionResult> {
 
     if (error || !data) return { ok: false, error: error?.message ?? "Could not open the order." };
 
-    // The table turns occupied when the first item is added, not now — an
-    // empty order mustn't colour the table (trigger in migration 042).
+    if (input.tableId) {
+      await supabase
+        .from("restaurant_tables")
+        .update({ current_status: "occupied" })
+        .eq("id", input.tableId);
+    }
 
     revalidatePos();
     return { ok: true, orderId: data.id };
@@ -198,6 +219,28 @@ export async function setOrderItemQuantity(
     }
 
     revalidatePos();
+    return { ok: true };
+  } catch (e) {
+    return { ok: false, error: e instanceof Error ? e.message : "Failed" };
+  }
+}
+
+export async function setOrderBusinessDate(orderId: string, date: string): Promise<ActionResult> {
+  try {
+    await assertRole(POS_ROLES);
+    if (!/^\d{4}-\d{2}-\d{2}$/.test(date))
+      return { ok: false, error: "Pick a valid date." };
+
+    const supabase = await createClient();
+    const { error } = await supabase
+      .from("restaurant_orders")
+      .update({ business_date: date })
+      .eq("id", orderId);
+    if (error) return { ok: false, error: error.message };
+
+    revalidatePos();
+    revalidatePath("/finance/reports");
+    revalidatePath("/finance/daily-summary");
     return { ok: true };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
@@ -416,9 +459,7 @@ export async function settleOrder(
   orderId: string,
   paymentMethod?: PaymentMethod,
   serviceChargeWaived = false,
-  creditAccountId?: string,
-  /** "Charge to room": post this bill to an in-house guest's folio */
-  chargeToBookingId?: string
+  creditAccountId?: string
 ): Promise<ActionResult> {
   try {
     const profile = await assertRole(POS_ROLES);
@@ -443,26 +484,14 @@ export async function settleOrder(
     // isn't actually paid yet — the real payment method is chosen later at
     // checkout — so it's left null here rather than silently defaulting to
     // "cash", which would mislabel it.
-    // settled_at, settled_by, business_date and the bill number are all
-    // stamped by the database at settle time (migration 041).
     let patch: Record<string, unknown> = {
       order_status: "completed",
+      settled_at: new Date().toISOString(),
       settled_by: profile.id,
       service_charge_waived: serviceChargeWaived,
     };
-    if (chargeToBookingId) {
-      // Goes on the guest folio and is paid at checkout — the database
-      // clears any payment method and checks the guest is in house (042).
-      const { data: guest } = await supabase
-        .from("bookings")
-        .select("id, status")
-        .eq("id", chargeToBookingId)
-        .single();
-      if (!guest || guest.status !== "checked_in")
-        return { ok: false, error: "That guest is not checked in — pick another payment method." };
-      patch.booking_id = chargeToBookingId;
-    } else if (paymentMethod) patch.payment_method = paymentMethod;
-    if (!chargeToBookingId && paymentMethod === "credit") {
+    if (paymentMethod) patch.payment_method = paymentMethod;
+    if (paymentMethod === "credit") {
       if (!creditAccountId) return { ok: false, error: "Pick a credit account." };
       patch.credit_account_id = creditAccountId;
     }
@@ -476,20 +505,19 @@ export async function settleOrder(
       patch = { ...patch, subtotal, service_charge: 0, total_amount: subtotal };
     }
 
-    const { data: settled, error } = await supabase
-      .from("restaurant_orders")
-      .update(patch)
-      .eq("id", orderId)
-      .select("order_number, business_date")
-      .single();
+    // Settling is one of the two moments a bill number gets assigned (the
+    // other is printing) — do this before the status flip so Trigger B's
+    // folio-post log line reads the real number, not null.
+    const { data: orderNumber, error: numError } = await supabase.rpc("rpc_ensure_order_number", {
+      p_order_id: orderId,
+    });
+    if (numError) return { ok: false, error: numError.message };
+
+    const { error } = await supabase.from("restaurant_orders").update(patch).eq("id", orderId);
     if (error) return { ok: false, error: error.message };
 
     revalidatePath("/", "layout");
-    return {
-      ok: true,
-      orderNumber: settled.order_number as number,
-      billLabel: formatOrderNumber(settled.business_date as string, settled.order_number as number),
-    };
+    return { ok: true, orderNumber: orderNumber as number };
   } catch (e) {
     return { ok: false, error: e instanceof Error ? e.message : "Failed" };
   }

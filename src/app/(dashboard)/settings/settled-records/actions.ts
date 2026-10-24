@@ -9,20 +9,11 @@ interface ActionResult {
   error?: string;
 }
 
-/** Admin only, with a reason. The reason is registered in the database
- * first (rpc_set_audit_reason) — the settled-record guard refuses the edit
- * without it, and every audit_log row the edit produces carries it. */
-async function assertAdmin(reason: string) {
+async function assertAdmin() {
   const profile = await getSessionProfile();
   if (!profile || profile.role !== "admin") {
     throw new Error("Only an admin can edit a settled record.");
   }
-  if (reason.trim().length < 5) {
-    throw new Error("Enter a reason for this change first (top of the page).");
-  }
-  const supabase = await createClient();
-  const { error } = await supabase.rpc("rpc_set_audit_reason", { p_reason: reason.trim() });
-  if (error) throw new Error(error.message);
   return profile;
 }
 
@@ -45,9 +36,9 @@ export interface UpdateOrderInput {
   serviceCharge: number;
 }
 
-export async function updateSettledOrder(input: UpdateOrderInput, reason: string): Promise<ActionResult> {
+export async function updateSettledOrder(input: UpdateOrderInput): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
 
     if (input.paymentMethod === "credit" && !input.creditAccountId)
       return { ok: false, error: "Pick a credit account." };
@@ -85,9 +76,9 @@ export interface UpdateBookingInput {
   totalFolioAmount: number;
 }
 
-export async function updateSettledBooking(input: UpdateBookingInput, reason: string): Promise<ActionResult> {
+export async function updateSettledBooking(input: UpdateBookingInput): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
 
     if (input.paymentMethod === "credit" && !input.creditAccountId)
       return { ok: false, error: "Pick a credit account." };
@@ -123,11 +114,10 @@ export async function updateSettledBooking(input: UpdateBookingInput, reason: st
 
 export async function updateSettledOrderItemQuantity(
   itemId: string,
-  quantity: number,
-  reason: string
+  quantity: number
 ): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
     if (!Number.isInteger(quantity) || quantity < 1)
       return { ok: false, error: "Quantity must be at least 1." };
 
@@ -142,9 +132,9 @@ export async function updateSettledOrderItemQuantity(
   }
 }
 
-export async function deleteSettledOrderItem(itemId: string, reason: string): Promise<ActionResult> {
+export async function deleteSettledOrderItem(itemId: string): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
     const supabase = await createClient();
 
     // Refuse to delete the last remaining item — a settled bill with zero
@@ -181,9 +171,9 @@ export interface AddSettledOrderItemInput {
   serviceChargeable: boolean;
 }
 
-export async function addSettledOrderItem(input: AddSettledOrderItemInput, reason: string): Promise<ActionResult> {
+export async function addSettledOrderItem(input: AddSettledOrderItemInput): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
     const description = input.description.trim();
     if (!description) return { ok: false, error: "Describe the item." };
     if (!Number.isFinite(input.amount) || input.amount <= 0)
@@ -215,11 +205,10 @@ export interface AddSettledOrderItemFromMenuInput {
 }
 
 export async function addSettledOrderItemFromMenu(
-  input: AddSettledOrderItemFromMenuInput,
-  reason: string
+  input: AddSettledOrderItemFromMenuInput
 ): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
     if (!Number.isInteger(input.quantity) || input.quantity < 1)
       return { ok: false, error: "Quantity must be at least 1." };
 
@@ -262,9 +251,9 @@ export interface AddSettledBookingChargeInput {
   amount: number;
 }
 
-export async function addSettledBookingCharge(input: AddSettledBookingChargeInput, reason: string): Promise<ActionResult> {
+export async function addSettledBookingCharge(input: AddSettledBookingChargeInput): Promise<ActionResult> {
   try {
-    const profile = await assertAdmin(reason);
+    const profile = await assertAdmin();
     const description = input.description.trim();
     if (!description) return { ok: false, error: "Describe the charge." };
     if (!Number.isFinite(input.amount) || input.amount <= 0)
@@ -294,11 +283,10 @@ export interface UpdateSettledBookingChargeInput {
 }
 
 export async function updateSettledBookingCharge(
-  input: UpdateSettledBookingChargeInput,
-  reason: string
+  input: UpdateSettledBookingChargeInput
 ): Promise<ActionResult> {
   try {
-    const profile = await assertAdmin(reason);
+    const profile = await assertAdmin();
     const description = input.description.trim();
     if (!description) return { ok: false, error: "Describe the charge." };
     if (!Number.isFinite(input.amount) || input.amount <= 0)
@@ -329,9 +317,9 @@ export async function updateSettledBookingCharge(
  * the checkout-only fields (actual_check_out, payment_method,
  * credit_account_id) since nothing was really settled. Deliberately leaves
  * actual_check_in untouched — the guest never actually left. */
-export async function reopenCheckedOutBooking(bookingId: string, reason: string): Promise<ActionResult> {
+export async function reopenCheckedOutBooking(bookingId: string): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
 
     const supabase = await createClient();
     const { error } = await supabase
@@ -353,9 +341,9 @@ export async function reopenCheckedOutBooking(bookingId: string, reason: string)
   }
 }
 
-export async function deleteSettledBookingCharge(chargeId: string, reason: string): Promise<ActionResult> {
+export async function deleteSettledBookingCharge(chargeId: string): Promise<ActionResult> {
   try {
-    await assertAdmin(reason);
+    await assertAdmin();
     const supabase = await createClient();
     const { error } = await supabase.from("booking_charges").delete().eq("id", chargeId);
     if (error) return { ok: false, error: error.message };

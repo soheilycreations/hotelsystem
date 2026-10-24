@@ -1,6 +1,4 @@
-import Link from "next/link";
 import { createClient, getSessionProfile } from "@/lib/supabase/server";
-import { Button } from "@/components/ui/button";
 import type { InventoryItem } from "@/lib/types";
 import { LiveRefresher } from "../live-refresher";
 import { InventoryTable } from "./inventory-table";
@@ -21,18 +19,11 @@ export default async function InventoryPage() {
   return (
     <div className="space-y-6">
       <LiveRefresher tables={["inventory_items", "system_logs"]} />
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
-          <p className="text-sm text-muted-foreground">
-            Live stock levels — recipe deductions from completed orders appear here in real time.
-          </p>
-        </div>
-        {canManage ? (
-          <Button asChild variant="outline">
-            <Link href="/inventory/opening-stock">Opening stock count</Link>
-          </Button>
-        ) : null}
+      <div>
+        <h1 className="text-2xl font-semibold tracking-tight">Inventory</h1>
+        <p className="text-sm text-muted-foreground">
+          Live stock levels — recipe deductions from completed orders appear here in real time.
+        </p>
       </div>
       <InventoryTable items={(items as InventoryItem[] | null) ?? []} canManage={canManage} />
     </div>
